@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-05 ~22:50 GMT, by `zeo-rescue`, held at ending B of line 2, with the council return integrated on a branch.
+Last updated: 2026-11-05 ~23:15 GMT, by `zeo-rescue`, held for the Architect, at the snapshot fix.
 
 ## Do next, in this order
 
@@ -10,7 +10,38 @@ Last updated: 2026-11-05 ~22:50 GMT, by `zeo-rescue`, held at ending B of line 2
 
 **2. The reseat (urgent), CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**22:50 GMT: the council's return is integrated on a branch, and not in use.** Branch `zeo-rescue/council-integration-20261105`, tip `0daced5`, local only; start at `council/INTEGRATION.md` there. Baseline `af45115`. The Architect has not read it, so its pins are deliberately stale and its runner refuses. **This checkout stays as it is, and the lines cleared at `10f408f` still verify.** Nothing is installed, and no seat was started or stopped. As delivered the candidate left all 49 seats unresolved and neither rescuer could start on bash 3.2; both are fixed there. The next decision is the operator's or the Architect's: rerun line 2 from this checkout, which is what the Architect's ending-B ruling held. `dreamhuggers-expenses-maintainer`'s sleep ran out, so its session is gone: the line now reads `to resume 1, to reseat 0, resumed 1`. Taking the integration into use needs the Architect's read, then new pins and new operator lines.
+**23:15 GMT: READ THIS FIRST. Line 2 must not run until the Architect has read this block.** Their order: do not run line 2; fix the snapshot grep; smallest change on the cleared line, pins updated, separate from the integration branch; hashes here; do not push the branch.
+
+*Correction.* zeo-rescue's report and the 22:50 block below were wrong. A real Codex resume **did** run, at 21:54 (`reseat-lines-proof-20261105-215422.log`). The seat came up right: snapshot `01a16ed4-...1793915665310966000.sh` has git on, `master` and its own identity at lines 13885, 13928 and 13929. The proof then false-stopped on the loader function's `export GIT_ALLOW_PROTOCOL=file` at line 13585, and `unseat` killed the session. That is why it is gone; its sleep did not run out. zeo-rescue said otherwise without reading the log, and recommended a rerun that would have stopped the same way. Line 3 would have stranded the org. The seat started its turn at 21:54:27 and made no tool call, so it left nothing half-done. The Architect found this.
+
+*The fix, `dfa5121`.* Five greps gain `^export `, so they read only top-level exports. Line 217 is the Architect's finding. **Lines 196, 210, 214 and 216 go beyond it:** they read the same snapshot with the same flaw, and could pass on text inside a function. Each is one token. Say if you want them out. `rescue-test.sh` gains five checks on snapshots that contain the loader.
+
+*Evidence.* The real 21:54 snapshot through the real `prove_codex`: `STOPPED` before the fix, `FIRST SEAT OK ...: own identity, marker master, git on` after. A real snapshot of a seat started wrong (`dt-clipping-maintainer`) still stops. The anchored pattern says git on for 26 of 26 pre-fault `master` snapshots and off for all 34 seats started wrong. `make test`: 124 checks pass. Removing the anchor from the git line fails 3 of them.
+
+| File | sha256 |
+|---|---|
+| `rescue.sh` (changed) | `f4a3639a1d210624eb0a6d241e562ca04d1688b55f49d4fd1bc87b60a09cbe0f` |
+| `reseat-lines.sh` (changed; each line pins it) | `e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12` |
+
+The other pins are unchanged. The three lines and the hash table in section 2 below carry these values. `./reseat-lines.sh verify` passes.
+
+*Line 2 now.* The seat is dead, so it reads `RESUME`, not `RESEAT`, and a rerun cuts nothing. Expect, ending:
+
+```
+work: 0 of 0 seats show running work
+DAEMON LEFT: 34 Codex seats are still attached to pids 15515 16463 28371
+RESUMED dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
+FIRST SEAT OK dreamhuggers-expenses-maintainer: own identity, marker master, git on
+rescue: live 0, ok 0, running 0, to resume 1, to reseat 0, resumed 1, unresolved 0, failed 0
+OK dreamhuggers-expenses-maintainer (codex)
+check: ok 1, wrong 0
+```
+
+Line 3's expected output below is unchanged. *Still unproved:* a Codex seat through to a passing `make check`, and any real tool call in a seat with git on.
+
+*Integration branch.* Not changed in code and not pushed. It has the same flaw at its lines 202 and 206, and needs this fix before it is used. Its own line 206 is the Architect's second finding: it requires `file` to appear, which the loader function always satisfies.
+
+**22:50 GMT: the council's return is integrated on a branch, and not in use.** Branch `zeo-rescue/council-integration-20261105`, tip `0daced5`, local only; start at `council/INTEGRATION.md` there. Baseline `af45115`. The Architect has not read it, so its pins are deliberately stale and its runner refuses. **This checkout stays as it is, and the lines cleared at `10f408f` still verify.** Nothing is installed, and no seat was started or stopped. As delivered the candidate left all 49 seats unresolved and neither rescuer could start on bash 3.2; both are fixed there. The next decision is the operator's or the Architect's: held; see the 23:15 block. (Corrected at 23:15: the session went at 21:54, when the proof false-stopped. See above.) Taking the integration into use needs the Architect's read, then new pins and new operator lines.
 
 **15:40 GMT: with the external council, by the operator's decision.** The Architect is busy, so the operator is sending this to the external council instead of waiting. The packet is `council/README.md`, on the public branch `zeo-rescue/council-review-20261105`. The next step is still undecided: line 2 is not rerun and line 3 is not run until the operator says so. Fixes come back as a branch or patch, are not merged or run on arrival, and a change to a pinned file still means new pins and the Architect's read. New gap, in the packet: the `WORK` busy check is unproven on Codex panes, so `work: 0` on a Codex seat is weak evidence.
 
@@ -47,8 +78,8 @@ Hashes are SHA-256. The runner at `7137a3f`:
 
 | File | sha256 |
 |---|---|
-| `reseat-lines.sh` (pinned by each line) | `307cee5480abaa0918d6ef8b967530d0b736c34fbb3adb1d69a238440057d82c` |
-| `rescue.sh` (pinned by the runner) | `5f5e995d48b85c107915693cc65713b2abba7a33d1dd1699f44ecb5eb1eac3f3` |
+| `reseat-lines.sh` (pinned by each line) | `e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12` |
+| `rescue.sh` (pinned by the runner) | `f4a3639a1d210624eb0a6d241e562ca04d1688b55f49d4fd1bc87b60a09cbe0f` |
 | `seat-exec.sh` (pinned by the runner) | `004d9255cd6475a3d252855ed00a46bdb5c3ee5fd8d79c64f7d03d2f1a48e159` |
 | `Makefile` (pinned by the runner) | `141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871` |
 | `session-pins` (pinned by the runner) | `6d2ea61a03a67aa954709939aa6cd5e4e71d1286e72116114eb5c37b5967fda2` |
@@ -58,7 +89,7 @@ Hashes are SHA-256. The runner at `7137a3f`:
 **Line 1: resume `zeoarchitect`.** A dead seat, with its own note. A minute or two.
 
 ```
-if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "307cee5480abaa0918d6ef8b967530d0b736c34fbb3adb1d69a238440057d82c" ]; then ./reseat-lines.sh zeoarchitect; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12" ]; then ./reseat-lines.sh zeoarchitect; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
 ```
 
 Expect, ending:
@@ -76,7 +107,7 @@ Any `STOPPED:` or `WRONG`: stop there. Only `zeoarchitect` is affected, and it g
 **Line 2: one Codex seat, beside the daemon.** About two minutes.
 
 ```
-if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "307cee5480abaa0918d6ef8b967530d0b736c34fbb3adb1d69a238440057d82c" ]; then ./reseat-lines.sh proof; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12" ]; then ./reseat-lines.sh proof; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
 ```
 
 Expect one of three endings.
@@ -109,7 +140,7 @@ RECOVERY: 1 seats are down, counting the one that failed. ...
 **Line 3: every other seat.** About 18 minutes. All harnesses stop, then the daemon, then seats start 20 seconds apart. In-flight turns are cut.
 
 ```
-if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "307cee5480abaa0918d6ef8b967530d0b736c34fbb3adb1d69a238440057d82c" ]; then ./reseat-lines.sh all; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12" ]; then ./reseat-lines.sh all; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
 ```
 
 Expect `WORK` lines and a `work:` count, then, ending:
