@@ -173,6 +173,22 @@ grep -q 'STOPPED: cl did not get its own identity' <<< "$(R --apply --seat cl 2>
 reset_live; printf 'ZEO_TMUX_SEAT=inactive ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=file HOME=/x' > "$T/psE.out"
 grep -q 'STOPPED: cl lacks marker master' <<< "$(R --apply --seat cl 2>&1)" && ok "a claude seat without its marker stops the run" || bad "claude marker gate"
 
+echo "-- the proof reads top-level exports only: a real snapshot also stores the loader's functions"
+loader='zeo-seat-load () {\n\tif [ -z "$m" ]\n\tthen\n\t\texport GIT_ALLOW_PROTOCOL=file \n\t\texport ZEO_TMUX_SEAT=inactive \n\tfi\n}\n'
+snap() { reset_live; printf "$loader$1" > "$T/snapwrite"; R --apply --seat cx 2>&1; }
+out=$(snap 'export GIT_ALLOW_PROTOCOL=ssh:https:file\nexport ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=cx\n')
+echo "$out" | grep -q 'FIRST SEAT OK cx: own identity, marker master, git on' && ok "git on at top level passes, though the loader function says file" || bad "loader false stop: $out"
+out=$(snap 'export GIT_ALLOW_PROTOCOL=file\nexport ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=cx\n')
+echo "$out" | grep -q 'STOPPED: cx still has network git off' && ok "git off at top level still stops" || bad "git off passed: $out"
+loader='zeo-seat-load () {\n\t\texport ZEO_TMUX_SEAT=master \n\t\texport ZMAIL_INSTANCE=cx \n}\n'
+out=$(snap 'export GIT_ALLOW_PROTOCOL=ssh:https:file\nexport ZEO_TMUX_SEAT=inactive\nexport ZMAIL_INSTANCE=cx\n')
+echo "$out" | grep -q 'STOPPED: cx lacks marker master' && ok "a marker only inside a function does not pass" || bad "marker: $out"
+out=$(snap 'export GIT_ALLOW_PROTOCOL=ssh:https:file\nexport ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=dt-hud-editor\n')
+echo "$out" | grep -q 'STOPPED: cx did not get its own identity' && ok "an identity only inside a function does not pass" || bad "identity: $out"
+out=$(snap "export GIT_ALLOW_PROTOCOL='ssh:https:file'\nexport ZEO_TMUX_SEAT='master'\nexport ZMAIL_INSTANCE='cx'\n")
+echo "$out" | grep -q 'FIRST SEAT OK cx' && ok "a quoted top-level value still passes" || bad "quoted: $out"
+reset_live; rm -f "$T/snapwrite"
+
 echo "-- reseating a live seat"
 reset_live
 printf 'export ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=cx\nexport GIT_ALLOW_PROTOCOL=ssh:https:file\n' > "$T/snapwrite"

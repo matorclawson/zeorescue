@@ -193,7 +193,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
     sid=$(printf '%s\n' "$line" | grep -o -E '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
     snap=$(ls -t "$SNAPSHOTS/$sid".* 2>/dev/null | head -1)
     if [ -z "$snap" ]; then why="${why:+$why; }no snapshot"
-    else grep -q "ZMAIL_INSTANCE=.\{0,1\}$1.\{0,1\}\$" "$snap" || why="${why:+$why; }snapshot has another identity"; fi
+    else grep -q "^export ZMAIL_INSTANCE=.\{0,1\}$1.\{0,1\}\$" "$snap" || why="${why:+$why; }snapshot has another identity"; fi
   else
     env=$("$PS_BIN" -Ewwp "$pid" -o command= 2>/dev/null)
     case "$env" in *"ZMAIL_INSTANCE=$1 "*|*"ZMAIL_INSTANCE=$1") ;; *) why="${why:+$why; }environment has another identity";; esac
@@ -207,14 +207,14 @@ prove_codex() { # the first Codex seat must show the loader worked before any ot
   for ((i = 0; i < PROOF_TRIES; i++)); do
     snap=$(find "$SNAPSHOTS" -name "$sid.*" -newer "$pf" 2>/dev/null | head -1)
     # a snapshot exists before it is written, so judge it only once it holds an identity
-    if [ -n "$snap" ] && grep -q 'ZMAIL_INSTANCE=' "$snap"; then break; fi
+    if [ -n "$snap" ] && grep -q '^export ZMAIL_INSTANCE=' "$snap"; then break; fi
     pause "$PROOF_PAUSE"
   done
   [ -n "$snap" ] || { echo "STOPPED: no shell snapshot for $seat; no other seat was started"; return 1; }
-  grep -q "ZMAIL_INSTANCE=.\{0,1\}$seat.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat did not get its own identity; no other seat was started"; return 1; }
+  grep -q "^export ZMAIL_INSTANCE=.\{0,1\}$seat.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat did not get its own identity; no other seat was started"; return 1; }
   if [ -n "$mark" ]; then
-    grep -q "ZEO_TMUX_SEAT=.\{0,1\}$mark.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1; }
-    if grep -q 'GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap"; then echo "STOPPED: $seat still has network git off; no other seat was started"; return 1; fi
+    grep -q "^export ZEO_TMUX_SEAT=.\{0,1\}$mark.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1; }
+    if grep -q '^export GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap"; then echo "STOPPED: $seat still has network git off; no other seat was started"; return 1; fi
   fi
   echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
