@@ -2,13 +2,23 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-05 ~15:17 GMT, by `zeo-rescue`, after line 1.
+Last updated: 2026-11-05 ~15:35 GMT, by `zeo-rescue`, held at ending B of line 2.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat (urgent), CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**HELD at ending B, for the Architect's decision (15:35 GMT). Do not run line 3.** The operator ran line 2 at 15:25:59. It ended B: `FAILED dreamhuggers-expenses-maintainer: pid 28371 still holds its rollout`, `resumed 0, failed 1`. Log: `~/.local/state/zeo-rescue/reseat-lines-proof-20261105-152559.log`. The seat was idle (`work: 0 of 1`), so nothing was cut. It is down on a sleep with no mark, and no second writer ran.
+
+Measured afterwards, read only:
+
+- The daemon let go about 60 seconds after the client left. Its log at 15:27:00: `thread 01a16ed4-... has no subscribers and is idle; shutting down`, then `Agent loop exited`, with `had_active_turn=false`. The guard waits 30 seconds, so it refused half a minute too soon.
+- At 15:32:48 `lsof` found no holder, pid 28371 held 37 rollouts (was 38), and the rollout's mtime was still 12:42. No harness holds the thread. So the F1 worry about a thread kept in memory after its file closes did not happen on this seat: its agent loop exited.
+- This is one idle seat. A seat with a turn running may not shut down this way; line 3 does not depend on it, because the daemon stops there.
+
+Recommendation to the Architect: rerun line 2 unchanged. Nothing pinned changes, the hash stands, and it cuts nothing because the seat is already down. Expect ending A. That gets the real Codex proof before line 3, with 34 seats still up. After about 16:26 the sleep runs out and the session closes; the same line then reads `to resume 1, to reseat 0, resumed 1`, also clean. The other choice is to go straight to line 3, where the first real Codex test comes with every Codex seat down. Only if a seat must be refused less often does the 30-second wait need changing, and that is a pinned file and a new read.
 
 ### For the Architect: your findings, and what changed
 
