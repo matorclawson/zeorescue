@@ -20,6 +20,7 @@ for h in claude codex; do
 env | sort > "$T/env.\$ZMAIL_INSTANCE"
 printf '%s\n' "\$@" > "$T/args.\$ZMAIL_INSTANCE"
 [ "$h" = codex ] && /bin/zsh -ic 'env' </dev/null 2>/dev/null | sed 's/^/export /' > "$T/snap/44444444-4444-4444-8444-444444444444.\$\$.sh"
+[ -f "$T/badid" ] && [ "$h" = codex ] && sed -i "" -e "s/ZMAIL_INSTANCE=.*/ZMAIL_INSTANCE=other/" "$T/snap/44444444-4444-4444-8444-444444444444.\$\$.sh"
 if [ "$h" = codex ]; then sleep 300; else exec "$T/h/$h" --arg a "\$*" .; fi
 S
   chmod +x "$T/bin/$h"
@@ -66,4 +67,30 @@ echo "$out" | sed 's/^/     /' | cut -c1-140
 grep -q '^ZEO_TMUX_SEAT=master$' "$T/env.tc" && ok "the reseated seat has its marker" || bad "reseat marker"
 [ "$("$TM" -L "$SOCK" list-panes -s -t '=tc-s' | wc -l | tr -d ' ')" = 2 ] && ok "the side window survived" || bad "side window"
 grep -q '^OK tc: started by rescue' <<< "$(R --reseat --seat tc 2>&1)" && ok "a second reseat leaves it alone" || bad "second reseat"
+
+echo "-- a seat that fails its proof goes back to sleep, and the next run takes it"
+pane=$("$TM" -L "$SOCK" list-panes -s -t '=tx-s' -F '#{pane_id}' | head -1)
+"$TM" -L "$SOCK" set-option -pu -t "$pane" @zeo_rescue
+touch "$T/badid"
+out=$(R --reseat --apply --seat tx 2>&1); rc=$?
+echo "$out" | sed 's/^/     /' | cut -c1-140
+[ $rc -eq 1 ] && echo "$out" | grep -q 'STOPPED: tx did not get its own identity' && ok "a wrong identity stops the run" || bad "proof: $rc"
+echo "$out" | grep -q '^RECOVERY: 1 seats' && ok "and says what is down" || bad "recovery"
+perl -e 'select(undef,undef,undef,0.3)'
+[ "$("$TM" -L "$SOCK" list-panes -s -t '=tx-s' -F '#{pane_current_command}|#{@zeo_rescue}' | head -1)" = "sleep|" ] && ok "the wrong seat is back on a sleep, with no rescue mark" || bad "pane: $("$TM" -L "$SOCK" list-panes -s -t '=tx-s' -F '#{pane_current_command}|#{@zeo_rescue}')"
+grep -q '^RESEAT tx:' <<< "$(R --reseat --seat tx 2>&1)" && ok "the next plan takes it, not skips it" || bad "replan"
+grep -q '^WRONG tx' <<< "$(R --check --seat tx 2>&1)" && ok "--check names it wrong meanwhile" || bad "check while down"
+
+echo "-- real lsof sees what holds a rollout"
+rm -f "$T/badid"
+sleep 60 < "$T/sess/full.jsonl" & holder=$!
+perl -e 'select(undef,undef,undef,0.3)'
+out=$(ZEO_RESCUE_STOP_TRIES=2 R --reseat --apply --seat tx 2>&1); rc=$?
+echo "$out" | sed 's/^/     /' | cut -c1-140
+echo "$out" | grep -q "^FAILED tx: pid $holder still holds its rollout" && ok "a real holder refuses the start" || bad "holder $holder"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+out=$(R --reseat --apply --seat tx 2>&1); rc=$?
+echo "$out" | sed 's/^/     /' | cut -c1-140
+[ $rc -eq 0 ] && echo "$out" | grep -q 'FIRST SEAT OK tx' && ok "with nothing holding it the same line brings the seat back" || bad "recovered: $rc"
+out=$(R --check --seat tx 2>&1); [ $? -eq 0 ] && ok "and --check passes it" || bad "check after: $out"
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }

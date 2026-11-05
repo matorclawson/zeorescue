@@ -31,7 +31,11 @@ Without an agent, the steps below work by hand.
 2. Prove one seat: `make reseat ARGS='--seat SOME-SEAT ...'`, then `make check ARGS='--seat SOME-SEAT'`.
 3. `make reseat`, then `make check`. All harnesses stop first, then the shared Codex daemon by exact pid, and only then does any seat start, so no thread ever has two writers. Seats started by rescue carry `@zeo_rescue` and are left alone, so it can be run again.
 
-A reseat interrupts every seat it touches, so give each one a `--note-file` saying why.
+A reseat interrupts every seat it touches, so give each one a `--note-file` saying why. `WORK` lines in the plan and in the run's log name what a restart cuts: a turn on the screen, a tool shell, or a tool under the shared daemon. They inform; they do not stop the run.
+
+A bulk `make reseat` also resumes any seat that is dead, with the same note. A seat that needs its own note goes first, alone.
+
+**If it stops.** `FAILED SEAT: pid N still holds its rollout` means something has that thread open, usually the shared daemon: starting the seat would make two writers, so it stays down on a sleep. `STOPPED: ...` means the first seat of a harness failed its proof: that seat is stopped again and loses `@zeo_rescue`, and `RECOVERY:` counts what is down. In both cases the threads are intact and every stopped seat is on a sleep. Start none by hand. Fix the cause, then run the same line again: seats on a sleep are planned again, and a seat whose sleep ran out comes back as `RESUME`.
 
 ## Finding the cause
 

@@ -34,7 +34,7 @@ These come from the crash of 2026-11-05 and the one of 2026-10-25. Each was lear
 
 ## The commands
 
-`make help` lists them. `make plan`, `make reseat-plan` and `make check` start nothing. `rescue.sh`'s header documents every flag and exit code. `make test` runs both suites: `rescue-test.sh` (hermetic stubs) and `tmux-test.sh` (real tmux and the real seat loader on a private socket, with fake harnesses; it touches no seat). Run it after any change to `rescue.sh` or `seat-exec.sh`.
+`make help` lists them. `make plan`, `make reseat-plan` and `make check` start nothing. `rescue.sh`'s header documents every flag and exit code. `make test` runs both suites: `rescue-test.sh` (hermetic stubs) and `tmux-test.sh` (real tmux and the real seat loader on a private socket, with fake harnesses; it touches no seat). Run it after any change to `rescue.sh` or `seat-exec.sh`. `reseat-lines.sh` is the operator's form of a reseat: it pins those files, so any change to one means new pins and a new read by the Architect.
 
 ## Why this is a seat and not a daemon
 

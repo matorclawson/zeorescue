@@ -32,7 +32,7 @@ exit 0
 S
 cat > "$T/bin/lsof" <<S
 #!/bin/bash
-cat "$T/lsof.out" 2>/dev/null
+case "\$1" in -t) echo "\$*" >> "$T/lsof.args"; cat "$T/lsof.held" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
 S
 cat > "$T/bin/kill" <<S
 #!/bin/bash
@@ -198,6 +198,7 @@ cat > "$T/bin/ps" <<S
 #!/bin/bash
 case "\$1" in
   -Ewwp) cat "$T/psE.out" 2>/dev/null; exit 0;;
+  -axo) case "\$2" in *ppid*) cat "$T/ps.tree" 2>/dev/null; exit 0;; esac ;;
 esac
 if [ -f "$T/ps.seen" ]; then cat "$T/ps.after"; else touch "$T/ps.seen"; cat "$T/ps.out"; fi
 exit 0
@@ -216,6 +217,65 @@ out=$(R --reseat --apply --seat cx 2>&1)
 echo "$out" | grep -q 'DAEMON LEFT: 1 Codex seats' && ok "the daemon stays while another seat is attached" || bad "daemon left: $out"
 [ ! -e "$T/kills" ] && ok "and nothing is killed" || bad "killed: $(cat "$T/kills")"
 rm -f "$T/ps.seen"
+
+echo "-- two writers: a thread something still holds"
+reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
+echo 900 > "$T/lsof.held"
+out=$(R --reseat --apply --seat cx 2>&1); rc=$?
+echo "$out" | grep -q '^FAILED cx: pid 900 still holds its rollout, so it was not started' && ok "a live seat is not started while the daemon holds its thread" || bad "held: $out"
+[ $rc -eq 1 ] && ok "that exits 1" || bad "held exit $rc"
+grep -q 'seat-exec.sh' "$T/launched" && bad "started beside the daemon" || ok "and nothing was started beside it"
+grep -q -- "-t -- $T/sess/full.jsonl" "$T/lsof.args" && ok "the question is asked of the seat's own rollout" || bad "lsof args: $(cat "$T/lsof.args" 2>/dev/null)"
+rm -f "$T/ps.seen"; reset_live
+out=$(R --apply --seat cx 2>&1)
+echo "$out" | grep -q '^FAILED cx: pid 900 still holds' && ! grep -q new-session "$T/launched" && ok "a dead seat is held to the same test" || bad "held dead seat: $out"
+rm -f "$T/lsof.held" "$T/ps.seen"
+
+echo "-- a first seat that fails its proof"
+reset_live; echo cx-maintainer >> "$T/live"; echo cxn-s >> "$T/live"
+{ echo 'cx-maintainer|%8|800||codex'; echo 'cxn-s|%2|802||codex'; } > "$T/panes"
+{ echo "800 /x/codex resume 44444444-4444-4444-8444-444444444444"; echo "802 /x/codex resume 77777777-7777-4777-8777-777777777777"; } > "$T/ps.out"; : > "$T/ps.after"
+printf 'export ZEO_TMUX_SEAT=inactive\nexport ZMAIL_INSTANCE=dt-hud-editor\nexport GIT_ALLOW_PROTOCOL=file\n' > "$T/snapwrite"
+out=$(R --reseat --apply --seat cx --seat cxn 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'STOPPED: cx did not get its own identity' && ok "the run stops at the failed seat" || bad "stop: $rc $out"
+echo "$out" | grep -q '^RECOVERY: 2 seats are down, counting the one that failed' && ok "the output says what is down and what brings it back" || bad "recovery: $out"
+[ "$(grep -c seat-exec "$T/launched")" = 1 ] && ok "the next seat stays on its sleep" || bad "others: $(cat "$T/launched")"
+s=$(grep -n 'seat-exec' "$T/tmux.log" | head -1 | cut -d: -f1); u=$(grep -n 'respawn-pane -k -t %8 .* sleep 3600' "$T/tmux.log" | tail -1 | cut -d: -f1)
+[ -n "$s" ] && [ -n "$u" ] && [ "$s" -lt "$u" ] && ok "the wrong seat is stopped again, not left up" || bad "unseat order: $s $u"
+grep -q 'set-option -pu -t %8 @zeo_rescue' "$T/tmux.log" && ok "and loses the mark, so the next run plans it again" || bad "mark: $(cat "$T/tmux.log")"
+rm -f "$T/ps.seen"; reset_live
+out=$(R --apply --seat cx 2>&1)
+grep -q 'kill-session -t =cx-maintainer' "$T/tmux.log" && echo "$out" | grep -q '^RECOVERY: 1 seats' && ok "a seat that was dead goes back to dead, so make rescue can take it" || bad "dead proof: $out"
+rm -f "$T/ps.seen"; reset_live; printf 'ZMAIL_INSTANCE=architect HOME=/x' > "$T/psE.out"
+out=$(R --apply --seat cl 2>&1)
+echo "$out" | grep -q '^RECOVERY: 1 seats' && grep -q 'kill-session -t =cl-maintainer' "$T/tmux.log" && ok "the claude proof recovers the same way" || bad "claude recovery: $out"
+rm -f "$T/ps.seen"
+
+echo "-- what a restart would cut"
+reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
+echo "800 /x/codex resume 44444444-4444-4444-8444-444444444444" > "$T/ps.out"; : > "$T/ps.after"
+cat > "$T/ps.tree" <<'E'
+  800     1 01:00:00 /x/codex resume 44444444-4444-4444-8444-444444444444
+  811   800    02:00 /bin/zsh -c source /x/snap.sh 2>/dev/null || true && setopt X && eval 'make build' < /dev/null
+  812   800    02:00 /u/.local/share/zeo/messenger/hooks/runtimes/abc watch
+  813   800    02:00 caffeinate -i -t 300
+  900     1 03:00:00 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server --listen unix://
+  914   900    00:30 /bin/sh -c cargo test
+  915   900    03:00 /u/.codex/packages/app-server-daemon/releases/1/bin/codex-code-mode-host
+E
+echo '  Working (9s, esc to interrupt)' > "$T/screen"
+out=$(R --reseat --seat cx 2>&1)
+echo "$out" | grep -q '^WORK cx: a turn is in progress on its screen' && ok "a turn on the screen is listed" || bad "screen: $out"
+echo "$out" | grep -q "^WORK cx: 811 02:00 'make build'" && ok "a tool shell is listed by what it runs" || bad "tool: $out"
+echo "$out" | grep -E -q 'WORK.*(hooks|caffeinate|code-mode)' && bad "noise in the list: $out" || ok "mail hooks, caffeinate and the daemon's helper are not work"
+echo "$out" | grep -q '^WORK daemon, in .*: 914 00:30 /bin/sh -c cargo test' && ok "a Codex tool under the daemon is listed" || bad "daemon work: $out"
+echo "$out" | grep -q '^work: 1 of 1 seats show running work' && ok "and counted" || bad "count: $out"
+[ ! -s "$T/launched" ] && ok "listing stops nothing" || bad "the list touched a seat"
+rm -f "$T/ps.seen"
+out=$(R --reseat --apply --seat cx 2>&1)
+w=$(echo "$out" | grep -n '^WORK' | head -1 | cut -d: -f1); r=$(echo "$out" | grep -n '^RESUMED\|^STOPPED\|^FAILED' | head -1 | cut -d: -f1)
+[ -n "$w" ] && [ -n "$r" ] && [ "$w" -lt "$r" ] && ok "--apply lists it before it stops anything, so the log keeps what was cut" || bad "order: $w $r"
+rm -f "$T/ps.seen" "$T/screen" "$T/ps.tree" "$T/snapwrite"
 
 echo "-- check"
 cat > "$T/bin/ps" <<S
@@ -246,4 +306,25 @@ grep -q 'WARNING.*last good' <<< "$(R --chart "$T/gone.json" 2>&1)" && ok "an un
 rm -f "$T/state/ORG-CHART.last-good.json"; R --chart "$T/gone.json" >/dev/null 2>&1; [ $? -eq 1 ] && ok "no chart at all is a failure" || bad "no chart"
 "$HERE/rescue.sh" --socket '../x' >/dev/null 2>&1; [ $? -eq 2 ] && ok "a bad socket name is usage" || bad "bad socket"
 "$HERE/rescue.sh" --check --apply >/dev/null 2>&1; [ $? -eq 2 ] && ok "--check never combines with --apply" || bad "check apply"
+
+echo "-- the operator's runner"
+pl="$(id -un)@$(hostname -s)"
+mkdir -p "$T/run/notes"
+L() { "$T/run/reseat-lines.sh" "$@"; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
+out=$(L verify 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
+sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
+L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
+out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt; do
+  echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
+  [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
+  cp "$HERE/$f" "$T/run/$f"
+done
+: > "$T/live"
+out=$(L all 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was run: zeoarchitect is not up' && ok "all refuses until zeoarchitect has its own note" || bad "order: $rc $out"
+
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }
