@@ -8,7 +8,7 @@ Last updated: 2026-11-05 ~14:00 GMT, by the first rescue session (`c41e8c97`), a
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. Until `zeo-rescue` has a mailbox, ask the operator, or look at the Architect's pane: `tmux -L zeo2 capture-pane -p -t '=architect:'`.
 
-**2. The reseat (urgent).** Every seat was started the wrong way, and all are live. The fix is built and tested, and it has **not been run on a real seat**: the classifier refused it to this session, so the operator runs it. The Architect must read the lines first (`msg-zeoarchitect-sow18-operator-lines`). Check whether that happened and whether the operator ran them, with `make check` and `make reseat-plan ARGS='--before 202611050511'`. If `make check` still says WRONG, the lines are:
+**2. The reseat (urgent).** Every seat was started the wrong way, and all are live. The fix is built and tested, and it has **not been run on a real seat**: the classifier refused it to this session, so the operator runs it. The Architect must read the lines first: they went at 13:55 (`msg-zeoarchitect-sow18-operator-lines`), with no answer yet at handover, and were asked to answer on the operator's page because that reply would land in the `zeoarchitect` mailbox. Check whether that happened and whether the operator ran them, with `make check` and `make reseat-plan ARGS='--before 202611050511'`. If `make check` still says WRONG, the lines are:
 
 ```
 cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue
@@ -61,7 +61,7 @@ The last two rows differ from the Architect's order to mark every seat. They ran
 **The `zeo-rescue` seat itself**
 - Mailbox: agreed by the Architect (`ans_8f61922d`). The nodes-file line goes on the operator's page after the seats are back, not before. The store-host record and the nodes file are the operator's.
 - Org chart row: the Runtime's, through the Architect. Mark it so `make rescue` never treats it as a seat to resume; `rescue.sh` skips the id anyway.
-- This repo's routing: the Architect ruled that the tool, then at `tools/zeo-rescue`, goes by PR to main with the full gate, both readers and their signature, and the SOW by ledger carry. That ruling predates this repo. PR open against `matorclawson/zeorescue`; they need to re-read it.
+- This repo's routing: the Architect ruled that the tool, then at `tools/zeo-rescue`, goes by PR to main with the full gate, both readers and their signature, and the SOW by ledger carry. That ruling predates this repo. PR: https://github.com/matorclawson/zeorescue/pull/1, unmerged; they need to re-read it. Until it merges, this checkout must stay on branch `zeo-rescue/seat-bootstrap-20261105`: `main` holds only a README.
 
 **SOW-18** (`zeoarchitect-SOW-18`, on branch `zeoarchitect/sow-18-seat-recovery` of `matorclawson/org-zeroemployeeorg`, clone at `/Volumes/ZeoWork/zeoarchitect/records`). Not yet carried to the org. It is this seat's to finish: the operator's plan is that rescue sleeps once the wake refactor is done and everything is awake again.
 
