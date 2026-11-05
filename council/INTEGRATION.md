@@ -48,7 +48,7 @@ Verified on the Mac mini on 2026-11-05. Nothing was installed, no seat was start
 ## Tests run
 
 Rescuer 35, records 48, guard 19, real tmux 23, 125 in all, on this Mac. 13 of 13 mutations caught.
-Real tools used: `sqlite3`, `lsof`, tmux, the seat loader. Fake harnesses throughout: **no native resume has been qualified.**
+Real tools used: `sqlite3`, `lsof`, tmux, the seat loader. The suites use fake harnesses. **Correction:** this report first said no real Codex resume had run. One had, at 21:54, and the author had not read the log.
 
 ## Installed versus implemented
 
@@ -56,10 +56,14 @@ Installed: nothing. The launchd job is generated and passes `plutil -lint` only.
 
 ## Open
 
-- No real Codex resume has run on this path, including the 0.164 CLI reading 0.166 history.
+- A real Codex resume ran at 21:54 and came up right, then false-stopped on a grep of the loader function. It is unproved through to a passing `make check`, and nothing in it has run a tool.
 - An in-UI session switch is unproven: Claude's pid file, and Codex under `--no-daemon`.
 - Proof of every seat stops the run at the first failure, so one slow snapshot leaves the rest down. Line 3 also takes longer than the 18 minutes stated.
 - Lifecycle capture needs the seat loader or Runtime, which are not in this repo.
 - Launchd job: access to the volume from launchd is unproven, though three existing agents already run from `/Volumes`.
 - `zeo-rescue` has no marker record, so `make agent` refuses until the operator provisions one.
 - The teardown's cause is unknown.
+
+## Known defect here, found by the Architect
+
+`prove_codex` lines 202 and 206 grep the whole snapshot, so they match `export GIT_ALLOW_PROTOCOL=file` inside the stored loader function. Line 202 stops every good seat, and line 206 passes without proving anything. Fixed on the cleared line, not yet here. Do not use this branch until it has that fix.
