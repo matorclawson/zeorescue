@@ -29,6 +29,7 @@ pin 141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871 Makefile
 pin 6d2ea61a03a67aa954709939aa6cd5e4e71d1286e72116114eb5c37b5967fda2 session-pins
 pin ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029 notes/reseat-20261105.txt
 pin 6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b notes/zeoarchitect-resume.txt
+pin 5d8b1cb780dbec284785cbb9faee9f48109525998a98e3aa586db9e09916bef1 records.sh
 # END PINS
 [ $bad -eq 0 ] || exit 2
 log=$STATE/reseat-lines-$step-$(date +%Y%m%d-%H%M%S).log

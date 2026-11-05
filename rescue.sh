@@ -15,21 +15,17 @@
 # --reseat also restarts LIVE seats that rescue did not start the right way: RESEAT, or OK when the pane already carries @zeo_rescue.
 # --check starts nothing and judges every seat: OK or WRONG, with the reason.
 # It lists what a restart would cut first, as WORK lines, in the plan and again just before --apply stops anything.
-# --session ID (with exactly one --seat) names the session to resume. Use it when the newest transcript in a seat's directory is not
-# the seat's own, such as after someone ran another session there.
-# session-pins holds the same answer, durably: a line "SEAT SESSION-ID" for a seat whose newest transcript is known not to be its own.
-# --before limits the search for a recorded marker to files older than that local time, when newer ones were written during a fault.
+# --session and session-pins can assert the expected session; they never override the saved mapping.
+# records.sh captures exact native session/identity/cwd/policy/marker during normal operation,
+# without an agent or model call. Run its generated launchd job or call capture from the seat lifecycle.
+# Recovery uses the saved local records and exact native histories; it never chooses the newest thread
+# or invents a git marker. --before is refused because timestamp-based snapshot selection is removed.
+# Ordinary recovery never stops a live seat or the daemon. --reseat is the separate operator repair path.
+# Missing records are named UNRESOLVED; other independently resolvable dead seats may still recover.
 #
-# Three things are read from the seat's own record and never chosen here:
-#   the session     its newest transcript or thread, or --session
-#   the mode        Claude's permissionMode; Codex's approval and sandbox policies (3 of 35 Codex seats ran workspace-write)
-#   the git marker  @zeo_seat, from its newest shell snapshot. Without a pane marker the seat loader turns git and gh off, so a seat
-#                   recorded as inactive stays inactive. Seats with no record (all Claude seats: their snapshots keep no exports) get
-#                   ZEO_RESCUE_DEFAULT_MARKER, except a workspace-write seat, which stays inactive.
-#
-# A Codex seat starts only when no process holds its rollout. Its own client going away proves little: the shared daemon keeps every
+# Either harness starts only after process inspection and a free native-history file check. Its own client going away proves little: the shared daemon keeps every
 # thread open, so a seat started beside it would be a second writer. A seat refused this way stays down, and the run says who holds it.
-# A first seat that fails its proof is stopped again and loses @zeo_rescue, so the next run plans it again; RECOVERY says what is down.
+# Any seat that fails its proof is stopped again and loses @zeo_rescue, so the next run plans it again; RECOVERY says what is down.
 #
 # Exit: 0 every seat fine or resumable; 1 a failure, or a --check found WRONG; 2 usage; 3 at least one seat UNRESOLVED.
 set -uo pipefail
@@ -48,10 +44,11 @@ LSOF=${ZEO_RESCUE_LSOF:-/usr/sbin/lsof}
 KILL_BIN=${ZEO_RESCUE_KILL:-/bin/kill}
 CLAUDE=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CODEX=${ZEO_RESCUE_CODEX:-$HOME/.local/bin/codex}
-DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
+# Thread release and process termination have different deadlines. A timeout refuses, never forces.
+ROLLOUT_TRIES=${ZEO_RESCUE_ROLLOUT_TRIES:-90}
 SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
@@ -77,7 +74,8 @@ while [ $# -gt 0 ]; do
 done
 case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [[ "$STAGGER" =~ ^[0-9]+$ ]] || usage
-[ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
+for tries in "$STOP_TRIES" "$ROLLOUT_TRIES"; do [[ "$tries" =~ ^[1-9][0-9]*$ ]] || usage; done
+[ -z "$BEFORE" ] || { echo "rescue: --before snapshot guessing was replaced by exact saved recovery records; no action" >&2; exit 2; }
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [ -n "$SESSION_ARG" ]; then
@@ -112,58 +110,25 @@ running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell
   printf '%s\n' "$out" | grep -qxF "n$2"
 }
 holds() { # holds SID: does a harness process hold this session? Only harness binaries count: a tmux server keeps the command line of its first client as its title, for life.
-  "$PS_BIN" -axo pid=,command= | awk -v id="$1" '($2 ~ /(^|\/)(claude|codex)$/ || $2 ~ /\/(claude|codex)\/versions\//) && index($0, id) {f=1} END {exit !f}'
+  local out
+  out=$("$PS_BIN" -axo pid=,command=) || return 2
+  printf '%s\n' "$out" | awk -v id="$1" '($2 ~ /(^|\/)(claude|codex)$/ || $2 ~ /\/(claude|codex)\/versions\//) && index($0, id) {f=1} END {exit !f}'
 }
 
-SID="" MODE_ARGS="" WHY="" SANDBOX="" ROLL=""
-plan_claude() { # sets SID and MODE_ARGS for a Claude seat, or WHY
-  local dir f m; dir=$PROJECTS/$(printf %s "$1" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')
-  # newest top-level transcript by name-safe glob; subagent transcripts live one level down
-  if [ -n "$SESSION" ]; then f=$dir/$SESSION.jsonl; [ -f "$f" ] || { WHY="no transcript $f"; return 1; }
-  else f=$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1); fi
-  [ -n "$f" ] || { WHY="no transcript in $dir"; return 1; }
-  SID=$(basename "$f" .jsonl)
-  [[ "$SID" =~ $ID_RE ]] || { WHY="newest transcript has no session id: $f"; return 1; }
-  m=$(tail -c 5000000 "$f" | grep -o '"permissionMode":"[^"]*"' | tail -1 | sed -E 's/.*:"([^"]*)"/\1/')
-  case "$m" in
-    default|auto|acceptEdits|plan) MODE_ARGS="--permission-mode $m";;
-    *) WHY="transcript records no permission mode I may reuse ('$m')"; return 1;;
-  esac
-}
-plan_codex() { # sets SID, MODE_ARGS and SANDBOX for a Codex seat, or WHY
-  local q row a s lines where roll
-  where="cwd = '$(printf %s "$1" | sed "s/'/''/g")'"
-  [ -z "$SESSION" ] || where="id = '$SESSION'"
-  q="select id || ' ' || rollout_path from threads where $where and archived = 0 and thread_source = 'user' order by updated_at desc limit 1;"
-  row=$("$SQLITE" "file:$CODEX_DB?mode=ro&immutable=1" "$q" 2>/dev/null) || { WHY="cannot read $CODEX_DB"; return 1; }
-  [ -n "$row" ] || { WHY="no Codex thread for this directory"; return 1; }
-  # a space, not a control byte: the sqlite3 shell escapes control characters in values, so char(31) arrives as a literal ^_
-  SID=${row%% *}; roll=${row#* }
-  [[ "$SID" =~ $ID_RE ]] || { WHY="unexpected thread id $SID"; return 1; }
-  [ -f "$roll" ] || { WHY="no rollout file $roll"; return 1; }
-  lines=$(tail -c 5000000 "$roll" | grep -o '"approval_policy":"[^"]*"\|"sandbox_policy":{"type":"[^"]*"')
-  a=$(printf '%s\n' "$lines" | grep approval_policy | tail -1 | sed -E 's/.*:"([^"]*)"/\1/')
-  s=$(printf '%s\n' "$lines" | grep sandbox_policy | tail -1 | sed -E 's/.*:"([^"]*)"/\1/')
-  case "$a" in never|on-request|untrusted|on-failure) ;; *) WHY="rollout records no approval policy ('$a')"; return 1;; esac
-  case "$s" in danger-full-access|workspace-write|read-only) ;; *) WHY="rollout records no sandbox ('$s')"; return 1;; esac
-  MODE_ARGS="-a $a -s $s"; SANDBOX=$s ROLL=$roll
-}
-
-MARK="" MARK_WHY=""
-marker_of() { # marker_of HARNESS SID: sets MARK (empty means no marker, so git stays off) and MARK_WHY
-  local f m t
-  if [ "$1" = codex ]; then
-    for f in $(ls -t "$SNAPSHOTS/$2".* 2>/dev/null); do
-      if [ -n "$BEFORE" ]; then t=$(date -r "$f" +%Y%m%d%H%M); [ "$t" -lt "$BEFORE" ] || continue; fi
-      m=$(grep -o 'ZEO_TMUX_SEAT=[^ ]*' "$f" | tail -1 | tr -d "\"'"); m=${m#ZEO_TMUX_SEAT=}
-      case "$m" in
-        master|sparring|principal) MARK=$m MARK_WHY=recorded; return 0;;
-        inactive) MARK="" MARK_WHY="recorded inactive"; return 0;;
-      esac
-    done
-    if [ "$SANDBOX" = workspace-write ]; then MARK="" MARK_WHY="no record, workspace-write"; return 0; fi
-  fi
-  MARK=$DEFAULT_MARKER MARK_WHY="no record, default"
+SID="" MODE_ARGS="" WHY="" SANDBOX="" ROLL="" MARK="" MARK_WHY=""
+load_record() { # exact saved seat mapping; policy is read from that native history
+  local record
+  record=$(ZEO_RESCUE_HOST="$HOST_NAME" ZEO_RESCUE_SOCKET="$SOCKET" "$HERE/records.sh" get "$seat" "$harness" "$sess" "$cwd") || {
+    WHY="no usable programmatically captured recovery record"; return 1;
+  }
+  SID=$("$JQ" -r .session_id <<< "$record")
+  if [ -n "$SESSION" ] && [ "$SESSION" != "$SID" ]; then WHY="requested/pinned session conflicts with captured record"; return 1; fi
+  MODE_ARGS=$("$JQ" -r '.mode_args | join(" ")' <<< "$record")
+  SANDBOX=$("$JQ" -r '.policy.sandbox_policy.type // ""' <<< "$record")
+  ROLL=$("$JQ" -r .history_path <<< "$record")
+  MARK=$("$JQ" -r .marker <<< "$record")
+  [ "$MARK" != inactive ] || MARK=""
+  MARK_WHY="captured recovery record"
 }
 marker_label() { if [ -n "$MARK" ]; then echo "marker $MARK, $MARK_WHY"; else echo "no marker, $MARK_WHY"; fi; }
 
@@ -202,7 +167,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
   echo "WRONG $1 ($3): $why"; return 1
 }
 
-prove_codex() { # the first Codex seat must show the loader worked before any other starts
+prove_codex() { # every Codex seat must show the loader worked before proceeding
   local seat=$1 sid=$2 mark=$3 pf=$4 i snap=""
   for ((i = 0; i < PROOF_TRIES; i++)); do
     snap=$(find "$SNAPSHOTS" -name "$sid.*" -newer "$pf" 2>/dev/null | head -1)
@@ -210,15 +175,19 @@ prove_codex() { # the first Codex seat must show the loader worked before any ot
     if [ -n "$snap" ] && grep -q 'ZMAIL_INSTANCE=' "$snap"; then break; fi
     pause "$PROOF_PAUSE"
   done
-  [ -n "$snap" ] || { echo "STOPPED: no shell snapshot for $seat; no other seat was started"; return 1; }
-  grep -q "ZMAIL_INSTANCE=.\{0,1\}$seat.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat did not get its own identity; no other seat was started"; return 1; }
+  [ -n "$snap" ] || { echo "STOPPED: no shell snapshot for $seat; no further seat will start"; return 1; }
+  grep -q "ZMAIL_INSTANCE=.\{0,1\}$seat.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat did not get its own identity; no further seat will start"; return 1; }
   if [ -n "$mark" ]; then
-    grep -q "ZEO_TMUX_SEAT=.\{0,1\}$mark.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1; }
-    if grep -q 'GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap"; then echo "STOPPED: $seat still has network git off; no other seat was started"; return 1; fi
+    grep -q "ZEO_TMUX_SEAT=.\{0,1\}$mark.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat lacks marker $mark; no further seat will start"; return 1; }
+    if grep -q 'GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap"; then echo "STOPPED: $seat still has network git off; no further seat will start"; return 1; fi
   fi
-  echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
+  if [ -z "$mark" ]; then
+    grep -q "ZEO_TMUX_SEAT=.\{0,1\}inactive.\{0,1\}\$" "$snap" &&
+      grep -q 'GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap" || { echo "STOPPED: $seat did not retain inactive Git policy"; return 1; }
+  fi
+  echo "SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
-prove_claude() { # the same for the first Claude seat, from the environment of the running process
+prove_claude() { # every Claude seat is checked from the running process environment
   local seat=$1 mark=$2 sess=$3 i id pid opt cmd env=""
   for ((i = 0; i < PROOF_TRIES; i++)); do
     IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
@@ -226,23 +195,39 @@ prove_claude() { # the same for the first Claude seat, from the environment of t
     case "$env" in *"ZMAIL_INSTANCE=$seat"*) break;; esac
     pause "$PROOF_PAUSE"
   done
-  case "$env" in *"ZMAIL_INSTANCE=$seat "*|*"ZMAIL_INSTANCE=$seat") ;; *) echo "STOPPED: $seat did not get its own identity; no other seat was started"; return 1;; esac
+  case "$env" in *"ZMAIL_INSTANCE=$seat "*|*"ZMAIL_INSTANCE=$seat") ;; *) echo "STOPPED: $seat did not get its own identity; no further seat will start"; return 1;; esac
   if [ -n "$mark" ]; then
-    case "$env" in *"ZEO_TMUX_SEAT=$mark"*) ;; *) echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1;; esac
-    case "$env" in *"GIT_ALLOW_PROTOCOL=file "*) echo "STOPPED: $seat still has network git off; no other seat was started"; return 1;; esac
+    case "$env" in *"ZEO_TMUX_SEAT=$mark"*) ;; *) echo "STOPPED: $seat lacks marker $mark; no further seat will start"; return 1;; esac
+    case "$env" in *"GIT_ALLOW_PROTOCOL=file "*) echo "STOPPED: $seat still has network git off; no further seat will start"; return 1;; esac
   fi
-  echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
+  if [ -z "$mark" ]; then
+    case "$env" in *"ZEO_TMUX_SEAT=inactive "*|*"ZEO_TMUX_SEAT=inactive") ;; *) echo "STOPPED: $seat lost inactive marker"; return 1;; esac
+    case "$env" in *"GIT_ALLOW_PROTOCOL=file "*|*"GIT_ALLOW_PROTOCOL=file") ;; *) echo "STOPPED: $seat lost inactive Git policy"; return 1;; esac
+  fi
+  echo "SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
 
 HOLDER=""
 rollout_free() { # rollout_free FILE: sets HOLDER and fails while any process has the rollout open. Run it after the daemon stop.
-  local i
-  [ -x "$LSOF" ] || { HOLDER="unknown (no lsof)"; return 1; }
-  for ((i = 0; i < STOP_TRIES; i++)); do
-    HOLDER=$("$LSOF" -t -- "$1" 2>/dev/null | paste -sd' ' -)
-    [ -n "$HOLDER" ] || return 0
+  local i rc err out
+  HOLDER="unknown"
+  [ -x "$LSOF" ] && [ -f "$1" ] && [ -r "$1" ] || return 1
+  err=$(mktemp "$STATE/.lsof.XXXXXX") || return 1
+  for ((i = 0; i < ROLLOUT_TRIES; i++)); do
+    # lsof uses status 1 for no matches AND some errors. Diagnostics are uncertainty.
+    # Even a clean empty result is an observation, not a lock or a no-future-writer proof.
+    out=$("$LSOF" -t -- "$1" 2>"$err"); rc=$?
+    if [ -s "$err" ] || [ "$rc" -gt 1 ] || { [ "$rc" -eq 0 ] && [ -z "$out" ]; }; then
+      HOLDER="unknown (lsof inspection failed)"; rm -f "$err"; return 1
+    fi
+    if [ "$rc" -eq 1 ] && [ -z "$out" ]; then rm -f "$err"; HOLDER=""; return 0; fi
+    if [ "$rc" -ne 0 ] || printf '%s\n' "$out" | grep -qvE '^[0-9]+$'; then
+      HOLDER="unknown (invalid lsof result)"; rm -f "$err"; return 1
+    fi
+    HOLDER=$(printf '%s\n' "$out" | paste -sd' ' -)
     pause 1
   done
+  rm -f "$err"
   return 1
 }
 
@@ -285,13 +270,16 @@ unseat() { # unseat INDEX: a seat that failed must not stay up wrong, and must n
 recovery() { # recovery FROM: after a run that stopped, say what is down and what brings it back
   local i left=0
   for ((i = $1; i < ${#P_SEAT[@]}; i++)); do [ -z "${P_SEAT[$i]}" ] || left=$((left+1)); done
-  echo "RECOVERY: $left seats are down, counting the one that failed. Each thread is intact and nothing is lost. Start none of them by hand. Tell zeo-rescue what you see; once the cause is fixed, the same line brings them back, whether or not their sleep has run out."
+  echo "RECOVERY: $left planned seats from this point need inspection, including the failed seat. Stop/cleanup success, transcript integrity and external effects are NOT proved. Do not restart by hand or blindly rerun. Reconcile live processes, threads and panes before an operator retry."
 }
 
 stop_seat() { # stop_seat PANE CWD SID: replace the harness with a sleep, and wait until nothing holds the session
-  local i
+  local i rc
   "$TMUX_BIN" -L "$SOCKET" respawn-pane -k -t "$1" -c "$2" -- sleep 3600 || return 1
-  for ((i = 0; i < STOP_TRIES; i++)); do holds "$3" || return 0; pause 1; done
+  for ((i = 0; i < STOP_TRIES; i++)); do
+    holds "$3"; rc=$?
+    case "$rc" in 1) return 0;; 0) pause 1;; *) return 1;; esac
+  done
   return 1
 }
 
@@ -303,12 +291,22 @@ stop_daemon() { # the shared app-server keeps every attached thread open, so it 
   [ -n "$pids" ] || return 0
   if [ "$attached" -gt 0 ]; then echo "DAEMON LEFT: $attached Codex seats are still attached to pids $pids"; return 0; fi
   echo "DAEMON STOP: exact pids $pids"
-  # shellcheck disable=SC2086  # pids holds only numbers from ps
-  "$KILL_BIN" $pids 2>/dev/null
+  # No unattended SIGKILL: a timeout requires inspection, not stronger signals.
+  # shellcheck disable=SC2086
+  "$KILL_BIN" $pids 2>/dev/null || { echo "STOPPED: daemon SIGTERM failed; inspect exact processes"; return 1; }
   pause "${ZEO_RESCUE_DAEMON_WAIT:-5}"
+  out=$("$PS_BIN" -axo pid=,command=) || return 1
   for p in $pids; do
-    if "$PS_BIN" -axo pid=,command= | awk -v p="$p" '$1==p {f=1} END {exit !f}'; then "$KILL_BIN" -9 "$p" 2>/dev/null; echo "DAEMON KILLED: pid $p ignored SIGTERM"; fi
+    if printf '%s\n' "$out" | awk -v p="$p" '$1==p {f=1} END {exit !f}'; then
+      echo "STOPPED: daemon pid $p still exists after SIGTERM; no launch and no automatic SIGKILL"
+      return 1
+    fi
   done
+  # Detect a replacement daemon too. Supervisor fencing still must be done on the host.
+  if printf '%s\n' "$out" | awk '$2 ~ /\/app-server-daemon\/releases\// {f=1} END {exit !f}'; then
+    echo "STOPPED: daemon restarted during shutdown"; return 1
+  fi
+  return 0
 }
 
 launch() { # launch INDEX: the marker goes on before any shell starts
@@ -321,9 +319,10 @@ launch() { # launch INDEX: the marker goes on before any shell starts
     [ -n "$pane" ] || return 1
   fi
   if [ -n "$mark" ]; then "$TMUX_BIN" -L "$SOCKET" set-option -p -t "$pane" @zeo_seat "$mark" || return 1
-  else "$TMUX_BIN" -L "$SOCKET" set-option -pu -t "$pane" @zeo_seat 2>/dev/null; fi
-  "$TMUX_BIN" -L "$SOCKET" set-option -p -t "$pane" @zeo_rescue 1 || return 1
-  # shellcheck disable=SC2086  # the mode holds only words validated by plan_claude and plan_codex
+  else "$TMUX_BIN" -L "$SOCKET" set-option -p -t "$pane" @zeo_seat inactive || return 1; fi
+  "$TMUX_BIN" -L "$SOCKET" set-option -p -t "$pane" @zeo_rescue starting || return 1
+  LAUNCHED_PANE=$pane
+  # shellcheck disable=SC2086  # the mode holds only whitelisted words generated by records.sh history
   if [ "$harness" = claude ]; then
     "$TMUX_BIN" -L "$SOCKET" respawn-pane -k -t "$pane" -c "$cwd" -- "$HERE/seat-exec.sh" "$seat" claude "$pf" "$CLAUDE" --resume "$sid" ${P_MODE[$i]}
   else
@@ -354,13 +353,12 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   if "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null; then
     if [ $CHECK -eq 1 ]; then if check_seat "$seat" "$sess" "$harness"; then ok=$((ok+1)); else wrong=$((wrong+1)); fi; continue; fi
     if [ $RESEAT -eq 0 ]; then echo "LIVE $seat ($sess)"; live=$((live+1)); continue; fi
-    if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
+    if ! load_record; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
     find_pane "$sess" "$SID"
     case "$PANE_STATE" in
       done) echo "OK $seat: started by rescue"; ok=$((ok+1)); continue;;
       none) echo "UNRESOLVED $seat: no pane in $sess holds $SID"; unresolved=$((unresolved+1)); continue;;
     esac
-    marker_of "$harness" "$SID"
     echo "RESEAT $seat: $harness $SID ($MODE_ARGS; $(marker_label)) in $sess"; reseat=$((reseat+1))
     planned "$seat" "$sess" "$cwd" "$harness" "$PANE"
     continue
@@ -370,8 +368,7 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ $rc -eq 0 ] && { echo "RUNNING $seat: a $harness process is in $cwd"; running=$((running+1)); continue; }
   [ $rc -eq 2 ] && { echo "UNRESOLVED $seat: could not tell whether a process runs in $cwd"; unresolved=$((unresolved+1)); continue; }
   [ -d "$cwd" ] || { echo "UNRESOLVED $seat: no directory $cwd"; unresolved=$((unresolved+1)); continue; }
-  if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
-  marker_of "$harness" "$SID"
+  if ! load_record; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
   echo "RESUME $seat: $harness $SID ($MODE_ARGS; $(marker_label)) in $sess"; resume=$((resume+1))
   planned "$seat" "$sess" "$cwd" "$harness" ""
 done <<< "$rows"
@@ -379,34 +376,44 @@ done <<< "$rows"
 if [ $CHECK -eq 1 ]; then
   echo "check: ok $ok, wrong $wrong"
   [ $wrong -eq 0 ] || exit 1
+  [ $unresolved -eq 0 ] || exit 3
   exit 0
 fi
 
 stopped=1
 [ $RESEAT -eq 0 ] || work_list
 if [ $APPLY -eq 1 ]; then
+  [ $RESEAT -eq 0 ] || [ $unresolved -eq 0 ] || { echo "STOPPED: unresolved reseat plan; no seat was stopped or started"; exit 3; }
   n=${#P_SEAT[@]}
   # Every harness is stopped first, then the daemon, and only then does any seat start: a thread must never have two writers.
   for ((i = 0; i < n; i++)); do
+    [ $RESEAT -eq 1 ] || continue
     [ -n "${P_PANE[$i]}" ] || continue
-    if ! stop_seat "${P_PANE[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then echo "FAILED ${P_SEAT[$i]}: its old process would not stop, so it was not restarted"; P_SEAT[$i]=""; failed=$((failed+1)); fi
+    if ! stop_seat "${P_PANE[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then echo "FAILED ${P_SEAT[$i]}: its old process could not be proved stopped; no further action"; recovery 0; exit 1; fi
   done
-  [ $RESEAT -eq 0 ] || stop_daemon
-  proved_codex=0 proved_claude=0
+  if [ $RESEAT -eq 1 ] && ! stop_daemon; then recovery 0; exit 1; fi
   for ((i = 0; i < n; i++)); do
     seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
-    if [ "${P_HARNESS[$i]}" = codex ] && ! rollout_free "${P_ROLL[$i]}"; then echo "FAILED $seat: pid $HOLDER still holds its rollout, so it was not started: that would be two writers"; failed=$((failed+1)); continue; fi
+    holds "${P_SID[$i]}"; holder_rc=$?
+    if [ "$holder_rc" -ne 1 ]; then echo "FAILED $seat: native thread still running or process inspection failed; no launch"; failed=$((failed+1)); continue; fi
+    if ! rollout_free "${P_ROLL[$i]}"; then echo "FAILED $seat: rollout release is not proved (holder: $HOLDER); no launch"; failed=$((failed+1)); continue; fi
     [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER"
     if ! launch "$i"; then echo "FAILED $seat: tmux could not start it"; unseat "$i"; failed=$((failed+1)); continue; fi
     echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]}"; resumed=$((resumed+1))
-    if [ "${P_HARNESS[$i]}" = codex ] && [ $proved_codex -eq 0 ]; then
+    if [ "${P_HARNESS[$i]}" = codex ]; then
       prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$i"; break; }
-      proved_codex=1
-    elif [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
+    elif [ "${P_HARNESS[$i]}" = claude ]; then
       prove_claude "$seat" "${P_MARK[$i]}" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
-      proved_claude=1
+    fi
+    if ! "$TMUX_BIN" -L "$SOCKET" set-option -p -t "$LAUNCHED_PANE" @zeo_rescue 1; then
+      stopped=0; unseat "$i"; recovery "$i"; break
     fi
   done
+fi
+
+if [ $APPLY -eq 1 ] && [ $resumed -gt 0 ]; then
+  ZEO_RESCUE_HOST="$HOST_NAME" ZEO_RESCUE_SOCKET="$SOCKET" ZEO_RESCUE_CHART="$CHART" "$HERE/records.sh" capture ||
+    echo "WARNING: automatic recovery-record refresh incomplete; inspect make records-status"
 fi
 
 echo "rescue: live $live, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
