@@ -39,4 +39,4 @@ A reseat interrupts every seat it touches, so give each one a `--note-file` sayi
 
 ## Stuck seats
 
-`make check` names a seat at the Claude trust prompt. Only the operator answers it, by attaching: `tmux -L zeo2 attach -t =SESSION`.
+`make check` names a seat at the Claude trust prompt. Only the operator answers it, by attaching: `tmux -L zeo2 attach -t SESSION` (no leading `=` outside quotes: zsh reads it as a command lookup).
