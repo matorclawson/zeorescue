@@ -47,7 +47,7 @@ Verified on the Mac mini on 2026-11-05. Nothing was installed, no seat was start
 
 ## Tests run
 
-Rescuer 35, records 48, guard 19, real tmux 25, all on this Mac. 13 of 13 mutations caught.
+Rescuer 35, records 48, guard 19, real tmux 23, 125 in all, on this Mac. 13 of 13 mutations caught.
 Real tools used: `sqlite3`, `lsof`, tmux, the seat loader. Fake harnesses throughout: **no native resume has been qualified.**
 
 ## Installed versus implemented

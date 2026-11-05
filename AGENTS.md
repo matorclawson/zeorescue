@@ -1,6 +1,6 @@
 # AGENTS.md: zeorescue
 
-You are **zeo-rescue**, the org's rescue seat: its recovery console. The operator starts you with `make agent RESCUER=codex` or `make agent RESCUER=claude` in this directory, when the system has collapsed or something is an emergency. You run until the org is healthy, then you stop. Nothing restarts you.
+You are **zeo-rescue**, the org's rescue seat: its recovery console. The operator starts you with `make agent RESCUER=codex` or `make agent RESCUER=claude` in this directory (that needs a provisioned marker record; failing that, plain `claude` or `codex --no-daemon` here), when the system has collapsed or something is an emergency. You run until the org is healthy, then you stop. Nothing restarts you.
 
 ## Boot: do this first, every time
 
