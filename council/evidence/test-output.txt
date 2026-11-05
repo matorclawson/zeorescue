@@ -1,0 +1,140 @@
+-- the plan
+ok   a plan starts nothing
+ok   UNRESOLVED seats exit 3
+ok   newest transcript, its recorded mode, the chart's session label
+ok   a codex seat gets its own recorded mode and marker
+ok   a workspace-write seat with no record gets no marker
+ok   a seat recorded inactive stays inactive
+ok   a full-access seat with no record gets the default
+ok   no recorded mode is UNRESOLVED, never a default
+ok   a mailbox that is not the seat id is not guessed
+ok   no thread is UNRESOLVED
+ok   another host's seat is left out
+ok   a seat with no agent is left out
+ok   the rescue seat never starts itself
+ok   the last good chart is kept
+-- naming the session
+ok   --session beats the newest transcript, with that session's own mode
+ok   --session needs exactly one seat
+ok   a --session with no transcript is UNRESOLVED
+ok   a pin beats the newest transcript
+ok   a bad pin is UNRESOLVED
+-- a recorded marker older than a fault
+ok   without --before the newest snapshot speaks
+ok   --before ignores snapshots written during the fault
+-- not running twice
+ok   a process in the seat's directory is left alone
+ok   the versioned binary path counts as claude
+-- the launch
+ok   --seat limits --apply
+ok   a session starts on a sleep, so no shell runs before the marker
+ok   the marker is set before the seat starts
+ok   claude argv
+ok   codex argv has --no-daemon and -C
+ok   the note joins the prompt
+ok   the first codex seat is proved
+ok   the first claude seat is proved
+ok   a later run leaves a live seat alone
+-- the seat-exec environment
+ok   the seat gets its own identity
+ok   the loader can find its pane
+ok   the environment is clean
+ok   a codex seat gets a login shell and the prompt
+ok   a claude seat gets an interactive shell, so .zshrc runs
+-- the first seat gate
+ok   a wrong first seat exits 1
+ok   another seat's identity stops the run
+ok   no other seat was started
+ok   a missing marker stops the run
+ok   no snapshot stops the run
+ok   a claude seat with another identity stops the run
+ok   a claude seat without its marker stops the run
+-- reseating a live seat
+ok   a live seat is planned for a reseat, with the pane that holds it
+ok   a seat rescue started is left alone, so a reseat can be run again
+ok   a reseat plan starts nothing
+ok   a seat whose pane does not hold its thread is not touched
+-- a stuck process and the daemon
+ok   a process that will not stop is not joined by a second one
+ok   that exits 1
+ok   nothing started over it
+ok   the daemon stops when no seat is attached
+ok   by exact pid
+ok   and by SIGKILL when it ignores SIGTERM
+ok   the seat restarts after the daemon stops
+ok   the daemon stays while another seat is attached
+ok   and nothing is killed
+-- two writers: a thread something still holds
+ok   a live seat is not started while the daemon holds its thread
+ok   that exits 1
+ok   and nothing was started beside it
+ok   the question is asked of the seat's own rollout
+ok   a dead seat is held to the same test
+-- a first seat that fails its proof
+ok   the run stops at the failed seat
+ok   the output says what is down and what brings it back
+ok   the next seat stays on its sleep
+ok   the wrong seat is stopped again, not left up
+ok   and loses the mark, so the next run plans it again
+ok   a seat that was dead goes back to dead, so make rescue can take it
+ok   the claude proof recovers the same way
+-- what a restart would cut
+ok   a turn on the screen is listed
+ok   a tool shell is listed by what it runs
+ok   mail hooks, caffeinate and the daemon's helper are not work
+ok   a Codex tool under the daemon is listed
+ok   and counted
+ok   listing stops nothing
+ok   --apply lists it before it stops anything, so the log keeps what was cut
+-- check
+ok   seats started right pass
+ok   a seat at the trust prompt is named, not counted as back
+ok   a wrong seat exits 1
+ok   a seat on the daemon is named
+ok   a seat with another identity is named
+ok   a missing seat is named
+-- the chart and usage
+ok   an unreadable chart falls back to the last good one, out loud
+ok   no chart at all is a failure
+ok   a bad socket name is usage
+ok   --check never combines with --apply
+-- the operator's runner
+ok   the wrong place refuses in plain words
+ok   an unknown step runs nothing
+ok   the pins match the files in this checkout
+ok   a change to rescue.sh refuses
+ok   a change to seat-exec.sh refuses
+ok   a change to Makefile refuses
+ok   a change to session-pins refuses
+ok   a change to notes/reseat-20261105.txt refuses
+ok   a change to notes/zeoarchitect-resume.txt refuses
+ok   all refuses until zeoarchitect has its own note
+PASS
+-- a dead seat comes up through real tmux and the real loader
+ok   rescue exits 0
+ok   the claude path proves itself from the live process
+ok   the codex path proves itself from a snapshot
+ok   the seat loader saw the pane marker on its first run
+ok   git is on
+ok   the rescuer's environment did not leak
+ok   codex got --no-daemon
+ok   the pane carries both options
+ok   the prompt arrives as one argument
+ok   --check passes them
+-- a live seat started the wrong way is reseated
+ok   reseat exits 0
+ok   only one process holds the session
+ok   the reseated seat has its marker
+ok   the side window survived
+ok   a second reseat leaves it alone
+-- a seat that fails its proof goes back to sleep, and the next run takes it
+ok   a wrong identity stops the run
+ok   and says what is down
+ok   the wrong seat is back on a sleep, with no rescue mark
+ok   the next plan takes it, not skips it
+ok   --check names it wrong meanwhile
+-- real lsof sees what holds a rollout
+ok   a real holder refuses the start
+ok   with nothing holding it the same line brings the seat back
+ok   and --check passes it
+PASS

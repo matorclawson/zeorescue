@@ -2,13 +2,15 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-05 ~15:35 GMT, by `zeo-rescue`, held at ending B of line 2.
+Last updated: 2026-11-05 ~15:40 GMT, by `zeo-rescue`, held at ending B of line 2, with the external council.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat (urgent), CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**15:40 GMT: with the external council, by the operator's decision.** The Architect is busy, so the operator is sending this to the external council instead of waiting. The packet is `council/README.md`, on the public branch `zeo-rescue/council-review-20261105`. The next step is still undecided: line 2 is not rerun and line 3 is not run until the operator says so. Fixes come back as a branch or patch, are not merged or run on arrival, and a change to a pinned file still means new pins and the Architect's read. New gap, in the packet: the `WORK` busy check is unproven on Codex panes, so `work: 0` on a Codex seat is weak evidence.
 
 **HELD at ending B, for the Architect's decision (15:35 GMT). Do not run line 3.** The operator ran line 2 at 15:25:59. It ended B: `FAILED dreamhuggers-expenses-maintainer: pid 28371 still holds its rollout`, `resumed 0, failed 1`. Log: `~/.local/state/zeo-rescue/reseat-lines-proof-20261105-152559.log`. The seat was idle (`work: 0 of 1`), so nothing was cut. It is down on a sleep with no mark, and no second writer ran.
 
@@ -129,7 +131,7 @@ Each thread is intact and nothing is lost, but the org is down until the cause i
 
 **After it:** `make check` must end `check: ok 50, wrong 0`. Git and the deck render (`dt-comic-slides` is holding it for the identity problem) are waiting on this. Commit `7137a3f` is local: PR #1 needs a push, and the Architect still has to re-read the routing.
 
-**3. The cause of the teardown** is still unknown. The operator cannot share the log, and does not need to: they run `make teardown-log` once (sudo), and you read `~/.local/state/zeo-rescue/teardown-*.log` yourself. Grep around 05:10:48 for `loginwindow`, `launchd`, `sessionlogoutd`, `shutdown`, `logout`, `jetsam` and `sshd`. The first SSH login from 100.97.168.76 was at 05:10; that is timing, not a cause. Do it soon: `--info` does not stay in the log for long.
+**3. The cause of the teardown** is still unknown. The operator cannot share the log, and does not need to: they run `make teardown-log` once (sudo), and you read `~/.local/state/zeo-rescue/teardown-*.log` yourself. Grep around 05:10:48 for `loginwindow`, `launchd`, `sessionlogoutd`, `shutdown`, `logout`, `jetsam` and `sshd`. The first SSH login from a tailnet address (it is in the first rescue's transcript) was at 05:10; that is timing, not a cause. Do it soon: `--info` does not stay in the log for long.
 
 **4. ENG-UK** (`pomar-cc`, `pomar`, `zeo-rt-seats`) has not been checked.
 

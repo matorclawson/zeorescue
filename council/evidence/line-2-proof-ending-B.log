@@ -1,0 +1,6 @@
+RESEAT dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
+work: 0 of 1 seats show running work
+DAEMON LEFT: 34 Codex seats are still attached to pids 15515 16463 28371
+FAILED dreamhuggers-expenses-maintainer: pid 28371 still holds its rollout, so it was not started: that would be two writers
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 0, unresolved 0, failed 1
+make: *** [reseat] Error 1
