@@ -66,6 +66,12 @@ if record_status=$("$HERE/records.sh" status 2>/dev/null); then
   issues=$("$JQ" -r '[.issues[]|select(.blocking)]|length' <<< "$record_status")
   add recovery_records observed "$count saved mappings; $issues blocking capture issues; inspect make records-status"
 else add recovery_records unavailable 'no valid local recovery records; enable capture during normal operation'; fi
+health=$("$HERE/records.sh" health 2>&1); rc=$?
+case "$rc" in
+  0) add records_health observed "$(head -1 <<< "$health")";;
+  3) add records_health blocked "$(head -1 <<< "$health")";;
+  *) add records_health stale "$(head -1 <<< "$health")";;
+esac
 if [ -d "${ZEO_RESCUE_RECORDS:-$state/recovery-records.json}.lock" ]; then
   add records_lock unknown 'capture in progress or stale lock; inspect collector before clearing'
 fi

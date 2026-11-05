@@ -97,4 +97,9 @@ ZEO_RESCUE_SQLITE=/missing ZEO_RESCUE_LSOF=/missing "$HERE/doctor.sh" --json > "
 "$JQ" -e '.schema_version == 1 and .restart_cleared == false and .inspection_tools_ready == false' "$T/doctor.json" >/dev/null || fail 'doctor JSON'
 ok 'diagnostics emit structured missing capabilities without clearing recovery'
 grep -q '^@AGENTS.md$' "$HERE/CLAUDE.md" || fail 'Claude instructions drift'; ok 'Claude imports canonical policy'
+# Added at integration: under the host's bash 3.2 an empty array is unbound with set -u, so a plain environment could not start either rescuer.
+out=$(env -i HOME="$T/home" PATH=/usr/bin:/bin "$HERE/rescuer-exec.sh" --help-check claude "$T/bin/harness" inactive 2>&1) || fail "plain environment: $out"
+ok 'a rescuer starts from a plain environment with no overrides set'
+if grep -n '"${config\[@\]}"' "$HERE/agent.sh" "$HERE/rescuer-exec.sh" | grep -v '+'; then fail 'unguarded empty array'; fi
+ok 'no unguarded empty-array expansion in the launch path'
 echo "PASS: $pass offline checks; no real harness or host recovery qualified"

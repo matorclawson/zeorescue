@@ -5,7 +5,8 @@
 After code review and host qualification, install the finite collector once with
 `make records-install`. It generates recovery records automatically every 30 seconds
 and at login, without a seat or harness. Check `make records-status` for missing or
-conflicting mappings. The normal seat launcher should also call `make records`
+conflicting mappings, and `make records-health` to see that the collector is still
+writing. The normal seat launcher should also call `make records`
 after native session changes. See RECORDS.md for observation limits.
 
 ## Seats have gone down

@@ -56,7 +56,7 @@ for name in ZEO_RESCUE_RECORDS ZEO_RESCUE_HOST ZEO_RESCUE_SOCKET ZEO_RESCUE_STAT
   clear_config+=(-u "$name")
   [ -z "${!name:-}" ] || config+=("$name=${!name}")
 done
-"$TMUX_BIN" -L zeo-rescue respawn-pane -k -t "$pane" -c "$HERE" -- /usr/bin/env "${clear_config[@]}" "HOME=$HOME" "${config[@]}" \
+"$TMUX_BIN" -L zeo-rescue respawn-pane -k -t "$pane" -c "$HERE" -- /usr/bin/env "${clear_config[@]}" "HOME=$HOME" ${config[@]+"${config[@]}"} \
   "$HERE/rescuer-exec.sh" --launch "$harness" "$binary" "$marker" || cleanup
 echo "START REQUESTED: $harness as zeo-rescue, marker $marker. Attach: tmux -L zeo-rescue attach"
 echo 'Authentication, tool permissions and live readiness must be checked inside the rescuer with make doctor.'

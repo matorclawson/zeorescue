@@ -186,4 +186,75 @@ printf '11 /fake/claude --resume %s\n22 /fake/claude --resume %s\n' "$CX" "$CL" 
 if R capture > "$T/out"; then fail 'wrong live harness treated as down'; fi
 if R get cx codex cx-s "$T/cx" >/dev/null 2>&1; then fail 'stale mapping after harness conflict'; fi
 ok 'an existing pane with the wrong or unverifiable harness blocks the saved mapping'
+
+# Added at integration, from what the real host showed.
+mkdir -p "$T/.claude/sessions"
+LOCK=$T/state/recovery-records.json.lock
+normal() { printf '11 /fake/codex resume --no-daemon %s\n22 /fake/claude --resume %s\n' "$CX" "$CL" > "$T/processes"; }
+reset_fixture() { rm -f "$T/down" "$T/wrong-id" "$T/fd-mode" "$T/launch" "$T/holder" "$T/ps-fail" "$T/.claude/sessions/"*.json; rm -rf "$LOCK"; normal; echo '%11|11|master' > "$T/cx-pane"; cp "$T/good.json" "$T/state/recovery-records.json"; cp "$T/chart.saved" "$T/chart.json"; }
+reset_fixture
+mkdir "$LOCK"; echo 999999 > "$LOCK/pid"
+R capture > "$T/out" 2>"$T/err" || fail 'dead lock'; [ ! -d "$LOCK" ] && grep -q 'took over' "$T/err" || fail 'dead lock left'; ok 'a capture killed by a teardown does not stop every later capture'
+mkdir "$LOCK"; echo $$ > "$LOCK/pid"
+if R capture >/dev/null 2>&1; then fail 'live lock ignored'; fi; [ -d "$LOCK" ] || fail 'live lock removed'; ok 'a running capture keeps its lock'
+rm -rf "$LOCK"; mkdir "$LOCK"; touch -t 202601010000 "$LOCK"
+R capture >/dev/null 2>&1 || fail 'old pidless lock'; ok 'an old lock with no owner is taken over'
+reset_fixture
+printf '{"pid":22,"sessionId":"%s","cwd":"%s"}' "$NEW" "$T/cl" > "$T/.claude/sessions/22.json"
+printf '11 /fake/codex resume --no-daemon %s\n22 /fake/claude\n' "$CX" > "$T/processes"
+R capture > "$T/out" || fail 'native map'
+"$q" -e --arg id "$NEW" '.records[]|select(.seat=="cl")|.session_id==$id and .source=="native-pid-session"' "$T/state/recovery-records.json" >/dev/null || fail 'native id'; ok 'a Claude session with nothing in argv is named by its pid file'
+normal; R capture > "$T/out" || fail 'native over argv'
+"$q" -e --arg id "$NEW" '.records[]|select(.seat=="cl")|.session_id==$id' "$T/state/recovery-records.json" >/dev/null || fail 'stale argv won'; ok 'the pid file beats a stale --resume in argv'
+reset_fixture
+"$q" '.seats += [{seat_id:"bad",mailbox:"bad",desired_host:"h",desired_agent:"codex",desired_folder:"/x",desired_tmux:null}]' "$T/chart.saved" > "$T/chart.json"
+if R capture > "$T/out" 2>&1; then fail 'bad row hidden'; fi
+"$q" -e '(.records|length)==2 and any(.issues[]; .seat=="bad" and .blocking)' "$T/state/recovery-records.json" >/dev/null || fail 'bad row'; ok 'one bad chart row blocks only its own seat'
+reset_fixture
+"$q" '.seats |= map(select(.seat_id=="cl"))' "$T/chart.saved" > "$T/chart.json"
+R capture > "$T/out" || fail 'shrunken chart'; R capture > "$T/out" || fail 'shrunken chart 2'
+R get cx codex cx-s "$T/cx" > "$T/get" || fail 'mapping lost'
+"$q" -e 'any(.issues[]; .seat=="cx" and (.blocking|not))' "$T/state/recovery-records.json" >/dev/null || fail 'no note'; ok 'a chart that loses a seat does not erase its mapping'
+reset_fixture
+"$q" --arg id "$CX" '.records |= (map(select(.seat=="cl")) + [{seat:"zz",mailbox:"zz",harness:"codex",tmux_session:"zz-s",cwd:"/z",session_id:$id,marker:"master"}])' "$T/good.json" > "$T/state/recovery-records.json"
+if R capture > "$T/out" 2>/dev/null; then fail 'duplicate hidden'; fi
+"$q" -e '(.records|map(.seat))==["cl"] and ([.issues[]|select(.blocking)|.seat]|sort)==["cx","zz"]' "$T/state/recovery-records.json" >/dev/null || fail 'duplicate scope'
+R get cl claude cl-s "$T/cl" > "$T/get" || fail 'bystander blocked'; ok 'a duplicate session blocks the two seats that share it, not the org'
+reset_fixture; R capture > "$T/out"
+R health > "$T/out" || fail 'fresh'; grep -q '^records: fresh' "$T/out" || fail 'fresh words'; ok 'health passes a fresh, clear cache'
+"$q" '.generated_at="2020-01-01T00:00:00Z"' "$T/state/recovery-records.json" > "$T/stale"; cp "$T/stale" "$T/state/recovery-records.json"
+rc=0; R health > "$T/out" || rc=$?; [ $rc -eq 1 ] && grep -q '^records: STALE' "$T/out" || fail 'stale'; ok 'health fails a collector that stopped'
+reset_fixture; R capture > "$T/out"; "$q" '.issues=[{seat:"cx",blocking:true,reason:"r"}]' "$T/state/recovery-records.json" > "$T/blocked"; cp "$T/blocked" "$T/state/recovery-records.json"
+rc=0; R health > "$T/out" || rc=$?; [ $rc -eq 3 ] && grep -q '^BLOCKED 1 seats: r' "$T/out" || fail 'blocked'; ok 'health names blocked seats'
+echo '{broken' > "$T/state/recovery-records.json"; rc=0; R health > "$T/out" || rc=$?; [ $rc -eq 1 ] && grep -q UNUSABLE "$T/out" || fail 'unusable'; ok 'health fails a corrupt cache'
+reset_fixture
+"$q" '.records |= map(select(.seat!="cl")) | .issues=[{seat:"cl",blocking:true,reason:"pane has no recorded marker"}]' "$T/good.json" > "$T/state/recovery-records.json"
+touch "$T/down"; : > "$T/processes"
+printf 'cl master %s\n' "$CL" > "$T/seed"
+if "$HERE/rescue.sh" --host h --socket test > "$T/plan" 2>&1; then fail 'no seed resolved'; fi; grep -q '^UNRESOLVED cl:' "$T/plan" || fail 'no seed'
+"$HERE/rescue.sh" --host h --socket test --seed "$T/seed" > "$T/plan" 2>&1 || { cat "$T/plan"; fail 'seed plan'; }
+grep -q "^RESUME cl: claude $CL (--permission-mode .*marker master, seed file)" "$T/plan" || { cat "$T/plan"; fail 'seed plan line'; }; ok 'a reviewed seed plans a seat with no record, in that seat own recorded mode'
+printf 'cl master %s\n' 99999999-9999-4999-8999-999999999999 > "$T/seed"
+if "$HERE/rescue.sh" --host h --socket test --seed "$T/seed" > "$T/plan" 2>&1; then fail 'bad seed'; fi; grep -q '^UNRESOLVED cl: seed does not match' "$T/plan" || fail 'bad seed words'; ok 'a seed that native history does not back is refused'
+printf 'cl owner %s\n' "$CL" > "$T/seed"
+if "$HERE/rescue.sh" --host h --socket test --seed "$T/seed" > "$T/plan" 2>&1; then fail 'bad marker'; fi; ok 'a seed cannot invent a marker'
+reset_fixture; touch "$T/down"; : > "$T/processes"; printf 'cl master %s\n' "$NEW" > "$T/seed"
+if "$HERE/rescue.sh" --host h --socket test --seed "$T/seed" > "$T/plan" 2>&1; then fail 'conflict'; fi; grep -q '^UNRESOLVED cl: seed session conflicts' "$T/plan" || { cat "$T/plan"; fail 'conflict words'; }; ok 'a seed that disagrees with a captured record is refused, and the record stands'
+reset_fixture
+holds_fn=$(sed -n '/^holds()/,/^}/p' "$HERE/rescue.sh")
+printf '{"pid":22,"sessionId":"%s"}' "$NEW" > "$T/.claude/sessions/22.json"
+printf '22 /fake/claude\n' > "$T/processes"
+hold() { rc=0; bash -c "set -uo pipefail
+$holds_fn
+PS_BIN='$T/bin/ps'; CLAUDE_SESSIONS='$T/.claude/sessions'; holds $NEW" || rc=$?; echo $rc; }
+[ "$(hold)" = 0 ] || fail 'file holder missed'; printf '22 /bin/sleep 100\n' > "$T/processes"; [ "$(hold)" = 1 ] || fail 'reused pid held'; : > "$T/processes"; [ "$(hold)" = 1 ] || fail 'dead pid held'
+ok 'a Claude session open only in the pid file counts as held, and a dead or reused pid does not'
+reset_fixture
+touch "$T/hot"; touch -t 202601010000 "$T/cold"
+work=$(bash -c "set -uo pipefail
+$(sed -n '/^children()/,/^}/p;/^work_list()/,/^}/p' "$HERE/rescue.sh")
+PS_BIN='$T/bin/ps'; TMUX_BIN=true; SOCKET=t; LSOF=true; WORK_WINDOW=60
+P_SEAT=(hot cold); P_PANE=(%1 %2); P_PID=(1 2); P_ROLL=('$T/hot' '$T/cold')
+work_list")
+grep -q '^WORK hot: its history was written' <<< "$work" && ! grep -q '^WORK cold' <<< "$work" && grep -q '^work: 1 of 2' <<< "$work" || { echo "$work"; fail 'history age'; }; ok 'running work is seen from history being written, whatever the harness prints'
 echo "PASS: $n record/recovery checks"

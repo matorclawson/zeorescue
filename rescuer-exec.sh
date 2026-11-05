@@ -15,7 +15,7 @@ done
 clean=(/usr/bin/env -i "HOME=$HOME" "USER=$(id -un)" "LOGNAME=$(id -un)" "SHELL=/bin/zsh"
   "PATH=$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   "TERM=${TERM:-xterm-256color}" "LANG=${LANG:-en_US.UTF-8}" "TMUX=${TMUX:-}" "TMUX_PANE=${TMUX_PANE:-}"
-  'ZMAIL_INSTANCE=zeo-rescue' "ZEO_TMUX_SEAT=$marker" "ZEO_RESCUER_HARNESS=$harness" "${config[@]}")
+  'ZMAIL_INSTANCE=zeo-rescue' "ZEO_TMUX_SEAT=$marker" "ZEO_RESCUER_HARNESS=$harness" ${config[@]+"${config[@]}"}) # bash 3.2, the host's: an empty array is unbound under set -u
 if [ "$marker" = inactive ]; then clean+=('GIT_ALLOW_PROTOCOL=file'); fi
 cd "$HERE"
 if [ "$action" = --help-check ]; then exec "${clean[@]}" "$binary" --help; fi

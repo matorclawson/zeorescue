@@ -69,15 +69,29 @@ Default files:
 The collector uses a single-writer directory lock, private file creation, a temporary
 file and atomic rename. A killed capture cannot expose a partially written current
 JSON file. This is atomic replacement, not a guarantee against every power-loss or
-filesystem failure; maintain normal host backups. Stale locks are reported and
-require inspection instead of unsafe automatic removal.
+filesystem failure; maintain normal host backups. A lock names its owner. A capture
+killed by a teardown would otherwise stop every later one, so the lock of a dead
+owner is taken over, and a live owner's lock is refused.
 
 When a seat is down, its last complete row is retained, including its original
 observation timestamp. A fresh conflicting identity, marker, mapping or ambiguous
 thread blocks use of that seat's saved row. A later healthy observation clears the
-conflict. Duplicate native sessions block the observed set. Invalid chart/process
-inspection does not overwrite the previous cache. Capture returns 0 for a complete
-usable collection, 3 for per-seat issues and 1 for collection/storage failure.
+conflict. Two seats on one native session block those two seats, not the org: after
+an outage, no later capture could clear it. One invalid chart row blocks its own
+seat. A seat missing from the chart keeps its mapping, with a non-blocking note,
+because a partial chart would otherwise empty the cache within two captures. A chart
+or process failure does not overwrite the previous cache. Capture returns 0 for a
+complete usable collection, 3 for per-seat issues and 1 for collection/storage failure.
+
+`make records-health` says whether the cache is fit to recover from: 0 fresh and
+clear, 3 fresh with blocked seats, 1 stale or unusable. `make doctor` reports the
+same. A collector that stops writes nothing, so age is what reveals it. Check this
+during normal running: it is the only warning before an outage.
+
+Claude keeps no file open on a transcript. Its native `~/.claude/sessions/PID.json`
+names the exact session of a live process, including one with nothing in argv, and
+beats a `--resume` in argv. Seen on this host for every live Claude process. An in-UI
+session switch has not been tested against that file.
 
 `ZEO_RESCUE_RECORDS` selects another cache path. Existing chart/history/tool overrides
 apply; `ZEO_RESCUE_HOST` and `ZEO_RESCUE_SOCKET` select the observation host label and
@@ -92,8 +106,10 @@ pins and `--session` may assert the expected identity but cannot override the ca
 
 Normal `make rescue` leaves live sessions alone, checks for surviving native-session
 processes/history holders, and resumes only recorded dead seats. It has no stop-seat
-or daemon-stop phase. Both Claude transcripts and Codex rollouts receive holder
-checks. Unresolved seats are named; independent recorded dead seats can still recover.
+or daemon-stop phase. A Codex rollout is checked for open files. A Claude transcript
+is never held open, so that check cannot fire for Claude; what protects a Claude
+session is the process listing and its pid-to-session file. Unresolved seats are
+named; independent recorded dead seats can still recover.
 Each newly launched seat receives the existing basic environment proof, including
 inactive policy. The rescue flag is `starting` until that proof passes, then `1`.
 This still does not implement exclusive writer locks or a full external-action
@@ -102,6 +118,16 @@ quarantine; the earlier broader safety findings must not be treated as closed.
 Live-seat repair remains explicitly `--reseat` and operator-controlled. It is not
 part of ordinary crash recovery, and the old hash-pinned reseat commands remain
 invalid for this changed implementation.
+
+## Seats no capture can record
+
+A seat started wrong (no pane marker, or on the shared daemon) or down before any
+collector ran has no record, and none can be invented. `--seed FILE` names such seats,
+in lines `SEAT MARKER SESSION`. It is a reviewed file for one named incident, never a
+default. The exact native history must agree, a live pane must hold that session, and
+a captured record that disagrees wins by refusal. `notes/seed-20261105.txt` is the
+one for 5 November, generated from the plan the Architect read. Retire it when
+`make records-health` is clear.
 
 ## Coverage limits to understand
 

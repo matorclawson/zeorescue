@@ -16,6 +16,8 @@
 # --check starts nothing and judges every seat: OK or WRONG, with the reason.
 # It lists what a restart would cut first, as WORK lines, in the plan and again just before --apply stops anything.
 # --session and session-pins can assert the expected session; they never override the saved mapping.
+# --seed FILE names seats that have no usable record: lines "SEAT MARKER SESSION". It is a reviewed file for one named incident, never a default:
+# the exact native history must agree, a live pane must hold that session, and a captured record that disagrees wins by refusing.
 # records.sh captures exact native session/identity/cwd/policy/marker during normal operation,
 # without an agent or model call. Run its generated launchd job or call capture from the seat lifecycle.
 # Recovery uses the saved local records and exact native histories; it never chooses the newest thread
@@ -49,7 +51,9 @@ PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
 # Thread release and process termination have different deadlines. A timeout refuses, never forces.
 ROLLOUT_TRIES=${ZEO_RESCUE_ROLLOUT_TRIES:-90}
-SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+CLAUDE_SESSIONS=${ZEO_RESCUE_CLAUDE_SESSIONS:-$HOME/.claude/sessions}
+WORK_WINDOW=${ZEO_RESCUE_WORK_WINDOW:-120}
+SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" SEED=""
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
 
@@ -65,6 +69,7 @@ while [ $# -gt 0 ]; do
     --session) [ $# -ge 2 ] || usage; SESSION_ARG=$2; shift 2;;
     --note-file) [ $# -ge 2 ] || usage; NOTE_FILE=$2; shift 2;;
     --before) [ $# -ge 2 ] || usage; BEFORE=$2; shift 2;;
+    --seed) [ $# -ge 2 ] || usage; SEED=$2; shift 2;;
     --host) [ $# -ge 2 ] || usage; HOST_NAME=$2; shift 2;;
     --socket) [ $# -ge 2 ] || usage; SOCKET=$2; shift 2;;
     --stagger) [ $# -ge 2 ] || usage; STAGGER=$2; shift 2;;
@@ -84,6 +89,7 @@ if [ -n "$SESSION_ARG" ]; then
   [ "$n" -eq 1 ] || { echo "rescue: --session needs exactly one --seat" >&2; exit 2; }
 fi
 [ -z "$NOTE_FILE" ] || [ -r "$NOTE_FILE" ] || { echo "rescue: cannot read $NOTE_FILE" >&2; exit 2; }
+[ -z "$SEED" ] || [ -r "$SEED" ] || { echo "rescue: cannot read $SEED" >&2; exit 2; }
 [[ "$SOCKET" =~ ^[a-z0-9][a-z0-9_-]{0,39}$ ]] || { echo "rescue: bad socket name $SOCKET" >&2; exit 2; }
 for t in "$JQ" "$TMUX_BIN" "$PS_BIN"; do [ -x "$t" ] || { echo "rescue: missing tool $t" >&2; exit 1; }; done
 
@@ -112,23 +118,37 @@ running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell
 holds() { # holds SID: does a harness process hold this session? Only harness binaries count: a tmux server keeps the command line of its first client as its title, for life.
   local out
   out=$("$PS_BIN" -axo pid=,command=) || return 2
-  printf '%s\n' "$out" | awk -v id="$1" '($2 ~ /(^|\/)(claude|codex)$/ || $2 ~ /\/(claude|codex)\/versions\//) && index($0, id) {f=1} END {exit !f}'
+  printf '%s\n' "$out" | awk -v id="$1" '($2 ~ /(^|\/)(claude|codex)$/ || $2 ~ /\/(claude|codex)\/versions\//) && index($0, id) {f=1} END {exit !f}' && return 0
+  # Claude keeps no file open on a transcript, and a session opened from inside the UI is not in argv. Its pid-to-session file still names the holder.
+  local f pid
+  while IFS= read -r f; do
+    pid=${f##*/}; pid=${pid%.json}
+    printf '%s\n' "$out" | awk -v p="$pid" '$1==p && ($2 ~ /(^|\/)claude$/ || $2 ~ /\/claude\/versions\//) {f=1} END {exit !f}' && return 0
+  done < <(grep -l -E "\"sessionId\": *\"$1\"" "$CLAUDE_SESSIONS"/*.json 2>/dev/null)
+  return 1
 }
 
 SID="" MODE_ARGS="" WHY="" SANDBOX="" ROLL="" MARK="" MARK_WHY=""
 load_record() { # exact saved seat mapping; policy is read from that native history
-  local record
-  record=$(ZEO_RESCUE_HOST="$HOST_NAME" ZEO_RESCUE_SOCKET="$SOCKET" "$HERE/records.sh" get "$seat" "$harness" "$sess" "$cwd") || {
-    WHY="no usable programmatically captured recovery record"; return 1;
-  }
+  local record seeded="" why=recorded
+  [ -z "$SEED" ] || seeded=$(awk -v s="$seat" '$1==s {print $2, $3}' "$SEED")
+  if ! record=$(ZEO_RESCUE_HOST="$HOST_NAME" ZEO_RESCUE_SOCKET="$SOCKET" "$HERE/records.sh" get "$seat" "$harness" "$sess" "$cwd"); then
+    # A seat started before any collector, or started wrong, can have no record. Only an explicit reviewed seed may name it, and its native history must agree.
+    [ -n "$seeded" ] || { WHY="no usable programmatically captured recovery record"; return 1; }
+    record=$(ZEO_RESCUE_HOST="$HOST_NAME" ZEO_RESCUE_SOCKET="$SOCKET" "$HERE/records.sh" seed "$seat" "$harness" "$sess" "$cwd" "${seeded#* }" "${seeded%% *}") || {
+      WHY="seed does not match the seat's native history"; return 1;
+    }
+    why="seed file"
+  fi
   SID=$("$JQ" -r .session_id <<< "$record")
+  if [ -n "$seeded" ] && [ "${seeded#* }" != "$SID" ]; then WHY="seed session conflicts with captured record"; return 1; fi
   if [ -n "$SESSION" ] && [ "$SESSION" != "$SID" ]; then WHY="requested/pinned session conflicts with captured record"; return 1; fi
   MODE_ARGS=$("$JQ" -r '.mode_args | join(" ")' <<< "$record")
   SANDBOX=$("$JQ" -r '.policy.sandbox_policy.type // ""' <<< "$record")
   ROLL=$("$JQ" -r .history_path <<< "$record")
   MARK=$("$JQ" -r .marker <<< "$record")
   [ "$MARK" != inactive ] || MARK=""
-  MARK_WHY="captured recovery record"
+  MARK_WHY=$([ "$why" = recorded ] && echo "captured recovery record" || echo "$why")
 }
 marker_label() { if [ -n "$MARK" ]; then echo "marker $MARK, $MARK_WHY"; else echo "no marker, $MARK_WHY"; fi; }
 
@@ -236,12 +256,18 @@ children() { # children TREE PID: a process's children as "pid etime command", w
     if (c !~ /\/\.local\/share\/zeo\/messenger\/hooks\// && c !~ /^caffeinate / && c !~ /\/app-server-daemon\/releases\//) print $1, $3, substr(c, 1, 110) }'
 }
 work_list() { # what a restart would cut: it reads only, and a quiet result is what could be seen, not a promise that nothing is in progress
-  local tree i seats=0 busy=0 hit kids daemon line pid
+  local tree i seats=0 busy=0 hit kids daemon line pid now age
+  now=$(date +%s)
   tree=$("$PS_BIN" -axo pid=,ppid=,etime=,command=) || { echo "WORK: ps failed, so running work is unknown"; return 0; }
   for ((i = 0; i < ${#P_SEAT[@]}; i++)); do
     [ -n "${P_PANE[$i]}" ] || continue
     seats=$((seats+1)) hit=0
     if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "${P_PANE[$i]}" 2>/dev/null | grep -q 'esc to interrupt'; then echo "WORK ${P_SEAT[$i]}: a turn is in progress on its screen"; hit=1; fi
+    # History being written is the one sign that holds for both harnesses. The screen text above has only ever been seen on Claude.
+    if [ -n "${P_ROLL[$i]}" ] && age=$(date -r "${P_ROLL[$i]}" +%s 2>/dev/null); then
+      age=$((now-age))
+      if [ "$age" -lt "$WORK_WINDOW" ]; then echo "WORK ${P_SEAT[$i]}: its history was written ${age}s ago"; hit=1; fi
+    fi
     kids=$(children "$tree" "${P_PID[$i]}")
     if [ -n "$kids" ]; then hit=1; while IFS= read -r line; do echo "WORK ${P_SEAT[$i]}: $line"; done <<< "$kids"; fi
     busy=$((busy+hit))
@@ -294,8 +320,15 @@ stop_daemon() { # the shared app-server keeps every attached thread open, so it 
   # No unattended SIGKILL: a timeout requires inspection, not stronger signals.
   # shellcheck disable=SC2086
   "$KILL_BIN" $pids 2>/dev/null || { echo "STOPPED: daemon SIGTERM failed; inspect exact processes"; return 1; }
-  pause "${ZEO_RESCUE_DAEMON_WAIT:-5}"
-  out=$("$PS_BIN" -axo pid=,command=) || return 1
+  # With no SIGKILL behind it, a fixed short wait would turn a slow shutdown of dozens of threads into a stopped run with the org down.
+  local i alive
+  for ((i = 0; i < ${ZEO_RESCUE_DAEMON_WAIT:-30}; i++)); do
+    pause 1
+    out=$("$PS_BIN" -axo pid=,command=) || return 1
+    alive=0
+    for p in $pids; do printf '%s\n' "$out" | awk -v p="$p" '$1==p {f=1} END {exit !f}' && alive=1; done
+    [ "$alive" -eq 1 ] || break
+  done
   for p in $pids; do
     if printf '%s\n' "$out" | awk -v p="$p" '$1==p {f=1} END {exit !f}'; then
       echo "STOPPED: daemon pid $p still exists after SIGTERM; no launch and no automatic SIGKILL"

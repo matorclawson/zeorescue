@@ -22,6 +22,7 @@ help:
 	@echo "make records               capture exact recovery records without a harness"
 	@echo "make records-status        inspect saved records and capture issues"
 	@echo "make records-service       generate the automatic collector launchd job"
+	@echo "make records-health        is the saved cache fresh enough to recover from; ARGS=SECONDS sets the limit"
 
 records:
 	@./records.sh capture
@@ -31,6 +32,9 @@ records-install:
 
 records-status:
 	@./records.sh status
+
+records-health:
+	@./records.sh health $(ARGS)
 
 records-service:
 	@./records.sh service
@@ -68,4 +72,5 @@ test-rescuer:
 test:
 	@bash ./rescuer-test.sh
 	@bash ./records-test.sh
-	@python3 ./guard-regression-test.py
+	@bash ./guard-test.sh
+	@bash ./tmux-test.sh

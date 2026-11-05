@@ -14,6 +14,12 @@ other harness to be the rescuer. Target seats retain their own harness and histo
 This table describes implemented routing, not four real-host qualifications.
 The council's bulk-recovery blockers remain open.
 
+## If the rescuer was never provisioned
+
+`make agent` refuses without the record below, and that must not stop a rescue. In a
+collapse, `cd` to this repo and run `claude` or `codex --no-daemon` directly. You get
+no marker and the caller's environment, so report that and do not use network git.
+
 ## Provision the rescuer once
 
 The operator must establish zeo-rescue's **own** marker. The old implementation

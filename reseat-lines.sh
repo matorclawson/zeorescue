@@ -9,7 +9,7 @@
 #   reseat-lines.sh all           restarts every other seat, about 18 minutes
 set -uo pipefail
 WANT=rodbot@Mac-mini
-BEFORE=202611050511
+SEED=notes/seed-20261105.txt
 NOTE=notes/reseat-20261105.txt
 PROOF_SEAT=dreamhuggers-expenses-maintainer
 HERE=$(cd "$(dirname "$0")" && pwd -P)
@@ -30,6 +30,7 @@ pin 6d2ea61a03a67aa954709939aa6cd5e4e71d1286e72116114eb5c37b5967fda2 session-pin
 pin ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029 notes/reseat-20261105.txt
 pin 6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b notes/zeoarchitect-resume.txt
 pin 5d8b1cb780dbec284785cbb9faee9f48109525998a98e3aa586db9e09916bef1 records.sh
+pin 0 notes/seed-20261105.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2
 log=$STATE/reseat-lines-$step-$(date +%Y%m%d-%H%M%S).log
@@ -39,11 +40,11 @@ case "$step" in
   zeoarchitect)
     { make rescue ARGS="--seat zeoarchitect --note-file notes/zeoarchitect-resume.txt" && make check ARGS="--seat zeoarchitect"; } 2>&1 | tee "$log";;
   proof)
-    { make reseat ARGS="--seat $PROOF_SEAT --before $BEFORE --note-file $NOTE" && make check ARGS="--seat $PROOF_SEAT"; } 2>&1 | tee "$log";;
+    { make reseat ARGS="--seat $PROOF_SEAT --seed $SEED --note-file $NOTE" && make check ARGS="--seat $PROOF_SEAT"; } 2>&1 | tee "$log";;
   all)
     # A bulk reseat also resumes dead seats, so it would start zeoarchitect with the wrong note, without the one that says which mail is not its own.
     "$TMUX_BIN" -L zeo2 has-session -t "=zeoarchitect-maintainer" 2>/dev/null || { echo "OUT OF ORDER, nothing was run: zeoarchitect is not up. Run the zeoarchitect line first."; exit 2; }
-    { make reseat ARGS="--before $BEFORE --note-file $NOTE" && make check; } 2>&1 | tee "$log";;
+    { make reseat ARGS="--seed $SEED --note-file $NOTE" && make check; } 2>&1 | tee "$log";;
 esac
 rc=${PIPESTATUS[0]}
 echo "result kept in $log; exit $rc. Tell zeo-rescue: done."
