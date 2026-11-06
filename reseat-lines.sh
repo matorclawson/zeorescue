@@ -40,7 +40,7 @@ pin ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029 notes/resea
 pin 6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b notes/zeoarchitect-resume.txt
 pin be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2 notes/lic-test-20261106.txt
 pin caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de notes/codex-relaunch-20261106.txt
-pin 14ce58c46adb7475ad825d8bddb6f6be5ac1bde34d4e42c6bd14e7d364231b70 folder-moves
+pin 8cb95016b63023da7b7f0d4674fd3dca5fd64716306e0f0332678209ac520dab folder-moves
 pin 13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d zshenv-lines.sh
 # END PINS
 [ $bad -eq 0 ] || exit 2
