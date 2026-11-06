@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~04:14 GMT, by `zeo-rescue`, line 3 accepted; the inactive-seat git finding is held for the Architect.
+Last updated: 2026-11-06 ~04:44 GMT, by `zeo-rescue`, the -lic launcher held for the Architect; nothing has run.
 
 ## Do next, in this order
 
@@ -10,7 +10,56 @@ Last updated: 2026-11-06 ~04:14 GMT, by `zeo-rescue`, line 3 accepted; the inact
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**04:14 GMT, 6 Nov: why one shell in `dt-brandedimage-maintainer` had git off and another did not. Found, read-only, and nothing changed. The Architect accepted line 3 and asked for this; any fix waits for their read.**
+**04:44 GMT, 6 Nov: the `-lic` launcher is ready for the Architect's read. Nothing has run. No seat was restarted. Line 4 below must not run until they clear it.** Their ruling: not option (a) alone; prepare (b); test on `dt-brandedimage-maintainer` only; add a check that reads the process and a shell from a different folder; measure author and account, read-only; no other seat restarts until cleanup settles and they have read the test. Code: `8f4a2fd`.
+
+*Read before clearing: `-lic` alone does not turn gh off.* `~/.zshenv` runs in every zsh, sets `GH_CONFIG_DIR` to `gh-matorclawson` and unsets `GH_TOKEN`. So in a shell without the snapshot, `-lic` keeps `GIT_ALLOW_PROTOCOL=file` and `GIT_SSH_COMMAND=/usr/bin/false` (real shells, measured) and fixes the author, but gh stays on for an inactive seat. That file is on the host, outside this repo, and was not touched. Two lines fix it, tried only on a private copy through `ZDOTDIR`:
+
+```
+export GH_CONFIG_DIR="${GH_CONFIG_DIR:-$HOME/.config/gh-matorclawson}"
+[ "${GH_TOKEN:-}" = zeo-seat-disabled ] || unset GH_TOKEN; unset GITHUB_TOKEN
+```
+
+On that copy: inactive gives gh off, master keeps `gh-master` and the noreply author, a shell with no seat stays on `gh-matorclawson`, and any other token value is still removed. It affects every zsh on this account, so it needs its own ruling. Without it, line 4 ends WRONG on gh, as below.
+
+*Measured, read-only, 03:11 to about 04:30.*
+
+- **GitHub account: right everywhere.** 204 pushes and branch creations across all 19 repos seats pushed to, from GitHub's repo activity: every actor is `matorclawson`. `gh-matorclawson` and `gh-master` both answer `matorclawson`, and the default ssh route says `Hi matorclawson`. So the default-account worry did not bite today. It would for a seat on another account. There is none today.
+- **Author: wrong in shells without the snapshot.** 35 Codex commits: snapshot shells 3 of 3 `noreply`; other shells 28 of 29 `mator@aiautomators.club`, 1 `noreply`; 3 unresolved. Seats with that address: ducktyper 6, dt-clipping-maintainer 4, zeo-rt-sched 4, profrod 4, zeo-rt 3, zeoconnect-integrations 3, profrod-site-design 2, zeoconnect-tools 1, dt-brandedimage-maintainer 1. The ones unresolved are zeo-rt-ledger 2, zeoconnect-ui 1.
+- **Public repos.** One head committed today carries that address: `profrodai-resources` `8250f7fbf`, a Claude seat's reapplied commit, so the author is original and the committer is `noreply`. The other 15 such heads were committed before today. Claude seats are clean. No history was changed, and nothing needs to be.
+
+*What changed.* `seat-exec.sh`: `-lic` for both harnesses. `rescue.sh`: `check_settings`. It reads `ZEO_TMUX_SEAT`, the account, `GIT_ALLOW_PROTOCOL` and `GH_CONFIG_DIR` from the process, and compares the seat with its pane. It then starts fresh `zsh -lc` and `zsh -c` shells in `/` with those values and asks real git, which refuses before connecting, with ssh as `/usr/bin/false`. It enters no seat, reaches no host, and those four names are all it keeps, so a credential never reaches the probe. `reseat-lines.sh`: step `lic`, which refuses while the seat has a turn on screen, then clears `@zeo_rescue`, because a reseat skips a seat rescue started. `notes/lic-test-20261106.txt`: new and pinned, it tells the seat this is a test and not a crash.
+
+*Evidence.* `make test`: 144 checks pass, and the real tmux suite passed twice more. Broken on purpose in a copy: seat-exec back to `-lc`; the check not called; the `-c` shell skipped (this first slipped through, so a test was added); prompt text winning over the environment; gh not judged; a token passed to the probe. Each is caught. The real-loader suite ran with a fake harness, so **a real Codex under `-lic` is unproved until line 4.**
+
+*`make check` now says `ok 15, wrong 35`.* That is correct, not a new fault: all 35 Codex seats read `process has no seat settings`, until each restarts. It reads `ok 16, wrong 34` only after line 4 and the `.zshenv` lines. `prove_codex` still reads the snapshot alone, so before any bulk use its first-seat proof should read the process too.
+
+| File | sha256 |
+|---|---|
+| `rescue.sh` (changed) | `5365562760b93a6549ff2beb9058985e9c27ee462ad40fe3f0e18160e0cb77fb` |
+| `seat-exec.sh` (changed) | `9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810` |
+| `reseat-lines.sh` (changed; the line pins it) | `aa8d8a8e766bcca84d8bd0c624d41043263778fcbce984205bbbf5a310e2c32d` |
+| `notes/lic-test-20261106.txt` (new) | `be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2` |
+
+*Line 4, the operator's, after clearance, when the seat is idle.* It restarts that seat only, and the seat loses network git in every folder:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "aa8d8a8e766bcca84d8bd0c624d41043263778fcbce984205bbbf5a310e2c32d" ]; then ./reseat-lines.sh lic; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect, ending, with `.zshenv` unchanged:
+
+```
+RESEAT dt-brandedimage-maintainer: codex 01a18e5d-9ea5-7631-8716-08c91cd8d65c (-a never -s danger-full-access; no marker, recorded inactive) in dt-brandedimage-maintainer
+work: 0 of 1 seats show running work
+RESUMED dt-brandedimage-maintainer: codex 01a18e5d-9ea5-7631-8716-08c91cd8d65c (-a never -s danger-full-access; no marker, recorded inactive) in dt-brandedimage-maintainer
+FIRST SEAT OK dt-brandedimage-maintainer: own identity
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 1, unresolved 0, failed 0
+WRONG dt-brandedimage-maintainer (codex): a shell outside its folder has gh on
+check: ok 0, wrong 1
+```
+
+With the `.zshenv` lines first, the last two lines read `OK dt-brandedimage-maintainer (codex)` and `check: ok 1, wrong 0`. `BUSY` means nothing ran; try again. `STOPPED`, or any other `WRONG`, is a real failure: stop, start nothing by hand, and bring it here. The pass that matters comes after: a real tool shell outside its folder must show `transport 'ssh' not allowed` in its rollout. zeo-rescue reads that from the rollout; nobody types into the seat.
+
 
 *Cause.* Git-off on a Codex seat lives only in its shell snapshot, and Codex 0.164.0 skips the snapshot for many tool shells. `~/.config/zeo-tmux-seats/activate.zsh`, sourced from `~/.zshrc`, sets `GIT_ALLOW_PROTOCOL=file`. `seat-exec.sh` starts Codex seats with `zsh -lc`, which does not read `.zshrc`, so the Codex process never has the setting. Tools only get it from the snapshot.
 
