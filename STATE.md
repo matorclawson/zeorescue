@@ -2,13 +2,57 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~06:16 GMT, by `zeo-rescue`, final list and thread_db fix written; rasa parked; held for the Architect's read.
+Last updated: 2026-11-06 ~07:30 GMT, by `zeo-rescue`, Codex restart done; the Claude move built and rehearsed; held for the Architect's read.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**07:30 GMT, 6 Nov: the Claude folder move is designed, built and rehearsed through the real code at real sizes, for the Architect's read. Nothing has run on a seat.** Their order: design a move for a Claude seat; prove on one idle Claude seat that history survives, not on them; nothing runs without their read; a proof must run through the real code on real sizes. Code: `05015b8`.
+
+*First, the Codex restart is done; this seat had not recorded it.* `codex-first` ran at 06:24 and `codex-rest` at 06:26. All five moved with `MOVED OK`, 33 of 33 resumed, no `STOPPED`. Read at 07:04: `check: ok 50, wrong 0`, 35 Codex seats all `--no-daemon`, no thread with two processes, one rollout per moved thread, no daemon. The two old Codex trust entries under `rodriveracom` are still there for the Architect's call. The filed lines at `97d8969` are spent, so this work goes on this branch.
+
+*What Claude Code 2.1.318 does, read from its binary and then run.*
+
+- **The transcript does not have to move.** `--resume ID` from a new folder finds the session in any project folder and keeps appending to that same file, on the same session id. This corrects the plan's premise that a transcript belongs to its folder.
+- **The memory does.** Auto-memory is `~/.claude/projects/<folder key>/memory/`. In a capture of what the model would receive, a memory token arrived when the project moved (1) and did not when the transcript stayed behind (0). 12 of the 15 Claude seats have a memory folder. So the whole project has to move.
+- **A new folder stops at the trust screen**, `Yes, I trust this folder`, writing nothing. Nobody may answer that. A trusted parent does **not** help: the rehearsal stopped under one, and the code reads an exact key. This corrects what zeo-rescue said at 06:58 about `dt-creator`.
+
+*The design.* With the seat stopped, its whole project under `~/.claude/projects` moves by one rename: every session, subagent files and memory. It needs a session pin and an exact trust entry first. The rename refuses if a process still holds the session or the target exists; two projects are never merged. `prove_claude_moved` then requires, reading **only bytes written since the launch** so a rerun cannot pass on an old record: a line from the new folder; one transcript for the session; no new session beside it; the old project gone; and exactly one process, which is the pane's. A worktree target is refused: the memory and trust keys differ there, and no such move is proved.
+
+*`reseat-lines.sh`.* `claude-trust` adds the one exact entry to `~/.claude.json` under Claude's own `~/.claude.json.lock`, with a backup. That file is rewritten by every Claude seat, and it is a real permission grant. `claude-first` restarts the one seat, and refuses while it is working. `claude-back` puts the project back, only with the seat stopped and its line out of `folder-moves`.
+
+*Evidence: `rehearsal/claude-move.sh`.* The real `rescue.sh`, `seat-exec.sh`, seat loader and Claude binary, on real transcripts with the session id rewritten, in the interactive UI. A private tmux socket and config, and a local listener in place of the API, so no seat is touched and nothing leaves the machine. The seat starts in the old folder and moves through `--reseat --relaunch --apply`.
+
+| Transcript | Move took | Result | Messages sent | Memory reached the model | Last words before the move, in what the model receives |
+|---|---|---|---|---|---|
+| zeocreator, 59 MB | 4.0 s | `MOVED OK`, `check: ok 1` | 148 | yes | yes |
+| zbs, 1.05 GB, the largest | 6.1 s | `MOVED OK`, `check: ok 1` | 6, since its last compaction | yes | yes |
+
+Both: old project gone, one transcript, memory, a subagent file and a second session all came along, new lines carry the same session id and the new folder, a second run reads `right already`, and after a crash the plan resumes the same session in the new folder. On the first try the guard refused because a clone shared the live seat's session id. It was right, and the real seat was not touched.
+
+*Tests.* `make test`: 239 checks pass. Each safeguard removed in turn, from a clean baseline, fails exactly its own test: rename, old bytes accepted, trust, worktree, second process, forked session, second transcript, `--check` on an unmoved seat.
+
+*Not proved until a real seat runs.* A real model turn: the rehearsals stop at the API. That Claude honours the lock under real contention: the lock name is read from the code, not tested against a live writer. `claude-first` uses no `--before`, because Claude seats take no marker from it.
+
+*What the proof on a seat needs, all the Architect's.*
+
+- **The seat.** Suggestion: `zeocreator` (session `dt-creator-maintainer`), the smallest seat with a real repo, 59 MB, one transcript, with memory. The plan already sends it to `ducktyper-ai/dt-creator/main`. Its folder has no absolute paths in `.claude`.
+- **The folder.** `dt-creator/main` does not exist yet. The Architect moves `zeocreator` there and repairs its links, as with the others. `.claude/settings.local.json` is untracked, so it travels only if the folder itself moves.
+- **Its input box.** At 06:58 the seat's prompt held the text `Resume your seat's authorised work`, unsent. A restart loses it.
+- **Then.** zeo-rescue adds `zeocreator /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main` to `folder-moves`, updates that pin, and gives final lines: `claude-trust`, then `claude-first`. The line stays out today because the folder does not exist, and `make check` would report a false fault.
+- **The real proof of history.** `notes/claude-move-20261106.txt` asks the seat to say, in one sentence, the last thing it was doing, and whether anything looks missing. zeo-rescue reads that against its last words before the restart.
+
+*Already known about the rest.* `zeobroacastingstudio-zbs` joins an existing repo, "one copy only", so it is a different move: its `.claude` local files and any untracked work do not follow, and it needs its own check. Any seat bound for a worktree is refused until that is proved. The Architect's seat should not be first, as they said.
+
+| File | sha256 |
+|---|---|
+| `rescue.sh` (changed) | `90161b7709acdda3bfc6388bebca4bfcd79f4b0453147ad462f64b92a249067c` |
+| `reseat-lines.sh` (changed; final hash only after the seat's line) | `0f5a6e5d3e25a06d30831f9f7f50cbbbce41a163cddd896a06c0ab471f6837f8` |
+| `session-pins` (zeocreator added) | `889dcaf03b7e41aba917cb2b64dcbdb344d222d0e8b9ad1109e70fe24982eaaa` |
+| `notes/claude-move-20261106.txt` (new) | `bcfaf71763f2184f40f09d7cf05b463366ceea40f547e094799df20a82bac0f0` |
 
 **06:16 GMT, 6 Nov: the final list after the restructure, with one new fix the Architect has not read: a third false stop, found by replaying the proof. Nothing has run. rasa stays parked.** Code: `c87ab82`. These are the only lines to file; the blocks below are superseded on hashes and on two folders.
 
