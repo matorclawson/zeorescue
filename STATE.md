@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~05:27 GMT, by `zeo-rescue`, folders in, final lines written; held for the Architect's read of the diff.
+Last updated: 2026-11-06 ~05:34 GMT, by `zeo-rescue`, the final list and lines written; held for the Architect's read.
 
 ## Do next, in this order
 
@@ -10,7 +10,48 @@ Last updated: 2026-11-06 ~05:27 GMT, by `zeo-rescue`, folders in, final lines wr
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**05:27 GMT, 6 Nov: the Architect's five folders are in `folder-moves`, rasa first. These are the final hashes and the three reseat lines. Nothing has run. They read this diff, then file the lines with the `.zshenv` line. Nothing runs before that read, and the zeoapp folder must be finished.** The Architect read the set at `09f9487`, with no changes asked, and accepted the five pins and the trust step. Code: `165c1a6`. The diff is `folder-moves`, its one pin in `reseat-lines.sh`, and a test that no longer depends on the real file. `rescue.sh`, `seat-exec.sh`, `session-pins` and `zshenv-lines.sh` are unchanged.
+**05:34 GMT, 6 Nov: the Architect's final list. These are the only reseat lines to file; the block below is superseded on zeoapp's folder and the hash. Nothing has run.** Code: `d41845c`. The diff is one line of `folder-moves` and its one pin in `reseat-lines.sh`. Every other file is as read at `09f9487`.
+
+```
+rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
+zeoapp /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp
+ducktyper /Volumes/AIPEMedia1/code/rodriveracom/org-ducktyper-ai/main
+profrod /Volumes/AIPEMedia1/code/rodriveracom/profrod-site/worktrees/profrod--author-public-gate-20261104
+zeo-rt /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoruntime/worktrees/rt-codex-recovery
+```
+
+*Read at 05:33 on the real folders.* All five exist, are in git and clean, with no process, chart seat or other thread in them, and no trust entry, so `trust` adds five. `/Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp` is the same folder as before, moved: same creation time, head `e5be155`, 1,110 tracked files, on `main`, and the old path is gone. Its `origin` is still `https://github.com/rodriveracom/zeoapp.git`, with no other remote. `make test`: 211 checks pass.
+
+*The order stays:* the `.zshenv` apply line, in the blocks below and unchanged; trust; first seat, rasa; the Architect's read; the rest. What to expect from each is in the block below, and nothing there changes except zeoapp's folder.
+
+Trust, after `.zshenv`:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "c4f294cdb21e05c0a207d5a023fa29011c01c8497943794605d748973b638bbe" ]; then ./reseat-lines.sh trust; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+First seat, rasa, after trust:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "c4f294cdb21e05c0a207d5a023fa29011c01c8497943794605d748973b638bbe" ]; then ./reseat-lines.sh codex-first; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+The rest, only after the Architect has read the first seat:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "c4f294cdb21e05c0a207d5a023fa29011c01c8497943794605d748973b638bbe" ]; then ./reseat-lines.sh codex-rest; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+| File | sha256 |
+|---|---|
+| `reseat-lines.sh` (the lines pin it) | `c4f294cdb21e05c0a207d5a023fa29011c01c8497943794605d748973b638bbe` |
+| `folder-moves` | `8cb95016b63023da7b7f0d4674fd3dca5fd64716306e0f0332678209ac520dab` |
+| `rescue.sh` | `e0d57ddec4b045fd109fe88c797b98fc6e4439423865db6c6990d8f4fceb0d0b` |
+| `seat-exec.sh` | `9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810` |
+| `session-pins` | `a4ed4324fa60ee3b4561b4b6050e0dbf00e5cdb121e77d090a280646df889826` |
+| `notes/codex-relaunch-20261106.txt` | `caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de` |
+| `zshenv-lines.sh` | `13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d` |
+
 
 ```
 rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
