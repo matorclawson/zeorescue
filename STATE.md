@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-05 ~23:15 GMT, by `zeo-rescue`, held for the Architect, at the snapshot fix.
+Last updated: 2026-11-06 ~03:13 GMT, by `zeo-rescue`, line 2 cleared by the Architect and not yet run.
 
 ## Do next, in this order
 
@@ -10,7 +10,12 @@ Last updated: 2026-11-05 ~23:15 GMT, by `zeo-rescue`, held for the Architect, at
 
 **2. The reseat (urgent), CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**23:15 GMT: READ THIS FIRST. Line 2 must not run until the Architect has read this block.** Their order: do not run line 2; fix the snapshot grep; smallest change on the cleared line, pins updated, separate from the integration branch; hashes here; do not push the branch.
+**03:13 GMT, 6 Nov: line 2 is CLEARED and has not run. Line 3 stays held until the Architect has read line 2's result.** The Architect cleared it at `dfa5121` and `cd4f64d` with the hashes below, and accepted the anchors at 196, 210, 214 and 216. The integration branch stays unused and unpushed.
+
+*The daemon updated itself to 0.167.0 at 02:07Z.* The pids are now 16463 and 44131, and the expected output below is corrected to match. Those pids can change again if it updates again. The stop finds the daemon by its path, not by version or pid, so nothing pinned changes. The proof seat's rollout was last written by 0.164.0, so **line 2 does not prove a resume of a thread last written by 0.167.** Only line 3 meets that.
+
+*This checkout moved.* At 03:08:17 something ran a fetch and `git checkout main`; the reflog does not say what. Line 2 then ended in `HASH MISMATCH`, because `reseat-lines.sh` was not there. Nothing ran and nothing was lost. zeo-rescue switched back to this branch at about 03:11: pins verify, tree clean, tip `cd4f64d` before this note. The line the Architect filed at 03:09 on Do 233 starts with `git switch` to this branch, so it survives the same move.
+
 
 *Correction.* zeo-rescue's report and the 22:50 block below were wrong. A real Codex resume **did** run, at 21:54 (`reseat-lines-proof-20261105-215422.log`). The seat came up right: snapshot `01a16ed4-...1793915665310966000.sh` has git on, `master` and its own identity at lines 13885, 13928 and 13929. The proof then false-stopped on the loader function's `export GIT_ALLOW_PROTOCOL=file` at line 13585, and `unseat` killed the session. That is why it is gone; its sleep did not run out. zeo-rescue said otherwise without reading the log, and recommended a rerun that would have stopped the same way. Line 3 would have stranded the org. The seat started its turn at 21:54:27 and made no tool call, so it left nothing half-done. The Architect found this.
 
@@ -29,7 +34,7 @@ The other pins are unchanged. The three lines and the hash table in section 2 be
 
 ```
 work: 0 of 0 seats show running work
-DAEMON LEFT: 34 Codex seats are still attached to pids 15515 16463 28371
+DAEMON LEFT: 34 Codex seats are still attached to pids 16463 44131
 RESUMED dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
 FIRST SEAT OK dreamhuggers-expenses-maintainer: own identity, marker master, git on
 rescue: live 0, ok 0, running 0, to resume 1, to reseat 0, resumed 1, unresolved 0, failed 0
@@ -115,7 +120,7 @@ Expect one of three endings.
 A, the daemon let go. The proof holds, and line 3 can follow:
 
 ```
-DAEMON LEFT: 34 Codex seats are still attached to pids 15515 16463 28371
+DAEMON LEFT: 34 Codex seats are still attached to pids 16463 44131
 RESUMED dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
 FIRST SEAT OK dreamhuggers-expenses-maintainer: own identity, marker master, git on
 rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 1, unresolved 0, failed 0
@@ -126,7 +131,7 @@ check: ok 1, wrong 0
 B, the daemon kept it. Safe: the guard worked, and no second writer started. That one seat stays down on a sleep until line 3, so the Codex path is still unproved, and the first real test falls inside line 3 with every Codex seat down. **The Architect decides whether line 3 still goes.**
 
 ```
-FAILED dreamhuggers-expenses-maintainer: pid 28371 still holds its rollout, so it was not started: that would be two writers
+FAILED dreamhuggers-expenses-maintainer: pid 44131 still holds its rollout, so it was not started: that would be two writers
 rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 0, unresolved 0, failed 1
 ```
 
@@ -146,14 +151,14 @@ if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedi
 Expect `WORK` lines and a `work:` count, then, ending:
 
 ```
-DAEMON STOP: exact pids 15515 16463 28371
+DAEMON STOP: exact pids 16463 44131
 FIRST SEAT OK architect: own identity, marker master, git on
 FIRST SEAT OK dt-animated-comics-maintainer: own identity, marker master, git on
 rescue: live 0, ok 2, running 0, to resume 0, to reseat 48, resumed 48, unresolved 0, failed 0
 check: ok 50, wrong 0
 ```
 
-`DAEMON KILLED` lines may appear, and the helper pid 15515 can change. After ending B the count reads `ok 1, to reseat 49, resumed 49`. Any other `WRONG` is real.
+`DAEMON KILLED` lines may appear, and the pids can change again if the daemon updates itself. After ending B the count reads `ok 1, to reseat 49, resumed 49`. Any other `WRONG` is real.
 
 **If a proof fails in line 3.** The output shows `STOPPED:`, then one of these (one more seat after ending B):
 
