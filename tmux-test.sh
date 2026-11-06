@@ -22,19 +22,28 @@ printf '%s\n' "\$@" > "$T/args.\$ZMAIL_INSTANCE"
 sid=44444444-4444-4444-8444-444444444444; case "\$*" in *45454545-*) sid=45454545-4545-4545-8545-454545454545;; esac
 [ "$h" = codex ] && /bin/zsh -ic 'env' </dev/null 2>/dev/null | sed 's/^/export /' > "$T/snap/\$sid.\$\$.sh"
 [ -f "$T/badid" ] && [ "$h" = codex ] && sed -i "" -e "s/ZMAIL_INSTANCE=.*/ZMAIL_INSTANCE=other/" "$T/snap/\$sid.\$\$.sh"
-# the interactive zsh above takes the terminal, so the fake codex blocks on a pipe instead
-if [ "$h" = codex ]; then mkfifo "$T/f.\$\$"; sleep 300 > "$T/f.\$\$" & exec "$T/h/$h" --arg a "\$*" . < "$T/f.\$\$"; fi
+# the interactive zsh above takes the terminal, so the fake codex blocks on a pipe instead; like Codex it records its folder and holds its rollout
+if [ "$h" = codex ]; then
+  roll="$T/sess/full.jsonl"; [ "\$sid" = 44444444-4444-4444-8444-444444444444 ] || roll="$T/sess/i.jsonl"
+  prev=; for a in "\$@"; do [ "\$prev" != -C ] || printf '{"cwd":"%s"}\n' "\$a" >> "\$roll"; prev=\$a; done
+  mkfifo "$T/f.\$\$"; sleep 300 > "$T/f.\$\$" & exec 9>> "\$roll"; exec "$T/h/$h" --arg a "\$*" . < "$T/f.\$\$"
+fi
 exec "$T/h/$h" --arg a "\$*" .
 S
   chmod +x "$T/bin/$h"
 done
 cat > "$T/bin/sqlite3" <<S
 #!/bin/sh
-case "\$*" in *"$T/w/cxi'"*) id=45454545-4545-4545-8545-454545454545;; *) id=44444444-4444-4444-8444-444444444444;; esac
-printf '%s %s\n' "\$id" "$T/sess/full.jsonl"
+case "\$*" in
+  *"select count(*)"*) echo 0; exit 0;;
+  *"select cwd from"*) echo "$T/w/moved"; exit 0;;
+  *"$T/w/cxi'"*) printf '%s %s\n' 45454545-4545-4545-8545-454545454545 "$T/sess/i.jsonl"; exit 0;;
+esac
+printf '%s %s\n' 44444444-4444-4444-8444-444444444444 "$T/sess/full.jsonl"
 S
 chmod +x "$T/bin/sqlite3"
 echo '{"type":"turn_context","approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}' > "$T/sess/full.jsonl"
+cp "$T/sess/full.jsonl" "$T/sess/i.jsonl"
 printf 'export ZEO_TMUX_SEAT=inactive\nexport ZMAIL_INSTANCE=txi\n' > "$T/snap/45454545-4545-4545-8545-454545454545.0.sh"
 enc() { printf %s "$1" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'; }
 d=$T/projects/$(enc "$T/w/cl"); mkdir -p "$d"; echo '{"permissionMode":"auto"}' > "$d/22222222-2222-4222-8222-222222222222.jsonl"
@@ -111,6 +120,24 @@ pane=$("$TM" -L "$SOCK" list-panes -s -t '=tx-s' -F '#{pane_id}' | head -1)
 "$TM" -L "$SOCK" respawn-pane -k -t "$pane" -c "$T/w/cx" -- /usr/bin/env -i HOME="$HOME" ZMAIL_INSTANCE=tx /bin/zsh -lc 'exec "$@"' old "$T/bin/codex" resume --no-daemon 44444444-4444-4444-8444-444444444444 p
 perl -e 'select(undef,undef,undef,1.5)'
 grep -q '^WRONG tx (codex): process has no seat settings' <<< "$(R --check --seat tx 2>&1)" && ok "--check names it, though its snapshot looks right" || bad "old way: $(R --check --seat tx 2>&1)"
+
+echo "-- --relaunch moves that seat to a new folder, on real tmux"
+mkdir -p "$T/w/moved" "$T/sessions"; : > "$T/sessions/rollout-44444444-4444-4444-8444-444444444444.jsonl"
+echo "tx $T/w/moved" > "$T/moves"; echo "tx 44444444-4444-4444-8444-444444444444" > "$T/pins"
+export ZEO_RESCUE_MOVES=$T/moves ZEO_RESCUE_PINS=$T/pins ZEO_RESCUE_SESSIONS=$T/sessions ZEO_RESCUE_CODEX_CONFIG=$T/none.toml
+"$TM" -L "$SOCK" new-window -d -t '=tx-s' -- sleep 300
+out=$(R --reseat --relaunch --apply --seat tx 2>&1); rc=$?
+echo "$out" | sed 's/^/     /' | cut -c1-140
+[ $rc -eq 0 ] && echo "$out" | grep -q "^MOVED OK tx: thread 44444444-4444-4444-8444-444444444444, one rollout, one writer, in $T/w/moved" && ok "the first seat moves and proves it, with a real lsof on its rollout" || bad "move: $rc $out"
+[ "$(pgrep -f -- "$T/h/codex .*44444444-4444-4444-8444-444444444444" | wc -l | tr -d ' ')" = 1 ] && ok "one process holds the thread" || bad "two holders"
+p=$("$TM" -L "$SOCK" list-panes -t "=tx-s:" -F "#{pane_pid}" | head -1); [ "$(/usr/sbin/lsof -a -d cwd -Fn -p "$p" 2>/dev/null | sed -n "s/^n//p" | head -1)" = "$(cd "$T/w/moved" && pwd -P)" ] && ok "the process really runs in the new folder" || bad "process folder: $(/usr/sbin/lsof -a -d cwd -Fn -p "$p" 2>/dev/null | tail -1)"
+[ "$("$TM" -L "$SOCK" list-panes -s -t '=tx-s' | wc -l | tr -d ' ')" = 2 ] && ok "its side window survived" || bad "side window"
+grep -q 'moved from' "$T/state/prompts/tx.txt" && ok "the prompt tells it" || bad "prompt"
+out=$(R --check --seat tx 2>&1); [ $? -eq 0 ] && ok "--check passes it in the new folder" || bad "moved check: $out"
+grep -q '^OK tx: started by rescue, right already' <<< "$(R --reseat --relaunch --seat tx 2>&1)" && ok "a second run leaves it alone" || bad "second: $(R --reseat --relaunch --seat tx 2>&1)"
+"$TM" -L "$SOCK" kill-session -t '=tx-s'; perl -e 'select(undef,undef,undef,0.5)'
+out=$(R --seat tx 2>&1); echo "$out" | grep -q '^RESUME tx: codex 44444444-4444-4444-8444-444444444444' && echo "$out" | grep -q "^MOVE tx: from $T/w/cx to $T/w/moved" && ok "after a crash the pin still finds its thread, and it stays in the new folder" || bad "after crash: $out"
+export ZEO_RESCUE_MOVES=$T/none ZEO_RESCUE_PINS=$T/none
 
 echo "-- the .zshenv line, on a copy of the real file: the host's own file is never touched here"
 eval "$(grep -E '^(OLD|NEW)[12]=|^(OLD|NEW)_SHA=' "$HERE/zshenv-lines.sh")"; export OLD1 OLD2 NEW1 NEW2

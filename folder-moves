@@ -1,0 +1,4 @@
+# SEAT /new/folder: a Codex seat that leaves the chart's folder. Folders come from the Architect, not from zeo-rescue, once the seats' reports are in.
+# One line each, no spaces in a folder. The first line is the first seat: it moves alone and proves the path before the rest.
+# Seats waiting for a folder, by seat id (tmux session): zeoapp (zeoapp-maintainer), rasa (rasa-community-maintainer),
+# ducktyper (dt-animationstudio-maintainer), profrod (profrod-site-maintainer), zeo-rt (zeoruntime-maintainer).

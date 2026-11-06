@@ -1,3 +1,10 @@
 # SEAT SESSION-ID: the session a seat must resume when its newest transcript is known not to be its own.
 # zeoarchitect: the rescue session of 2026-11-05 (c41e8c97) ran in that directory and is the newest file there.
 zeoarchitect 766f4d22-bf17-4513-b068-514a9bf46d00
+# The five seats leaving the recovery folders on the Architect's order of 2026-11-06. Codex rewrites a thread's folder when it resumes elsewhere,
+# so after the move the chart's folder no longer finds the thread. These name it. Each is the thread the seat resumed on 2026-11-06.
+ducktyper 01a101c7-a342-7001-9465-c67760e0c933
+profrod 01a101cd-101f-7132-8b8f-62ccef59d5ab
+rasa 01a1023d-556f-7e92-ab59-5b1fb5cd23ca
+zeoapp 01a101c3-4a96-7933-b7b7-7914d9da286d
+zeo-rt 01a0ffc3-1300-7a00-b419-3ce1c331b012

@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply] [--reseat] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply] [--reseat] [--relaunch] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
 #
 # For each seat of the chart on this host it decides one of:
 #   LIVE        its tmux session exists                         left alone
@@ -13,6 +13,11 @@
 #   UNRESOLVED  dead, and something needed is missing           left alone and named: this is the agent stage's work
 #
 # --reseat also restarts LIVE seats that rescue did not start the right way: RESEAT, or OK when the pane already carries @zeo_rescue.
+# --relaunch, with --reseat, also restarts a seat rescue started, if its process lacks the seat settings or it is not yet in its folder.
+# A seat with everything right is left alone, so the same line can be run again after a stop.
+# folder-moves holds a line "SEAT /new/folder" for a Codex seat that leaves the chart's folder. The thread stays the seat's: Codex rewrites a
+# thread's folder when it resumes elsewhere, so a seat moves only if session-pins names its thread. Otherwise a later plan would miss the thread.
+# A folder in git needs a trust entry first, or Codex stops at a question nobody may answer. Every move is proved before the next seat starts.
 # --check starts nothing and judges every seat: OK or WRONG, with the reason. It reads the running process and a fresh shell in another
 # folder given the process's own settings, not only the snapshot, because Codex uses the snapshot only in the thread's directory and with -lc.
 # It lists what a restart would cut first, as WORK lines, in the plan and again just before --apply stops anything.
@@ -50,12 +55,15 @@ KILL_BIN=${ZEO_RESCUE_KILL:-/bin/kill}
 CLAUDE=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CODEX=${ZEO_RESCUE_CODEX:-$HOME/.local/bin/codex}
 ZSH_BIN=${ZEO_RESCUE_ZSH:-/bin/zsh}
+SESSIONS=${ZEO_RESCUE_SESSIONS:-$HOME/.codex/sessions}
+CODEX_CONFIG=${ZEO_RESCUE_CODEX_CONFIG:-$HOME/.codex/config.toml}
 DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
+MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
 
 usage() { sed -n '/^#   rescue.sh/p' "$0" >&2; exit 2; }
@@ -64,6 +72,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift;;
     --reseat) RESEAT=1; shift;;
+    --relaunch) RELAUNCH=1; shift;;
     --check) CHECK=1; shift;;
     --harness) [ $# -ge 2 ] || usage; HARNESS=$2; shift 2;;
     --seat) [ $# -ge 2 ] || usage; ONLY="$ONLY$2 "; shift 2;;
@@ -81,6 +90,7 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [[ "$STAGGER" =~ ^[0-9]+$ ]] || usage
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
+[ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [ -n "$SESSION_ARG" ]; then
   [[ "$SESSION_ARG" =~ $ID_RE ]] || usage
@@ -213,7 +223,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
   IFS='|' read -r id pid opt cmd < <(panes_of "$2")
   [ "$opt" = 1 ] || why="not started by rescue"
   # Nobody may type into a seat's terminal, so a seat stopped at a harness question waits for the operator. It is not resumed.
-  if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -q -E 'Yes, I trust this folder|Do you trust the files'; then
+  if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -q -E 'Yes, I trust this folder|Do you trust the files|Trust this folder\?'; then
     why="${why:+$why; }waiting at the trust prompt: the operator must answer it"
   fi
   if [ "$3" = codex ]; then
@@ -223,6 +233,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
     snap=$(ls -t "$SNAPSHOTS/$sid".* 2>/dev/null | head -1)
     if [ -z "$snap" ]; then why="${why:+$why; }no snapshot"
     else grep -q "^export ZMAIL_INSTANCE=.\{0,1\}$1.\{0,1\}\$" "$snap" || why="${why:+$why; }snapshot has another identity"; fi
+    if [ -n "$OLD_CWD" ]; then case "$line" in *" -C $cwd "*) ;; *) why="${why:+$why; }not yet in its new folder $cwd";; esac; fi
   else
     env=$("$PS_BIN" -Ewwp "$pid" -o command= 2>/dev/null)
     case "$env" in *"ZMAIL_INSTANCE=$1 "*|*"ZMAIL_INSTANCE=$1") ;; *) why="${why:+$why; }environment has another identity";; esac
@@ -266,6 +277,37 @@ prove_claude() { # the same for the first Claude seat, from the environment of t
     case "$env" in *"GIT_ALLOW_PROTOCOL=file "*) echo "STOPPED: $seat still has network git off; no other seat was started"; return 1;; esac
   fi
   echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
+}
+
+prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a folder change the seat is still one thread, one rollout and one writer
+  local seat=$1 sid=$2 roll=$3 to=$4 sess=$5 since=$6 i n=0 found="" others was id pid opt cmd who
+  for ((i = 0; i < PROOF_TRIES; i++)); do
+    if tail -c 2000000 "$roll" 2>/dev/null | grep -qF "\"cwd\":\"$to\""; then found=1; break; fi
+    pause "$PROOF_PAUSE"
+  done
+  [ -n "$found" ] || { echo "STOPPED: $seat: its thread never recorded $to; no other seat was started"; return 1; }
+  n=$(find "$SESSIONS" -name "*$sid*" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = 1 ] || { echo "STOPPED: $seat: $n rollouts carry thread $sid; no other seat was started"; return 1; }
+  # mode=ro, not immutable: this is a record being written now, and immutable would miss what is in the write-ahead log
+  others=$("$SQLITE" "file:$CODEX_DB?mode=ro" "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;" 2>/dev/null)
+  [ "$others" = 0 ] || { echo "STOPPED: $seat: ${others:-an unknown number of} new threads appeared in $to; no other seat was started"; return 1; }
+  IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
+  who=$("$LSOF" -t -- "$roll" 2>/dev/null | paste -sd' ' -)
+  [ "$who" = "$pid" ] || { echo "STOPPED: $seat: its rollout is held by pids '${who}', not only by pid $pid; no other seat was started"; return 1; }
+  was=$("$SQLITE" "file:$CODEX_DB?mode=ro" "select cwd from threads where id = '$sid';" 2>/dev/null)
+  [ "$was" = "$to" ] || echo "NOTE $seat: Codex's thread record still says ${was:-nothing}; session-pins holds the thread either way"
+  echo "MOVED OK $seat: thread $sid, one rollout, one writer, in $to"
+}
+
+folder_ready() { # folder_ready SEAT TO: sets WHY unless the seat may move there. Only git folders ask for trust: Codex prompts when a project has no entry.
+  local seat=$1 to=$2 how
+  [[ "$to" = /* ]] && [ -d "$to" ] || { WHY="new folder $to does not exist"; return 1; }
+  if printf '%s\n' "$rows" | cut -d$'\x1f' -f5 | grep -qxF "$to"; then WHY="new folder $to is already a seat's folder in the chart"; return 1; fi
+  if [ "$(awk -v t="$to" '$2==t' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="two seats would move to $to"; return 1; fi
+  git -C "$to" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  how=$(awk -v p="[projects.\"$to\"]" '$0==p {f=1; next} f && /^\[/ {exit} f && /^trust_level *=/ {print; exit}' "$CODEX_CONFIG" 2>/dev/null)
+  case "$how" in *'"trusted"'*) return 0;; esac
+  WHY="$to is in git and has no trusted entry in $CODEX_CONFIG, so Codex would stop at a question nobody may answer"; return 1
 }
 
 HOLDER=""
@@ -348,7 +390,8 @@ stop_daemon() { # the shared app-server keeps every attached thread open, so it 
 launch() { # launch INDEX: the marker goes on before any shell starts
   local i=$1 seat=${P_SEAT[$1]} sess=${P_SESS[$1]} cwd=${P_CWD[$1]} harness=${P_HARNESS[$1]} sid=${P_SID[$1]} mark=${P_MARK[$1]} pane=${P_PANE[$1]} pf
   pf=$STATE/prompts/$seat.txt
-  { printf '%s' "$PROMPT"; if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi; } > "$pf" || return 1
+  { printf '%s' "$PROMPT"; if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi
+    if [ -n "${P_OLD[$i]}" ]; then printf ' Your working folder moved from %s to %s by the Architect'"'"'s order. This is the same thread, with your history. Work in the new folder from now on.' "${P_OLD[$i]}" "$cwd"; fi; } > "$pf" || return 1
   if [ -z "$pane" ]; then
     env -u TMUX "$TMUX_BIN" -L "$SOCKET" new-session -d -s "$sess" -c "$cwd" -- sleep 3600 || return 1
     pane=$(panes_of "$sess" | head -1 | cut -d'|' -f1)
@@ -365,11 +408,12 @@ launch() { # launch INDEX: the marker goes on before any shell starts
   fi
 }
 
-P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=()
+P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=() P_OLD=()
 live=0 ok=0 wrong=0 running=0 resume=0 resumed=0 reseat=0 unresolved=0 failed=0
 planned() { # planned SEAT SESSION CWD HARNESS PANE: record what the plan decided
   local n=${#P_SEAT[@]}
-  P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID
+  P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID P_OLD[$n]=$OLD_CWD
+  [ -z "$OLD_CWD" ] || echo "MOVE $1: from $OLD_CWD to $3"
 }
 while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ -n "$seat" ] || continue
@@ -385,13 +429,32 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
     SESSION=$(awk -v s="$seat" '$1==s {print $2}' "$PINS")
     [ -z "$SESSION" ] || [[ "$SESSION" =~ $ID_RE ]] || { echo "UNRESOLVED $seat: bad pin in $PINS"; unresolved=$((unresolved+1)); continue; }
   fi
+  OLD_CWD="" to=""
+  if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); fi
+  if [ -n "$to" ] && [ "$to" != "$cwd" ]; then # once the chart itself says the new folder, the line has nothing left to do
+    WHY=""
+    if [ "$harness" != codex ]; then WHY="only a Codex seat can move: a Claude transcript belongs to its folder"
+    elif [ "$(awk -v s="$seat" '$1==s' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="more than one line for it in $MOVES"
+    elif [ -z "$SESSION" ]; then WHY="it moves folder, so $PINS must name its thread"
+    else folder_ready "$seat" "$to"; fi
+    if [ -n "$WHY" ]; then
+      if [ $CHECK -eq 1 ]; then echo "WRONG $seat ($harness): $WHY"; wrong=$((wrong+1)); else echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); fi
+      continue
+    fi
+    OLD_CWD=$cwd cwd=$to
+  fi
   if "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null; then
     if [ $CHECK -eq 1 ]; then if check_seat "$seat" "$sess" "$harness"; then ok=$((ok+1)); else wrong=$((wrong+1)); fi; continue; fi
     if [ $RESEAT -eq 0 ]; then echo "LIVE $seat ($sess)"; live=$((live+1)); continue; fi
     if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
     find_pane "$sess" "$SID"
     case "$PANE_STATE" in
-      done) echo "OK $seat: started by rescue"; ok=$((ok+1)); continue;;
+      done)
+        [ $RELAUNCH -eq 1 ] || { echo "OK $seat: started by rescue"; ok=$((ok+1)); continue; }
+        case "$(ps_line "$PANE_PID")" in *"$SID"*) ;; *) echo "UNRESOLVED $seat: its pane does not hold $SID"; unresolved=$((unresolved+1)); continue;; esac
+        check_settings "$PANE" "$PANE_PID"
+        case "$SET_WHY" in ""|*"no seat settings"*) ;; *) echo "UNRESOLVED $seat: $SET_WHY; a restart would not change that"; unresolved=$((unresolved+1)); continue;; esac
+        if [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || case "$(ps_line "$PANE_PID")" in *" -C $cwd "*) true;; *) false;; esac; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
       none) echo "UNRESOLVED $seat: no pane in $sess holds $SID"; unresolved=$((unresolved+1)); continue;;
     esac
     marker_of "$harness" "$SID"
@@ -431,12 +494,17 @@ if [ $APPLY -eq 1 ]; then
     seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
     if [ "${P_HARNESS[$i]}" = codex ] && ! rollout_free "${P_ROLL[$i]}"; then echo "FAILED $seat: pid $HOLDER still holds its rollout, so it was not started: that would be two writers"; failed=$((failed+1)); continue; fi
     [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER"
+    since=$(date +%s)
     if ! launch "$i"; then echo "FAILED $seat: tmux could not start it"; unseat "$i"; failed=$((failed+1)); continue; fi
     echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]}"; resumed=$((resumed+1))
     if [ "${P_HARNESS[$i]}" = codex ] && [ $proved_codex -eq 0 ]; then
       prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
       proved_codex=1
-    elif [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
+    fi
+    if [ -n "${P_OLD[$i]}" ]; then
+      prove_moved "$seat" "${P_SID[$i]}" "${P_ROLL[$i]}" "${P_CWD[$i]}" "${P_SESS[$i]}" "$since" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+    fi
+    if [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
       prove_claude "$seat" "${P_MARK[$i]}" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
       proved_claude=1
     fi

@@ -20,7 +20,7 @@ case "\$3" in
   show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) cat "$T/screen" 2>/dev/null ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
-    case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi ;; esac ;;
+    case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi; [ ! -f "$T/heldafter" ] || cp "$T/heldafter" "$T/lsof.held"; [ ! -f "$T/rolladd" ] || cat "$T/rolladd" >> "$T/sess/full.jsonl" ;; esac ;;
 esac
 exit \$?
 S
@@ -43,6 +43,8 @@ S
 cat > "$T/bin/sqlite3" <<S
 #!/bin/bash
 case "\$2" in
+  *"select count(*)"*) cat "$T/newthreads" ;;
+  *"select cwd from"*) cat "$T/threadcwd" ;;
   *"$T/w/cx'"*|*"44444444-4444-4444-8444-444444444444"*)  printf '%s %s\n' 44444444-4444-4444-8444-444444444444 "$T/sess/full.jsonl" ;;
   *"$T/w/cxw'"*) printf '%s %s\n' 55555555-5555-4555-8555-555555555555 "$T/sess/write.jsonl" ;;
   *"$T/w/cxi'"*) printf '%s %s\n' 66666666-6666-4666-8666-666666666666 "$T/sess/full.jsonl" ;;
@@ -366,6 +368,77 @@ grep -q '^OK cx (codex)' <<< "$(C)" && ok "prompt text that looks like a setting
 grep -q 'GH_TOKEN' "$T/probe.env" && bad "a credential reached the probe" || ok "a credential in the process never reaches the probe"
 : > "$T/ps.out"; : > "$T/seatmark"
 
+echo "-- a seat moves folder and keeps its thread"
+SID=44444444-4444-4444-8444-444444444444
+mkdir -p "$T/w/new" "$T/w/newgit" "$T/sessions"; : > "$T/sessions/rollout-$SID.jsonl"; git -C "$T/w/newgit" init -q
+cp "$T/sess/full.jsonl" "$T/sess/full.orig"; printf 'cx %s\ncl 22222222-2222-4222-8222-222222222222\n' "$SID" > "$T/pins"
+export ZEO_RESCUE_MOVES="$T/moves" ZEO_RESCUE_SESSIONS="$T/sessions" ZEO_RESCUE_CODEX_CONFIG="$T/config.toml"
+export ZEO_RESCUE_PINS="$T/pins"
+echo master > "$T/seatmark"; printf '%s' "$GOOD" > "$T/psE.out"; : > "$T/ps.out"
+printf 'export ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=cx\nexport GIT_ALLOW_PROTOCOL=ssh:https:file\n' > "$T/snapwrite"
+printf '{"cwd":"%s"}\n' "$T/w/new" > "$T/rolladd"; echo 9 > "$T/heldafter"; echo "$T/w/new" > "$T/threadcwd"; echo 0 > "$T/newthreads"
+fresh() { reset_live; rm -f "$T/lsof.held"; cp "$T/sess/full.orig" "$T/sess/full.jsonl"; }
+printf 'cx %s\n' "$T/w/gone" > "$T/moves"; fresh
+grep -q "^UNRESOLVED cx: new folder $T/w/gone does not exist" <<< "$(R --seat cx 2>&1)" && ok "a folder that is not there is refused" || bad "gone: $(R --seat cx 2>&1)"
+printf 'cx %s\n' "$T/w/cl" > "$T/moves"
+grep -q "^UNRESOLVED cx: new folder $T/w/cl is already a seat's folder" <<< "$(R --seat cx 2>&1)" && ok "another seat's folder is refused" || bad "taken: $(R --seat cx 2>&1)"
+printf 'cx %s\ncxi %s\n' "$T/w/new" "$T/w/new" > "$T/moves"
+grep -q "^UNRESOLVED cx: two seats would move to" <<< "$(R --seat cx 2>&1)" && ok "two seats in one folder are refused" || bad "two: $(R --seat cx 2>&1)"
+printf 'cx %s\ncx %s\n' "$T/w/new" "$T/w/newgit" > "$T/moves"
+grep -q "^UNRESOLVED cx: more than one line" <<< "$(R --seat cx 2>&1)" && ok "two lines for one seat are refused" || bad "two lines: $(R --seat cx 2>&1)"
+printf 'cl %s\n' "$T/w/new" > "$T/moves"
+grep -q '^UNRESOLVED cl: only a Codex seat can move' <<< "$(R --seat cl 2>&1)" && ok "a Claude seat cannot move" || bad "claude: $(R --seat cl 2>&1)"
+printf 'cx %s\n' "$T/w/new" > "$T/moves"
+grep -q '^UNRESOLVED cx: it moves folder, so .* must name its thread' <<< "$(ZEO_RESCUE_PINS=$T/no-pins R --seat cx 2>&1)" && ok "a seat with no pinned thread cannot move" || bad "no pin"
+printf 'cx %s\n' "$T/w/newgit" > "$T/moves"; : > "$T/config.toml"
+grep -q 'stop at a question nobody may answer' <<< "$(R --seat cx 2>&1)" && ok "a git folder with no trust entry is refused before anything stops" || bad "trust: $(R --seat cx 2>&1)"
+printf '[projects."%s"]\ntrust_level = "untrusted"\n' "$T/w/newgit" > "$T/config.toml"
+grep -q 'stop at a question' <<< "$(R --seat cx 2>&1)" && ok "and so is an untrusted entry" || bad "untrusted"
+printf '[projects."%s"]\ntrust_level = "trusted"\n' "$T/w/newgit" > "$T/config.toml"
+grep -q '^RESUME cx:' <<< "$(R --seat cx 2>&1)" && ok "a trusted git folder passes" || bad "trusted: $(R --seat cx 2>&1)"
+printf 'cx %s\n' "$T/w/new" > "$T/moves"; fresh
+out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q "^MOVED OK cx: thread $SID, one rollout, one writer, in $T/w/new" && ok "a move proves one thread, one rollout, one writer" || bad "move: $rc $out"
+echo "$out" | grep -q "^MOVE cx: from $T/w/cx to $T/w/new" && ok "the plan says where from and to" || bad "move line: $out"
+grep -q -- "resume -a never -s danger-full-access -C $T/w/new --no-daemon $SID" "$T/launched" && ok "it resumes the pinned thread in the new folder" || bad "argv: $(cat "$T/launched")"
+grep -q "moved from $T/w/cx to $T/w/new" "$T/state/prompts/cx.txt" && ok "the seat is told" || bad "note"
+echo "$T/w/cx" > "$T/threadcwd"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^NOTE cx: Codex.s thread record still says' && ok "an old thread record is named, and does not stop a seat the pin still finds" || bad "record: $rc $out"
+echo "$T/w/new" > "$T/threadcwd"
+: > "$T/sessions/rollout-copy-$SID.jsonl"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q "^STOPPED: cx: 2 rollouts carry thread $SID" && ok "a second rollout stops the run" || bad "rollouts: $rc $out"
+rm -f "$T/sessions/rollout-copy-$SID.jsonl"
+echo 1 > "$T/newthreads"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED: cx: 1 new threads appeared' && ok "a new thread in the folder stops the run" || bad "new thread: $rc $out"
+echo 0 > "$T/newthreads"; printf '9\n77\n' > "$T/heldafter"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q "^STOPPED: cx: its rollout is held by pids '9 77'" && ok "a second writer stops the run" || bad "writer: $rc $out"
+echo 9 > "$T/heldafter"; rm -f "$T/rolladd"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q "^STOPPED: cx: its thread never recorded $T/w/new" && ok "a thread that never reached the folder stops the run" || bad "never: $rc $out"
+echo "$out" | grep -q '^RECOVERY: 1 seats' && ok "and says what is down" || bad "move recovery"
+printf '{"cwd":"%s"}\n' "$T/w/new" > "$T/rolladd"
+echo "-- --relaunch restarts only the seats that need it"
+fresh; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800|1|codex' > "$T/panes"
+echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/cx --no-daemon $SID p" > "$T/ps.out"; printf 'HOME=/x' > "$T/psE.out"
+: > "$T/moves"
+grep -q '^OK cx: started by rescue' <<< "$(R --reseat --seat cx 2>&1)" && ok "without --relaunch a seat rescue started is left alone" || bad "plain reseat"
+grep -q '^RESEAT cx:' <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "with it, a process without settings is restarted" || bad "relaunch: $(R --reseat --relaunch --seat cx 2>&1)"
+printf '%s' "$GOOD" > "$T/psE.out"
+grep -q '^OK cx: started by rescue, right already' <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "a seat with everything right is left alone, so the line can run again" || bad "right: $(R --reseat --relaunch --seat cx 2>&1)"
+printf 'cx %s\n' "$T/w/new" > "$T/moves"
+out=$(R --reseat --relaunch --seat cx 2>&1)
+echo "$out" | grep -q '^RESEAT cx:' && echo "$out" | grep -q '^MOVE cx' && ok "a right seat in the old folder is restarted to move" || bad "to move: $out"
+grep -q "^WRONG cx (codex): not yet in its new folder $T/w/new" <<< "$(R --check --seat cx 2>&1)" && ok "--check names a seat not yet moved" || bad "check move: $(R --check --seat cx 2>&1)"
+echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/new --no-daemon $SID p" > "$T/ps.out"
+grep -q '^OK cx: started by rescue, right already' <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "a moved seat is left alone" || bad "moved: $(R --reseat --relaunch --seat cx 2>&1)"
+grep -q '^OK cx (codex)' <<< "$(R --check --seat cx 2>&1)" && ok "and passes --check" || bad "check moved: $(R --check --seat cx 2>&1)"
+printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson GIT_ALLOW_PROTOCOL=file' > "$T/psE.out"
+grep -q '^UNRESOLVED cx: a shell outside its folder has git off; a restart would not change that' <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "a fault a restart cannot fix stops short of a restart" || bad "unfixable: $(R --reseat --relaunch --seat cx 2>&1)"
+echo "900 /x/codex resume -a never -s danger-full-access -C /x --no-daemon 99999999-9999-4999-8999-999999999999 p" > "$T/ps.out"
+sed -i '' 's/^cx-maintainer|%8|800|1|codex$/cx-maintainer|%8|900|1|codex/' "$T/panes"
+grep -q "^UNRESOLVED cx: its pane does not hold $SID" <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "a pane holding another thread is not touched" || bad "other thread: $(R --reseat --relaunch --seat cx 2>&1)"
+"$HERE/rescue.sh" --relaunch >/dev/null 2>&1; [ $? -eq 2 ] && ok "--relaunch needs --reseat" || bad "relaunch alone"
+printf '' > "$T/psE.out"; : > "$T/moves"; : > "$T/ps.out"; : > "$T/panes"; rm -f "$T/heldafter" "$T/rolladd" "$T/snapwrite"; export ZEO_RESCUE_PINS="$T/no-pins"; reset_live
+
 echo "-- the chart and usage"
 grep -q 'WARNING.*last good' <<< "$(R --chart "$T/gone.json" 2>&1)" && ok "an unreadable chart falls back to the last good one, out loud" || bad "fallback"
 rm -f "$T/state/ORG-CHART.last-good.json"; R --chart "$T/gone.json" >/dev/null 2>&1; [ $? -eq 1 ] && ok "no chart at all is a failure" || bad "no chart"
@@ -376,14 +449,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt folder-moves zshenv-lines.sh; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -398,5 +471,38 @@ grep -q 'set-option -pu' "$T/tmux.log" && bad "lic cleared the mark on a working
 rm -f "$T/screen"; : > "$T/tmux.log"
 STATE="$T/state" ZEO_RESCUE_CHART="$T/chart.json" L lic >/dev/null 2>&1
 grep -q 'set-option -pu -t =dt-brandedimage-maintainer: @zeo_rescue' "$T/tmux.log" && ok "lic clears the mark, or a reseat would skip the seat" || bad "lic mark: $(cat "$T/tmux.log")"
+
+echo "-- the Codex steps refuse out of order"
+sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
+printf '#!/bin/bash\nif [ -f "%s/zshenv-changed" ]; then echo CHANGED; else echo ORIGINAL; fi\n' "$T" > "$T/run/zshenv-lines.sh"; chmod +x "$T/run/zshenv-lines.sh"
+grep -q '^NOT READY, nothing was run: folder-moves needs one existing folder for zeoapp' <<< "$(L codex-first 2>&1)" && ok "codex-first refuses until every folder is named" || bad "ready: $(L codex-first 2>&1)"
+grep -q '^NOT READY' <<< "$(L trust 2>&1)" && ok "so does trust" || bad "trust ready"
+repin() { h=$(/usr/bin/shasum -a 256 "$T/run/folder-moves" | cut -d' ' -f1); perl -i -pe "s/^pin [0-9a-f]+ folder-moves\$/pin $h folder-moves/" "$T/run/reseat-lines.sh"; }
+mkdir -p "$T/d"; for s in zeoapp rasa ducktyper profrod zeo-rt; do mkdir -p "$T/d/$s"; echo "$s $T/d/$s"; done > "$T/run/folder-moves"; repin
+grep -q '^OUT OF ORDER, nothing was run: the .zshenv line comes first' <<< "$(L codex-first 2>&1)" && ok "codex-first needs .zshenv first" || bad "zshenv first: $(L codex-first 2>&1)"
+grep -q '^OUT OF ORDER, nothing was run: the .zshenv line comes first' <<< "$(L codex-rest 2>&1)" && ok "so does codex-rest" || bad "zshenv rest"
+touch "$T/zshenv-changed"
+grep -q '^OUT OF ORDER, nothing was run: zeoapp is not right yet' <<< "$(ZEO_RESCUE_CHART="$T/chart.json" L codex-rest 2>&1)" && ok "codex-rest needs the first seat right" || bad "first first: $(ZEO_RESCUE_CHART="$T/chart.json" L codex-rest 2>&1)"
+out=$(ZEO_RESCUE_CODEX_CONFIG="$T/cfg.toml" sh -c ': > "$ZEO_RESCUE_CODEX_CONFIG"; '"$T/run/reseat-lines.sh trust" 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^NOTHING TO ADD' && ok "trust adds nothing for folders outside git" || bad "trust none: $rc $out"
+git -C "$T/d/zeoapp" init -q
+printf '[projects."/kept"]\ntrust_level = "trusted"' > "$T/cfg.toml"; chmod 640 "$T/cfg.toml"
+out=$(ZEO_RESCUE_CODEX_CONFIG="$T/cfg.toml" L trust 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q "^TRUST zeoapp: $T/d/zeoapp" && grep -qxF "[projects.\"$T/d/zeoapp\"]" "$T/cfg.toml" && grep -qxF '[projects."/kept"]' "$T/cfg.toml" && ok "trust adds the one git folder and keeps the rest" || bad "trust add: $rc $out"
+[ "$(stat -f %Lp "$T/cfg.toml")" = 640 ] && ok "and the file's mode" || bad "cfg mode"
+[ -e "$T/state/codex-config.before-20261106" ] && ok "and keeps a backup" || bad "cfg backup"
+grep -q '^NOTHING TO ADD' <<< "$(ZEO_RESCUE_CODEX_CONFIG="$T/cfg.toml" L trust 2>&1)" && ok "a second trust adds nothing" || bad "trust twice"
+printf '[projects."%s"]\ntrust_level = "untrusted"\n' "$T/d/zeoapp" > "$T/cfg.toml"
+out=$(ZEO_RESCUE_CODEX_CONFIG="$T/cfg.toml" L trust 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^REFUSED, nothing was changed' && ok "trust never overrides an untrusted entry" || bad "trust untrusted: $rc $out"
+row() { printf '{"seat_id":"%s","mailbox":"%s","desired_agent":"codex","desired_host":"matormini","desired_tmux":{"session":"%s"},"desired_folder":"%s"}' "$1" "$1" "$1" "$T/w/$1"; }
+mkdir -p "$T/w/zeoapp"; echo "{\"seats\":[$(row zeoapp)]}" > "$T/chart2.json"
+echo zeoapp >> "$T/live"; echo "zeoapp|%8|800||codex" > "$T/panes"
+echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/zeoapp --no-daemon 01a101c3-4a96-7933-b7b7-7914d9da286d p" > "$T/ps.out"
+sed -i '' "s#^case \"\\\$2\" in\$#case \"\$2\" in *01a101c3*) printf '%s %s\\\\n' 01a101c3-4a96-7933-b7b7-7914d9da286d \"$T/sess/full.jsonl\" ;; esac; case \"\$2\" in#" "$T/bin/sqlite3" 2>/dev/null
+echo '  Working (3s • esc to interrupt)' > "$T/screen"
+out=$(ZEO_RESCUE_PINS="$HERE/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_CHART="$T/chart2.json" ZEO_RESCUE_CODEX_CONFIG="$T/cfg-ok.toml" sh -c "printf '[projects.\"$T/d/zeoapp\"]\ntrust_level = \"trusted\"\n' > '$T/cfg-ok.toml'; '$T/run/reseat-lines.sh' codex-first" 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run' && echo "$out" | grep -q 'WORK zeoapp: a turn is in progress' && ok "codex-first refuses while the seat is working, and names it" || bad "busy first: $rc $out"
+rm -f "$T/screen"
 
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }
