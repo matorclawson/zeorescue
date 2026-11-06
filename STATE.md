@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~06:05 GMT, by `zeo-rescue`, the false stop fixed and audited; rasa parked; new lines held for the Architect.
+Last updated: 2026-11-06 ~06:16 GMT, by `zeo-rescue`, final list and thread_db fix written; rasa parked; held for the Architect's read.
 
 ## Do next, in this order
 
@@ -10,7 +10,56 @@ Last updated: 2026-11-06 ~06:05 GMT, by `zeo-rescue`, the false stop fixed and a
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**06:05 GMT, 6 Nov: `STOPPED` at `codex-first` was false, and it was this seat's fault. Fixed; new hashes and two lines below, for the Architect's read. rasa stays parked, and no other seat moves.** Code: `73786d6`. `.zshenv` and `trust` are done and stay done. rasa is on a sleep with no mark, because `unseat` stopped it after the false stop. Its thread is intact.
+**06:16 GMT, 6 Nov: the final list after the restructure, with one new fix the Architect has not read: a third false stop, found by replaying the proof. Nothing has run. rasa stays parked.** Code: `c87ab82`. These are the only lines to file; the blocks below are superseded on hashes and on two folders.
+
+```
+rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
+zeoapp /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp
+ducktyper /Volumes/AIPEMedia1/code/ducktyper-ai/org-ducktyper-ai/main
+profrod /Volumes/AIPEMedia1/code/profrodai/profrod-site/worktrees/profrod--author-public-gate-20261104
+zeo-rt /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoruntime/worktrees/rt-codex-recovery
+```
+
+*The new fix, `rescue.sh`: `thread_db`.* Codex's database is in WAL mode, and `sqlite3` with `mode=ro` cannot open it while no process has it open: there is no `-shm` file. The same query worked at 06:10 and failed at 06:12. `prove_moved` read that failure as `an unknown number of new threads`, a false stop that comes and goes, and it could have hit any of the five moves. `thread_db` tries `mode=ro`, then falls back to `immutable=1`, which is exact when no log exists. Both uses in `prove_moved` take it; `plan_codex` already used `immutable`. On a copy of the real database with no log: the old code `STOPPED` 2 of 2, the fixed code `MOVED OK rasa`. On the real database: `MOVED OK rasa`. In both, only the writer is faked. The earlier replay passed only because the database happened to be open. One note: a diagnostic of this seat opened the real database without read-only at 06:13, running only a `SELECT`. Empty `-wal` and `-shm` files dated 06:13 are there, with no process holding them. They do no harm, and were left alone.
+
+*The chart.* It is not stale under `rodriveracom`. Of the 74 absolute paths in `ORG-CHART.json`, none sits at or under any of the 46 moved paths, and no field names one. The only chart paths that do not exist are the five seats' recovery folders, which `folder-moves` covers. So no seat outside `folder-moves` would start in a dead folder.
+
+*The two old trust entries.* `rodriveracom/org-ducktyper-ai/main` and `rodriveracom/profrod-site/worktrees/profrod--author-public-gate-20261104` are left in place, as asked. Both paths are gone, and they do nothing today. They should go: a folder later created at either path would be trusted without anyone deciding that. After `codex-rest` is the time; nothing depends on them. `trust` never removes entries, so that would be a separate reviewed edit.
+
+*Read on the real folders at 06:10.* All five are valid git work trees and clean. rasa, zeoapp and zeo-rt have trust entries; `trust` adds ducktyper and profrod. Dry run on a private config copy: exactly those two entries added. The plan from that copy: all five `MOVE`, 34 to restart, `work: 0 of 34`, `unresolved 0`. `dt-brandedimage-maintainer` reads right already. The real `~/.codex/config.toml` is unchanged. A rerun of `trust` keeps the existing backup, which predates all five entries.
+
+*Tests.* `make test`: 218 checks pass. New: a database that refuses `mode=ro`; removing the fallback fails it.
+
+*Order:* trust, then first seat (rasa), then the Architect's read, then the rest. `.zshenv` is done.
+
+Trust. Expect `TRUST ducktyper`, `TRUST profrod`, then `ADDED: backup at /Users/rodbot/.local/state/zeo-rescue/codex-config.before-20261106. Tell zeo-rescue: done.`
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "1ed28a27c8a0545ec14c3bb55e4a4b7f41cef2c2b14ffa40c0df2418edc767f9" ]; then ./reseat-lines.sh trust; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+First seat, rasa, after trust. Expected output is unchanged from the block headed "the Architect's five folders", which holds it. A `NOTE` line is allowed.
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "1ed28a27c8a0545ec14c3bb55e4a4b7f41cef2c2b14ffa40c0df2418edc767f9" ]; then ./reseat-lines.sh codex-first; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+The rest, only after the Architect has read the first seat. `BUSY` means nothing ran; try again.
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "1ed28a27c8a0545ec14c3bb55e4a4b7f41cef2c2b14ffa40c0df2418edc767f9" ]; then ./reseat-lines.sh codex-rest; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+| File | sha256 |
+|---|---|
+| `reseat-lines.sh` (the lines pin it) | `1ed28a27c8a0545ec14c3bb55e4a4b7f41cef2c2b14ffa40c0df2418edc767f9` |
+| `rescue.sh` (changed: `thread_db`) | `452cf26970fc730a3a3fe647bf22f587d56e49eb11812ba5def726561d59f7fd` |
+| `folder-moves` (changed: two folders) | `2d1ecec3723664020891e0d5a6e3040f1ce6403d9fefc05c1b309ea1527150ee` |
+| `seat-exec.sh` (unchanged) | `9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810` |
+| `session-pins` (unchanged) | `a4ed4324fa60ee3b4561b4b6050e0dbf00e5cdb121e77d090a280646df889826` |
+| `notes/codex-relaunch-20261106.txt` (unchanged) | `caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de` |
+| `zshenv-lines.sh` (unchanged) | `13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d` |
+
 
 *Cause, found by the Architect.* Under `set -o pipefail`, `grep -q` exits at the first match, the program feeding it dies with 141 on its next write, and the `if` reads a miss. rasa's rollout is 885 MB, so `tail -c 2000000` was still writing. The old code gave `STOPPED` three times out of three on the real rollout here. The earlier check on a real rollout used `grep -c` in a one-off command and never ran `prove_moved`, and the tests' rollouts fit in the pipe. So it tested the string and not the code: the second false stop from a check judging a good seat. From now on, a proof that judges a seat is run as the real function on a real artifact before it is handed over.
 
