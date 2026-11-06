@@ -111,4 +111,36 @@ pane=$("$TM" -L "$SOCK" list-panes -s -t '=tx-s' -F '#{pane_id}' | head -1)
 "$TM" -L "$SOCK" respawn-pane -k -t "$pane" -c "$T/w/cx" -- /usr/bin/env -i HOME="$HOME" ZMAIL_INSTANCE=tx /bin/zsh -lc 'exec "$@"' old "$T/bin/codex" resume --no-daemon 44444444-4444-4444-8444-444444444444 p
 perl -e 'select(undef,undef,undef,1.5)'
 grep -q '^WRONG tx (codex): process has no seat settings' <<< "$(R --check --seat tx 2>&1)" && ok "--check names it, though its snapshot looks right" || bad "old way: $(R --check --seat tx 2>&1)"
+
+echo "-- the .zshenv line, on a copy of the real file: the host's own file is never touched here"
+eval "$(grep -E '^(OLD|NEW)[12]=|^(OLD|NEW)_SHA=' "$HERE/zshenv-lines.sh")"; export OLD1 OLD2 NEW1 NEW2
+Z=$T/home; mkdir -p "$Z"
+sha() { /usr/bin/shasum -a 256 "$1" | cut -d' ' -f1; }
+original() { awk '$0 == ENVIRON["NEW1"] {print ENVIRON["OLD1"]; next} $0 == ENVIRON["NEW2"] {print ENVIRON["OLD2"]; next} {print}' "$HOME/.zshenv" > "$Z/.zshenv"; }
+ZL() { ZEO_RESCUE_ZSHENV=$Z/.zshenv ZEO_RESCUE_STATE=$T/zstate "$HERE/zshenv-lines.sh" "$@"; }
+original
+[ "$(sha "$Z/.zshenv")" = "$OLD_SHA" ] && ok "the copy is the file the Architect read" || bad "the host's .zshenv is neither file: $(sha "$HOME/.zshenv")"
+grep -q '^ORIGINAL:' <<< "$(ZL verify)" && ok "verify says so" || bad "verify: $(ZL verify)"
+echo '# someone else' >> "$Z/.zshenv"
+out=$(ZL apply 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^HASH MISMATCH, nothing was changed' && [ ! -e "$T/zstate/zshenv.before-20261106" ] && ok "a file that changed since the read refuses, with no backup" || bad "changed file: $rc $out"
+original; ln -s "$Z/.zshenv" "$Z/link"
+out=$(ZEO_RESCUE_ZSHENV=$Z/link ZEO_RESCUE_STATE=$T/zstate "$HERE/zshenv-lines.sh" apply 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^NOT A PLAIN FILE' && ok "a symlink refuses" || bad "symlink: $rc $out"
+out=$(ZL apply 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^APPLIED' && [ "$(sha "$Z/.zshenv")" = "$NEW_SHA" ] && ok "apply changes exactly the two lines" || bad "apply: $rc $out"
+[ "$(sha "$T/zstate/zshenv.before-20261106")" = "$OLD_SHA" ] && ok "and keeps the original" || bad "backup"
+[ "$(stat -f %Lp "$Z/.zshenv")" = 644 ] && ok "and its mode" || bad "mode: $(stat -f %Lp "$Z/.zshenv")"
+ls -a "$Z" | grep -q 'zshenv-trial' && bad "the private copy was left behind" || ok "and leaves no private copy"
+got=$(cd / && /usr/bin/env -i HOME="$HOME" ZDOTDIR="$Z" PATH=/usr/bin:/bin GH_TOKEN=zeo-seat-disabled GH_CONFIG_DIR=/x/disabled /bin/zsh -c 'print -r -- ${GH_CONFIG_DIR##*/}${GH_TOKEN:+,token}')
+[ "$got" = "disabled,token" ] && ok "a real shell keeps an inactive seat's gh off" || bad "real shell: $got"
+grep -q '^ALREADY CHANGED' <<< "$(ZL apply 2>&1)" && ok "a second apply changes nothing" || bad "second apply"
+echo '# someone else' >> "$Z/.zshenv"
+out=$(ZL rollback 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^HASH MISMATCH, nothing was changed' && ok "rollback refuses a file someone changed since" || bad "changed rollback: $rc $out"
+original; out=$(ZL apply 2>&1); out=$(ZL rollback 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^ROLLED BACK' && [ "$(sha "$Z/.zshenv")" = "$OLD_SHA" ] && ok "rollback restores the original exactly" || bad "rollback: $rc $out"
+sed 's/^    if ! why=$(right "$(dirname "$F")"); then$/    why=forced; if true; then/' "$HERE/zshenv-lines.sh" > "$T/zl-fail.sh"; chmod +x "$T/zl-fail.sh"
+out=$(ZEO_RESCUE_ZSHENV=$Z/.zshenv ZEO_RESCUE_STATE=$T/zstate "$T/zl-fail.sh" apply 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^PUT BACK' && [ "$(sha "$Z/.zshenv")" = "$OLD_SHA" ] && ok "if a shell disagrees after the swap, the original goes back by itself" || bad "put back: $rc $out"
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }

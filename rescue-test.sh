@@ -6,6 +6,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 fails=0
 ok()   { echo "ok   $1"; }
 bad()  { echo "FAIL $1"; fails=$((fails+1)); }
+GOOD='ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson GIT_ALLOW_PROTOCOL=ssh:https:file GH_CONFIG_DIR=/x/gh-master'
 mkdir -p "$T/bin" "$T/projects" "$T/state" "$T/w/cl" "$T/w/cl2" "$T/w/cx" "$T/w/cxw" "$T/w/cxi" "$T/w/cxn" "$T/w/none" "$T/sess" "$T/snap"
 # The tmux stub keeps a list of live sessions, and a pane per session in $T/panes (session|id|pid|opt|cmd) when a test wants one.
 cat > "$T/bin/tmux" <<S
@@ -26,7 +27,7 @@ S
 cat > "$T/bin/ps" <<S
 #!/bin/bash
 case "\$1" in
-  -Ewwp) cat "$T/psE.out" 2>/dev/null ;;
+  -Ewwp) if [ -s "$T/psE.out" ]; then cat "$T/psE.out"; else echo "$GOOD"; fi ;;
   *) cat "$T/ps.out" 2>/dev/null ;;
 esac
 exit 0
@@ -48,7 +49,18 @@ case "\$2" in
   *"$T/w/cxn'"*) printf '%s %s\n' 77777777-7777-4777-8777-777777777777 "$T/sess/full.jsonl" ;;
 esac
 S
+# The probe shell stands in for zsh reading the host's .zshenv: it gives a master seat its author, and can reset gh as the real file does.
+cat > "$T/bin/zsh-probe" <<S
+#!/bin/bash
+env | sort > "$T/probe.env"
+[ ! -f "$T/zshenv-resets-gh" ] || GH_CONFIG_DIR=/x/gh-matorclawson
+[ "\$1" != -c ] || [ ! -f "$T/plain-c-git-on" ] || GIT_ALLOW_PROTOCOL=ssh
+[ "\$ZEO_TMUX_SEAT:\${ZEO_TMUX_ACCOUNT:-}" != master:matorclawson ] || GIT_AUTHOR_EMAIL=a@noreply
+echo "gh=\${GH_CONFIG_DIR##*/} author=\${GIT_AUTHOR_EMAIL:-none}"
+[ "\${GIT_ALLOW_PROTOCOL:-}" != file ] || echo "fatal: transport 'ssh' not allowed"
+S
 chmod +x "$T/bin/"*
+echo master > "$T/seatmark"
 : > "$T/ps.out"; : > "$T/lsof.out"; : > "$T/psE.out"
 echo '{"type":"turn_context","approval_policy":"never","sandbox_policy":{"type":"danger-full-access"}}' > "$T/sess/full.jsonl"
 echo '{"type":"turn_context","approval_policy":"never","sandbox_policy":{"type":"workspace-write"}}' > "$T/sess/write.jsonl"
@@ -78,6 +90,7 @@ cat > "$T/chart.json" <<J
  {"seat_id":"disposable","mailbox":"x","desired_agent":null,"desired_host":null,"desired_tmux":null,"desired_folder":""}
 ]}
 J
+export ZEO_RESCUE_ZSH="$T/bin/zsh-probe"
 export ZEO_RESCUE_PINS="$T/no-pins" ZEO_RESCUE_STATE="$T/state" ZEO_RESCUE_PROJECTS="$T/projects" ZEO_RESCUE_CODEX_DB="$T/db" ZEO_RESCUE_TMUX="$T/bin/tmux" ZEO_RESCUE_SNAPSHOTS="$T/snap" \
   ZEO_RESCUE_SQLITE="$T/bin/sqlite3" ZEO_RESCUE_PS="$T/bin/ps" ZEO_RESCUE_LSOF="$T/bin/lsof" ZEO_RESCUE_KILL="$T/bin/kill" ZEO_RESCUE_CLAUDE=/x/claude ZEO_RESCUE_CODEX=/x/codex \
   ZEO_RESCUE_PROOF_TRIES=2 ZEO_RESCUE_PROOF_PAUSE=0 ZEO_RESCUE_STOP_TRIES=2 ZEO_RESCUE_DAEMON_WAIT=0
@@ -125,7 +138,7 @@ grep -q '^RUNNING cl:' <<< "$(R 2>&1)" && ok "the versioned binary path counts a
 
 echo "-- the launch"
 cp "$T/snap/44444444-4444-4444-8444-444444444444.1.sh" "$T/snapwrite"
-printf 'ZEO_TMUX_SEAT=master ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"
+printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"
 printf 'the note' > "$T/note"
 out=$(R --apply --seat cl --seat cx --note-file "$T/note" 2>&1)
 [ "$(grep -c 'new-session' "$T/launched")" = 2 ] && ok "--seat limits --apply" || bad "launched: $(cat "$T/launched")"
@@ -174,6 +187,14 @@ grep -q 'STOPPED: cl did not get its own identity' <<< "$(R --apply --seat cl 2>
 reset_live; printf 'ZEO_TMUX_SEAT=inactive ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=file HOME=/x' > "$T/psE.out"
 grep -q 'STOPPED: cl lacks marker master' <<< "$(R --apply --seat cl 2>&1)" && ok "a claude seat without its marker stops the run" || bad "claude marker gate"
 
+: > "$T/psE.out"
+reset_live; printf 'export ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=cx\nexport GIT_ALLOW_PROTOCOL=ssh:https:file\n' > "$T/snapwrite"; printf 'HOME=/x' > "$T/psE.out"
+out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED: cx: process has no seat settings, so tools outside its folder miss them; no other seat was started' && ok "a right snapshot does not pass a first seat whose process lacks the settings" || bad "process gate: $rc $out"
+printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson GIT_ALLOW_PROTOCOL=file' > "$T/psE.out"
+grep -q '^STOPPED: cx: a shell outside its folder has git off' <<< "$(reset_live; R --apply --seat cx 2>&1)" && ok "nor one whose shells have git off" || bad "shell gate"
+: > "$T/psE.out"; reset_live; rm -f "$T/snapwrite"
+
 echo "-- the proof reads top-level exports only: a real snapshot also stores the loader's functions"
 loader='zeo-seat-load () {\n\tif [ -z "$m" ]\n\tthen\n\t\texport GIT_ALLOW_PROTOCOL=file \n\t\texport ZEO_TMUX_SEAT=inactive \n\tfi\n}\n'
 snap() { reset_live; printf "$loader$1" > "$T/snapwrite"; R --apply --seat cx 2>&1; }
@@ -214,7 +235,7 @@ grep -q 'seat-exec.sh' "$T/launched" && bad "started over a live process" || ok 
 cat > "$T/bin/ps" <<S
 #!/bin/bash
 case "\$1" in
-  -Ewwp) cat "$T/psE.out" 2>/dev/null; exit 0;;
+  -Ewwp) if [ -s "$T/psE.out" ]; then cat "$T/psE.out"; else echo "$GOOD"; fi; exit 0;;
   -axo) case "\$2" in *ppid*) cat "$T/ps.tree" 2>/dev/null; exit 0;; esac ;;
 esac
 if [ -f "$T/ps.seen" ]; then cat "$T/ps.after"; else touch "$T/ps.seen"; cat "$T/ps.out"; fi
@@ -276,6 +297,7 @@ cat > "$T/ps.tree" <<'E'
   811   800    02:00 /bin/zsh -c source /x/snap.sh 2>/dev/null || true && setopt X && eval 'make build' < /dev/null
   812   800    02:00 /u/.local/share/zeo/messenger/hooks/runtimes/abc watch
   813   800    02:00 caffeinate -i -t 300
+  816   800    59:00 /u/.codex/packages/standalone/releases/0.164.0/bin/codex-code-mode-host
   900     1 03:00:00 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server --listen unix://
   914   900    00:30 /bin/sh -c cargo test
   915   900    03:00 /u/.codex/packages/app-server-daemon/releases/1/bin/codex-code-mode-host
@@ -303,20 +325,6 @@ S
 reset_live; echo cx-maintainer >> "$T/live"; echo cl-maintainer >> "$T/live"
 { echo 'cx-maintainer|%8|800|1|codex'; echo 'cl-maintainer|%3|300|1|claude'; } > "$T/panes"
 echo "800 /x/codex resume -a never -s danger-full-access -C /w --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
-# The probe shell stands in for zsh reading the host's .zshenv: it gives a master seat its author, and can reset gh as the real file does.
-cat > "$T/bin/zsh-probe" <<S
-#!/bin/bash
-env | sort > "$T/probe.env"
-[ ! -f "$T/zshenv-resets-gh" ] || GH_CONFIG_DIR=/x/gh-matorclawson
-[ "\$1" != -c ] || [ ! -f "$T/plain-c-git-on" ] || GIT_ALLOW_PROTOCOL=ssh
-[ "\$ZEO_TMUX_SEAT:\${ZEO_TMUX_ACCOUNT:-}" != master:matorclawson ] || GIT_AUTHOR_EMAIL=a@noreply
-echo "gh=\${GH_CONFIG_DIR##*/} author=\${GIT_AUTHOR_EMAIL:-none}"
-[ "\${GIT_ALLOW_PROTOCOL:-}" != file ] || echo "fatal: transport 'ssh' not allowed"
-S
-chmod +x "$T/bin/zsh-probe"
-export ZEO_RESCUE_ZSH="$T/bin/zsh-probe"
-echo master > "$T/seatmark"
-GOOD='ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson GIT_ALLOW_PROTOCOL=ssh:https:file GH_CONFIG_DIR=/x/gh-master'
 printf 'ZMAIL_INSTANCE=cl HOME=/x %s' "$GOOD" > "$T/psE.out"
 out=$(R --check --seat cx --seat cl 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^OK cx (codex)' && echo "$out" | grep -q '^OK cl (claude)' && ok "seats started right pass" || bad "check: $rc $out"
@@ -388,7 +396,7 @@ out=$(L lic 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run: dt-brandedimage-maintainer' && ok "lic refuses while the seat is working" || bad "busy: $rc $out"
 grep -q 'set-option -pu' "$T/tmux.log" && bad "lic cleared the mark on a working seat" || ok "and leaves its mark alone"
 rm -f "$T/screen"; : > "$T/tmux.log"
-ZEO_RESCUE_CHART="$T/chart.json" L lic >/dev/null 2>&1
+STATE="$T/state" ZEO_RESCUE_CHART="$T/chart.json" L lic >/dev/null 2>&1
 grep -q 'set-option -pu -t =dt-brandedimage-maintainer: @zeo_rescue' "$T/tmux.log" && ok "lic clears the mark, or a reseat would skip the seat" || bad "lic mark: $(cat "$T/tmux.log")"
 
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }

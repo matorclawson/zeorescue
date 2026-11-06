@@ -233,7 +233,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
 }
 
 prove_codex() { # the first Codex seat must show the loader worked before any other starts
-  local seat=$1 sid=$2 mark=$3 pf=$4 i snap=""
+  local seat=$1 sid=$2 mark=$3 pf=$4 sess=$5 i snap="" id pid opt cmd
   for ((i = 0; i < PROOF_TRIES; i++)); do
     snap=$(find "$SNAPSHOTS" -name "$sid.*" -newer "$pf" 2>/dev/null | head -1)
     # a snapshot exists before it is written, so judge it only once it holds an identity
@@ -246,6 +246,10 @@ prove_codex() { # the first Codex seat must show the loader worked before any ot
     grep -q "^export ZEO_TMUX_SEAT=.\{0,1\}$mark.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1; }
     if grep -q '^export GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap"; then echo "STOPPED: $seat still has network git off; no other seat was started"; return 1; fi
   fi
+  # A right snapshot speaks only for tools in the thread's own directory, so the process must have the settings too.
+  IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
+  check_settings "$id" "$pid"
+  [ -z "$SET_WHY" ] || { echo "STOPPED: $seat: $SET_WHY; no other seat was started"; return 1; }
   echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
 prove_claude() { # the same for the first Claude seat, from the environment of the running process
@@ -278,7 +282,7 @@ rollout_free() { # rollout_free FILE: sets HOLDER and fails while any process ha
 
 children() { # children TREE PID: a process's children as "pid etime command", without what every seat runs: mail hooks, caffeinate and the daemon's own processes
   printf '%s\n' "$1" | awk -v p="$2" '$2==p { c=$0; sub(/^ *[0-9]+ +[0-9]+ +[^ ]+ +/, "", c); i=index(c, " && eval "); if (i) c=substr(c, i+9)
-    if (c !~ /\/\.local\/share\/zeo\/messenger\/hooks\// && c !~ /^caffeinate / && c !~ /\/app-server-daemon\/releases\//) print $1, $3, substr(c, 1, 110) }'
+    if (c !~ /\/\.local\/share\/zeo\/messenger\/hooks\// && c !~ /^caffeinate / && c !~ /\/app-server-daemon\/releases\// && c !~ /\/codex-code-mode-host$/) print $1, $3, substr(c, 1, 110) }'
 }
 work_list() { # what a restart would cut: it reads only, and a quiet result is what could be seen, not a promise that nothing is in progress
   local tree i seats=0 busy=0 hit kids daemon line pid
@@ -430,7 +434,7 @@ if [ $APPLY -eq 1 ]; then
     if ! launch "$i"; then echo "FAILED $seat: tmux could not start it"; unseat "$i"; failed=$((failed+1)); continue; fi
     echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]}"; resumed=$((resumed+1))
     if [ "${P_HARNESS[$i]}" = codex ] && [ $proved_codex -eq 0 ]; then
-      prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+      prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
       proved_codex=1
     elif [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
       prove_claude "$seat" "${P_MARK[$i]}" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }

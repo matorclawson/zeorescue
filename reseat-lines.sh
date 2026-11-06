@@ -26,7 +26,7 @@ cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin 5365562760b93a6549ff2beb9058985e9c27ee462ad40fe3f0e18160e0cb77fb rescue.sh
+pin 1f2a22fad65d1c6260ac9fac74e0ba83768b7f1b2a72c4d7cb1fb85cca3868de rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871 Makefile
 pin 6d2ea61a03a67aa954709939aa6cd5e4e71d1286e72116114eb5c37b5967fda2 session-pins
