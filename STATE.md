@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~03:13 GMT, by `zeo-rescue`, line 2 cleared by the Architect and not yet run.
+Last updated: 2026-11-06 ~03:14 GMT, by `zeo-rescue`, line 2 ended A, line 3 cleared and not yet run.
 
 ## Do next, in this order
 
@@ -10,7 +10,16 @@ Last updated: 2026-11-06 ~03:13 GMT, by `zeo-rescue`, line 2 cleared by the Arch
 
 **2. The reseat (urgent), CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**03:13 GMT, 6 Nov: line 2 is CLEARED and has not run. Line 3 stays held until the Architect has read line 2's result.** The Architect cleared it at `dfa5121` and `cd4f64d` with the hashes below, and accepted the anchors at 196, 210, 214 and 216. The integration branch stays unused and unpushed.
+**03:14 GMT, 6 Nov: line 2 ended A, and line 3 is cleared by the Architect and has not run.** Line 2 ran twice. The run at 03:11:16 resumed the seat: `reseat-lines-proof-20261106-031116.log`, `FIRST SEAT OK ...: own identity, marker master, git on`, `check: ok 1, wrong 0`. The run at 03:11:55 found it up and did nothing, which is why the output pasted here has no `RESUMED` line. No second writer: one holder of the rollout, pid 57703, `--no-daemon`.
+
+The Architect's clearance is on their screen at 03:12, Do 240: the same line as line 3 below, with `git switch` to this branch first. Their checkpoint is written. Expected end: `check: ok 50, wrong 0`.
+
+*Proved by the seat's own rollout since the resume:* `zmsg whoami` as its own seat, and real tool calls, including an `ls-remote` over the network that returned a sha, with no "not allowed" in any output. *Not proved:* a push, and a resume of a thread last written by 0.167. The Architect tests a push after line 3.
+
+*Fresh read at 03:12:* `work: 0 of 48`, `ok 2, to reseat 48`, `check: ok 2, wrong 48`. A work read of 0 is weak evidence on Codex panes, and the proof seat is working: it answered its cleanup mail.
+
+*Open:* what moved this checkout to `main` at 03:08:17. A move during line 3 would take `seat-exec.sh` away from every seat still to start. After line 3, write its `make check` result here.
+
 
 *The daemon updated itself to 0.167.0 at 02:07Z.* The pids are now 16463 and 44131, and the expected output below is corrected to match. Those pids can change again if it updates again. The stop finds the daemon by its path, not by version or pid, so nothing pinned changes. The proof seat's rollout was last written by 0.164.0, so **line 2 does not prove a resume of a thread last written by 0.167.** Only line 3 meets that.
 
