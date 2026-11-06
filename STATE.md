@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~03:49 GMT, by `zeo-rescue`, line 3 ran clean, `check: ok 50, wrong 0`.
+Last updated: 2026-11-06 ~04:14 GMT, by `zeo-rescue`, line 3 accepted; the inactive-seat git finding is held for the Architect.
 
 ## Do next, in this order
 
@@ -10,7 +10,20 @@ Last updated: 2026-11-06 ~03:49 GMT, by `zeo-rescue`, line 3 ran clean, `check: 
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**03:49 GMT, 6 Nov: line 3 ran and ended clean. `check: ok 50, wrong 0`, still true at 03:48.** Log: `reseat-lines-all-20261106-031750.log`. 48 seats resumed; no `STOPPED`, `FAILED` or `RECOVERY` line. The reseat itself is done. Do not rerun it.
+**04:14 GMT, 6 Nov: why one shell in `dt-brandedimage-maintainer` had git off and another did not. Found, read-only, and nothing changed. The Architect accepted line 3 and asked for this; any fix waits for their read.**
+
+*Cause.* Git-off on a Codex seat lives only in its shell snapshot, and Codex 0.164.0 skips the snapshot for many tool shells. `~/.config/zeo-tmux-seats/activate.zsh`, sourced from `~/.zshrc`, sets `GIT_ALLOW_PROTOCOL=file`. `seat-exec.sh` starts Codex seats with `zsh -lc`, which does not read `.zshrc`, so the Codex process never has the setting. Tools only get it from the snapshot.
+
+`TurnEnvironment::shell_snapshot` in `codex-rs/core/src/session/turn_context.rs`, tag `rust-v0.164.0` (the installed CLI reports 0.164.0), returns no snapshot unless the tool's directory equals the thread's directory and the flag is `-lc`, without the credential broker. So a `workdir` elsewhere, or `"login":false`, gives a shell without the snapshot. Do not rely on the doc comment on `main`: it describes this check, but the check is in the caller.
+
+*Evidence, rows read by hand, inactive seats after line 3.* Own directory with `-lc`: 2 of 2 refused (brandedimage `git fetch`, hud-editor `ls-remote`). Snapshot skipped: 7 of 7 not refused: brandedimage 2 pushes and 2 `ls-remote` shas (other directory); hud-editor reached https (other directory); animated-comics-editor reached https (other directory, `-c`) and ssh (own directory, `"login":false`, which looked like an exception until the flag was read). Those last three then failed on DNS, so they prove only that git did not refuse.
+
+*Scope.* The 3 `workspace-write` editors have no network from tools, so **`dt-brandedimage-maintainer` is the only inactive seat where git-off fails in practice.** Across all 35 Codex seats, 534 of 1,239 commands since line 3 skipped the snapshot. Those shells also lack the loader's other settings: `GIT_SSH_COMMAND`, `GH_CONFIG_DIR`, `GIT_AUTHOR_*`, `GIT_COMMITTER_*`, `GIT_CONFIG_*`, `ZEO_TMUX_SEAT`. `ZMAIL_INSTANCE` is unaffected: it is in the process environment. Every seat is `master` or inactive today, so a push from such a shell is expected to use the default account. That was not measured, and it would matter for a seat on another account. The author on commit `88216fa` was the default one.
+
+*Correction.* The block below says 4 inactive seats have git off, and `make check` proves that from snapshots only. True for the snapshot; not for every shell in that seat. The cleanup pushes were under the Architect's order, and nothing needs undoing.
+
+*Options, none applied; `seat-exec.sh` is pinned, so either means a new read, new pins and a restart of the seat by the operator.* (a) Smallest: put `GIT_ALLOW_PROTOCOL=file` in `seat-exec.sh`'s clean environment for a seat with no marker. That closes git-off in every shell, only for inactive seats. Recommended first. (b) Wider: `-lic` for Codex as for Claude, so all loader settings reach the process. It fixes the whole class, but changes every Codex seat's start and needs testing first. Either way, the snapshot-only proof in `rescue.sh` stays a partial check.
+
 
 *Read from the seats, not only from `make check`:*
 
