@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~05:34 GMT, by `zeo-rescue`, the final list and lines written; held for the Architect's read.
+Last updated: 2026-11-06 ~05:48 GMT, by `zeo-rescue`, checked with the old folders gone: nothing breaks, no new hash; waiting for the .zshenv line.
 
 ## Do next, in this order
 
@@ -10,7 +10,18 @@ Last updated: 2026-11-06 ~05:34 GMT, by `zeo-rescue`, the final list and lines w
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**05:34 GMT, 6 Nov: the Architect's final list. These are the only reseat lines to file; the block below is superseded on zeoapp's folder and the hash. Nothing has run.** Code: `d41845c`. The diff is one line of `folder-moves` and its one pin in `reseat-lines.sh`. Every other file is as read at `09f9487`.
+**05:48 GMT, 6 Nov: with the old folders gone, nothing breaks. No code changed and there is no new hash. The lines at `cb63787` stand, with `reseat-lines.sh` at `c4f294cd...`. Nothing has run.** The Architect asked for a read-only check after the operator moved four recovery folders; `ducktyper-recovery-20261003` follows when its seat is idle.
+
+*Checked at 05:46.* `trust` on a private copy of the config adds the five entries. The real `~/.codex/config.toml` (`7c834cd0...`) and `~/.zshenv` (`f519538e...`) are unchanged. The plan from that copy: all five seats read `RESEAT` and `MOVE`, each on its pinned thread, and the first-seat plan for rasa is clean with `work: 0 of 1`. The only `UNRESOLVED` is `dt-brandedimage-maintainer` on gh, which the `.zshenv` line clears. All five target folders are still valid git work trees and clean. The only chart folders missing are the four expected; no other seat is affected.
+
+*Why the moved folders do no harm.* A moved seat's folder comes from `folder-moves` and its thread from `session-pins`, so the missing chart folder is never used. In Codex 0.164.0 the TUI sends `-C`, and the app server uses the recorded folder only as a fallback (`load_for_cwd`, `history_cwd`). I found no check there that it still exists. That is from source; rasa is the live proof, and a failure there stops the run.
+
+*The seats.* The four are not gone: their processes are alive and idle at the prompt (rasa pid 12301, zeoapp 40766, profrod 5783, zeo-rt 23244), and their working directories followed the move. Three say they are waiting to restart in the new folder; zeoapp shows `Stopped`. A restart cuts no turn on them.
+
+*ducktyper.* `codex-first` does not wait for its folder move: rasa is first, and nothing in that step reads ducktyper's folder. `ducktyper` had a turn on screen at 05:46, so `codex-rest` answers `BUSY` until it is idle. Its folder move does not change the plan, as the other four show.
+
+*Order, unchanged:* `.zshenv` apply, trust, `codex-first` (rasa), the Architect's read, `codex-rest`. `codex-first` still refuses until `.zshenv` is done, and that is the next step.
+
 
 ```
 rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
