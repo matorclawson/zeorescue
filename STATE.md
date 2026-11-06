@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~15:50 GMT, by `zeo-rescue`, the Claude move rebuilt on the Architect's read of 14:50; final lines held for their check.
+Last updated: 2026-11-06 ~15:50 GMT, by `zeo-rescue`, the Claude proof accepted; waiting for Do 255, then the trust edit and the teardown cause.
 
 ## Do next, in this order
 
@@ -10,7 +10,17 @@ Last updated: 2026-11-06 ~15:50 GMT, by `zeo-rescue`, the Claude move rebuilt on
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**15:50 GMT, 6 Nov: the Claude move, for the Architect's check before the operator runs it. Nothing has run on a seat.** Their read of 14:50 approved `zeocreator` (session `dt-creator-maintainer`) and moved its folder to `/Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main`, with 7 linked worktrees rewritten. Their log: `threads/ORG-ROOT-MOVES-6-2026-11-06.json`. Code: `445f12a`. This block supersedes the hashes and the rehearsal in the 07:30 block below.
+**15:50 GMT, 6 Nov: the Claude proof is ACCEPTED by the Architect, read at 15:46. The move of `zeocreator` is done.** It moved at 15:44 on 2.1.319. Read by zeo-rescue from the run's own log: `MOVED OK zeocreator`, session `84bd8e22`, one transcript, one process, in `/Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main`; `check: ok 1`, and the whole org `check: ok 50, wrong 0`. The old project is gone. All 24 transcript lines since the note carry the same session and the new folder.
+
+*History survived, on a real model turn.* The seat's reply at 15:44:37 named its last work: the `CLEANUP-STORED zeocreator` report after the SOW-27/28 records branch, read back at `6b942c62bdf4`. That matches its last message before the restart, at 03:53:58 GMT. The Architect read the same, and reports mail woke it in 25 seconds. So the four items left unproved in the block below are settled for this seat, on a real restart: a real turn, the real hooks and mail wake, and tools in the new folder. Config behaviour beside the other live seats gave no fault.
+
+*The Architect's rulings.* Their three additions from this seat are accepted: the version refusal, the `--reseat` folder check, and `claude-back` needing the old folder. **No more Claude seats move until they name the next one.** `zeobroacastingstudio-zbs` and worktree targets stay refused until proved. `folder-moves` keeps `zeocreator`'s line until zeo-rt updates the chart; it goes quiet then.
+
+*In order, for this seat.* 1. `claude-clear`, on the operator's page as Do 255; it deletes the backup of `~/.claude.json`. At this writing the backup is still there, mode 600. 2. The reviewed edit removing the two old `rodriveracom` trust entries. 3. The teardown cause, read-only.
+
+*Two faults of this seat, both harmless.* The test added for the version print ran `make reseat` without the test's state folder, so 14 runs left 287-byte `reseat-20261106-15*.log` files in the real state folder, from 15:16 to 15:30. They ran on the stub tmux and started nothing; all read `resumed 0`. Fixed in the test; `rescue-test.sh` is not pinned. And the block below was first stamped 15:50 when it was committed at 15:32: the time was written before it had happened. It now says 15:32.
+
+**15:32 GMT, 6 Nov: the Claude move, for the Architect's check before the operator runs it. Nothing has run on a seat.** Their read of 14:50 approved `zeocreator` (session `dt-creator-maintainer`) and moved its folder to `/Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main`, with 7 linked worktrees rewritten. Their log: `threads/ORG-ROOT-MOVES-6-2026-11-06.json`. Code: `445f12a`. This block supersedes the hashes and the rehearsal in the 07:30 block below.
 
 *Corrections to the 07:30 block.* The input-box text at the seat is dim (`ESC[2m`), so it is Claude's suggestion, not typed text, and nothing is lost. Installed Claude is 2.1.319; seats run 2.1.318; a restart launches 2.1.319. The Claude reads in that block were 2.1.318. And that rehearsal's request filter could admit a request from before the move, so its memory result was not exact: the new one takes only requests after the move.
 

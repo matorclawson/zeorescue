@@ -597,7 +597,7 @@ echo "2.1.999 (Claude Code)" > "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is 2.1.999' && [ ! -e "$T/launched" ] && ok "claude-first refuses a Claude nobody rehearsed" || bad "version: $rc $out"
 rm -f "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is unknown' && ok "and one it cannot read" || bad "no version: $rc $out"
-rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "$rv (Claude Code)" > "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1)
+rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "$rv (Claude Code)" > "$T/ver"; out=$(STATE="$T/state" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1)
 echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "the version is read just before the line and printed, in the kept log too" || bad "version print: $out"
 SIDC=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zeocreator","mailbox":"zeocreator","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
 C() { ZEO_RESCUE_CHART="$T/zc.json" ZEO_RESCUE_PINS="$T/run/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_PROJECTS="$T/pc" ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L "$@" 2>&1; }
