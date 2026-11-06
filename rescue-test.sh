@@ -42,6 +42,7 @@ echo "\$*" >> "$T/kills"
 S
 cat > "$T/bin/sqlite3" <<S
 #!/bin/bash
+if [ -f "$T/nolog" ]; then case "\$1" in *immutable*) ;; *mode=ro) echo "Error: in prepare, unable to open database file (14)" >&2; exit 1;; esac; fi
 case "\$2" in
   *"select count(*)"*) cat "$T/newthreads" ;;
   *"select cwd from"*) cat "$T/threadcwd" ;;
@@ -402,6 +403,8 @@ out=$(R --apply --seat cx 2>&1); rc=$?
 echo "$out" | grep -q "^MOVE cx: from $T/w/cx to $T/w/new" && ok "the plan says where from and to" || bad "move line: $out"
 grep -q -- "resume -a never -s danger-full-access -C $T/w/new --no-daemon $SID" "$T/launched" && ok "it resumes the pinned thread in the new folder" || bad "argv: $(cat "$T/launched")"
 grep -q "moved from $T/w/cx to $T/w/new" "$T/state/prompts/cx.txt" && ok "the seat is told" || bad "note"
+touch "$T/nolog"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?; rm -f "$T/nolog"
+[ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && ok "a database nothing has open, so mode=ro fails, does not stop a good seat" || bad "no log: $rc $out"
 { printf '{"cwd":"%s"}\n' "$T/w/new"; head -c 1000000 /dev/zero | tr '\0' x; echo; } > "$T/rolladd"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && ok "a rollout larger than the pipe does not stop a good seat" || bad "big rollout: $rc $out"
 printf '{"cwd":"%s"}\n' "$T/w/new" > "$T/rolladd"

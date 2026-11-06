@@ -279,6 +279,9 @@ prove_claude() { # the same for the first Claude seat, from the environment of t
   echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
 
+thread_db() { # thread_db SQL: Codex's database is in WAL mode, so mode=ro cannot open it while nothing has it open. Then no log exists, and immutable reads it all.
+  "$SQLITE" "file:$CODEX_DB?mode=ro" "$1" 2>/dev/null || "$SQLITE" "file:$CODEX_DB?mode=ro&immutable=1" "$1" 2>/dev/null
+}
 prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a folder change the seat is still one thread, one rollout and one writer
   local seat=$1 sid=$2 roll=$3 to=$4 sess=$5 since=$6 i n=0 found="" others was id pid opt cmd who
   for ((i = 0; i < PROOF_TRIES; i++)); do
@@ -288,8 +291,7 @@ prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a fol
   [ -n "$found" ] || { echo "STOPPED: $seat: its thread never recorded $to; no other seat was started"; return 1; }
   n=$(find "$SESSIONS" -name "*$sid*" 2>/dev/null | wc -l | tr -d ' ')
   [ "$n" = 1 ] || { echo "STOPPED: $seat: $n rollouts carry thread $sid; no other seat was started"; return 1; }
-  # mode=ro, not immutable: this is a record being written now, and immutable would miss what is in the write-ahead log
-  others=$("$SQLITE" "file:$CODEX_DB?mode=ro" "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;" 2>/dev/null)
+  others=$(thread_db "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;")
   [ "$others" = 0 ] || { echo "STOPPED: $seat: ${others:-an unknown number of} new threads appeared in $to; no other seat was started"; return 1; }
   IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
   for ((i = 0; i < PROOF_TRIES; i++)); do # the rollout may not be open yet when the proof gets here, so one empty answer proves nothing
@@ -298,7 +300,7 @@ prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a fol
     pause "$PROOF_PAUSE"
   done
   [ "$who" = "$pid" ] || { echo "STOPPED: $seat: its rollout is held by pids '${who}', not only by pid $pid; no other seat was started"; return 1; }
-  was=$("$SQLITE" "file:$CODEX_DB?mode=ro" "select cwd from threads where id = '$sid';" 2>/dev/null)
+  was=$(thread_db "select cwd from threads where id = '$sid';")
   [ "$was" = "$to" ] || echo "NOTE $seat: Codex's thread record still says ${was:-nothing}; session-pins holds the thread either way"
   echo "MOVED OK $seat: thread $sid, one rollout, one writer, in $to"
 }
