@@ -2,13 +2,76 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~07:30 GMT, by `zeo-rescue`, Codex restart done; the Claude move built and rehearsed; held for the Architect's read.
+Last updated: 2026-11-06 ~15:50 GMT, by `zeo-rescue`, the Claude move rebuilt on the Architect's read of 14:50; final lines held for their check.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**15:50 GMT, 6 Nov: the Claude move, for the Architect's check before the operator runs it. Nothing has run on a seat.** Their read of 14:50 approved `zeocreator` (session `dt-creator-maintainer`) and moved its folder to `/Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main`, with 7 linked worktrees rewritten. Their log: `threads/ORG-ROOT-MOVES-6-2026-11-06.json`. Code: `445f12a`. This block supersedes the hashes and the rehearsal in the 07:30 block below.
+
+*Corrections to the 07:30 block.* The input-box text at the seat is dim (`ESC[2m`), so it is Claude's suggestion, not typed text, and nothing is lost. Installed Claude is 2.1.319; seats run 2.1.318; a restart launches 2.1.319. The Claude reads in that block were 2.1.318. And that rehearsal's request filter could admit a request from before the move, so its memory result was not exact: the new one takes only requests after the move.
+
+*New finding: Claude writes through its own config lock.* `rehearsal/claude-lock.sh`, a real 2.1.319 in a private config: with `.claude.json.lock` held and kept fresh for 25 s, the file changed 3 times, and our lock was still in place. That settles the 07:30 unproved item against the lock. So the lock guards nothing against Claude, and the hash check is the guard. A window remains between the last hash and the `mv`, too short to measure here. The real file was written 2 times in 300 s. A write landing in it would be overwritten; the backup still holds the earlier bytes.
+
+*A: the rehearsal now renames the folder under a live seat.* `rehearsal/claude-move.sh`: the seat starts in its old folder on 2.1.318, its folder is renamed under it, the old path is gone, and it takes a turn there. Then the operator's own steps run on a copy of the real scripts: `claude-first` without trust, `claude-trust` with the seat live, a turn that rewrites the config, `claude-first` on 2.1.319. The copy differs in socket, host, seat and folders, and refuses to start if it could reach `zeo2`. The transcript's folder is rewritten too, so its recorded path is gone as well. The org's panes were compared before and after each run: the same.
+
+| Transcript | Move took | Result | Messages sent | Memory | Last words | Note | The turn after the rename |
+|---|---|---|---|---|---|---|---|
+| zeocreator, 59 MB | 5.0 s | `MOVED OK`, `check: ok 1` | 148 | yes | yes | yes | yes |
+| zbs, 1.05 GB | 8.0 s | `MOVED OK`, `check: ok 1` | 6, since its last compaction | yes | yes | yes | yes |
+
+Both runs also showed: the process survived the rename, and it made no project under the new folder. Without trust, `claude-first` refused and left the seat up. The live process rewrote the config after the entry went in, and the entry stayed. Old project gone, one transcript, memory, subagent file and second session all came along, new lines carry the same session and the new folder. With the seat left as a stopped proof leaves it, the same line brought it back: `MOVED OK`. A second run reads `right already`, and a crash plans the same session.
+
+*B: `claude-trust`.* It hashes `~/.claude.json` before `jq` and again just before `mv`, and refuses with `REFUSED, nothing was changed` if they differ. The refusal leaves no copy, lock or backup. Test: a writer that ignores the lock, its write stands.
+
+*C: the backup.* Made 600 from its first byte under `umask 077`, whatever the file's mode, and an older one is brought to 600. The real `~/.claude.json` is 600 today. It stops if the backup is not 600. New step `claude-clear` deletes it, only when `--check` prints `OK zeocreator`.
+
+*Also changed, beyond the order; each is for the Architect's read.*
+
+- `claude-first` prints the version just before it runs, and keeps it in the log, as they asked. It also **refuses** any version other than `CLAUDE_REHEARSED=2.1.319`. They asked only for the print. If Claude updates first, the line stops, and the rehearsal reruns on the new version.
+- `rescue.sh`: `--reseat` now refuses a live seat whose folder is gone and has no line. tmux would have started it somewhere else. It was the only path with no such check. This is why `rescue.sh` has a new hash.
+- `claude-back` refuses while the old folder is gone: a project there would have no folder. **The rollback changed with the folder move.** The way back is the Architect moving the folder back, then taking the line out, then `claude-back`. Going forward needs no rollback.
+- `folder-moves`' first comment now says a seat, not a Codex seat.
+
+*`make check` now reads `ok 49, wrong 1`, and that is right.* The line is in, so `zeocreator` is `WRONG`: no trusted entry. It stays wrong until `claude-trust`, and then `not yet in its new folder` until `claude-first`.
+
+*Tests.* `make test` passes, 251 checks. Each new safeguard removed in turn, from a clean baseline, fails its own test: hash, backup mode, no backup left on refusal, version refusal, version in the log, clear waits for the seat, back needs the folder, reseat needs a folder.
+
+*Not proved until the seat runs.* A real model turn: the rehearsals stop at the API. The real hooks and the mail wake: the rehearsal has none, and `.claude` holds no old path. Whether tools work in a live seat whose folder has gone: a turn after the rename reaches the transcript, but the listener answers no tool call. So the two lines should run soon, while the seat is idle. Config behaviour beside the other live Claude seats: the rehearsal has one process.
+
+*Then.* Read the seat's sentence against its last words before the restart. The Architect accepts or not. On acceptance `claude-clear` runs, and the memory file `zeocreator-outward-writes-paused.md` is the seat's to correct: the pinned note does not tell it, so that word has to reach it by another way. `zeobroacastingstudio-zbs` stays out until its own check exists.
+
+| File | sha256 |
+|---|---|
+| `reseat-lines.sh` | `02b44922a59920f2e944aac97abda3003e4df3fea2224185d23c6a1aea75d2d7` |
+| `rescue.sh` | `2ae5c243dbe140212166b8b08d7eb75312127f2f230eda6446f03698997b39e9` |
+| `folder-moves` | `cd5fc3d4a60aa33bd64bf2726e7a756c35381a8e2a3936d85555fe69a8cfdb97` |
+| `seat-exec.sh`, `session-pins`, `notes/claude-move-20261106.txt` | unchanged |
+
+Line 1, `claude-trust`:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "02b44922a59920f2e944aac97abda3003e4df3fea2224185d23c6a1aea75d2d7" ]; then ./reseat-lines.sh claude-trust; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect `ADDED: ... is trusted; backup at ... mode 600. Tell zeo-rescue: done.` Anything else: stop. `REFUSED` changes nothing, and the line can run again once read.
+
+Line 2, `claude-first`, straight after:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "02b44922a59920f2e944aac97abda3003e4df3fea2224185d23c6a1aea75d2d7" ]; then ./reseat-lines.sh claude-first; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect, in order: `the Claude that will run: 2.1.319; rehearsed on 2.1.319`, `claude 2.1.319`, `RESEAT zeocreator`, `MOVE zeocreator`, `RESUMED zeocreator`, `FIRST SEAT OK zeocreator`, `MOVED OK zeocreator`, `OK zeocreator (claude)`, `check: ok 1, wrong 0`. `VERSION CHANGED`, `BUSY` and `UNRESOLVED` leave the seat up. `STOPPED` leaves it down with its history: stop and bring it here.
+
+Line 3, `claude-clear`, only after the Architect accepts the proof:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "02b44922a59920f2e944aac97abda3003e4df3fea2224185d23c6a1aea75d2d7" ]; then ./reseat-lines.sh claude-clear; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
 
 **07:30 GMT, 6 Nov: the Claude folder move is designed, built and rehearsed through the real code at real sizes, for the Architect's read. Nothing has run on a seat.** Their order: design a move for a Claude seat; prove on one idle Claude seat that history survives, not on them; nothing runs without their read; a proof must run through the real code on real sizes. Code: `05015b8`.
 
