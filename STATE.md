@@ -18,12 +18,12 @@ The Architect's clearance is on their screen at 03:12, Do 240: the same line as 
 
 *Fresh read at 03:12:* `work: 0 of 48`, `ok 2, to reseat 48`, `check: ok 2, wrong 48`. A work read of 0 is weak evidence on Codex panes, and the proof seat is working: it answered its cleanup mail.
 
-*Open:* what moved this checkout to `main` at 03:08:17. A move during line 3 would take `seat-exec.sh` away from every seat still to start. After line 3, write its `make check` result here.
+*Settled:* the move to `main` at 03:08:17 was `git switch main`, `git fetch`, `git pull`, typed in a terminal on this account (`~/.zsh_history`), so nothing automatic moved it. It must not happen during line 3: that would take `seat-exec.sh` away from every seat still to start. After line 3, write its `make check` result here.
 
 
 *The daemon updated itself to 0.167.0 at 02:07Z.* The pids are now 16463 and 44131, and the expected output below is corrected to match. Those pids can change again if it updates again. The stop finds the daemon by its path, not by version or pid, so nothing pinned changes. The proof seat's rollout was last written by 0.164.0, so **line 2 does not prove a resume of a thread last written by 0.167.** Only line 3 meets that.
 
-*This checkout moved.* At 03:08:17 something ran a fetch and `git checkout main`; the reflog does not say what. Line 2 then ended in `HASH MISMATCH`, because `reseat-lines.sh` was not there. Nothing ran and nothing was lost. zeo-rescue switched back to this branch at about 03:11: pins verify, tree clean, tip `cd4f64d` before this note. The line the Architect filed at 03:09 on Do 233 starts with `git switch` to this branch, so it survives the same move.
+*This checkout moved.* At 03:08:17 the checkout went to `main` (settled in the block above). Line 2 then ended in `HASH MISMATCH`, because `reseat-lines.sh` was not there. Nothing ran and nothing was lost. zeo-rescue switched back to this branch at about 03:11: pins verify, tree clean, tip `cd4f64d` before this note. The line the Architect filed at 03:09 on Do 233 starts with `git switch` to this branch, so it survives the same move.
 
 
 *Correction.* zeo-rescue's report and the 22:50 block below were wrong. A real Codex resume **did** run, at 21:54 (`reseat-lines-proof-20261105-215422.log`). The seat came up right: snapshot `01a16ed4-...1793915665310966000.sh` has git on, `master` and its own identity at lines 13885, 13928 and 13929. The proof then false-stopped on the loader function's `export GIT_ALLOW_PROTOCOL=file` at line 13585, and `unseat` killed the session. That is why it is gone; its sleep did not run out. zeo-rescue said otherwise without reading the log, and recommended a rerun that would have stopped the same way. Line 3 would have stranded the org. The seat started its turn at 21:54:27 and made no tool call, so it left nothing half-done. The Architect found this.
