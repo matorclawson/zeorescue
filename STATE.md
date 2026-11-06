@@ -2,13 +2,34 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 16:10 GMT, by `zeo-rescue`, Do 255 done; the trust edit held for the Architect's read; the teardown read next.
+Last updated: 2026-11-06 16:14 GMT, by `zeo-rescue`, the trust edit and `make teardown-log` held for the Architect.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**16:14 GMT, 6 Nov: the teardown cause, read-only: not found, but much narrower. It needs the unified log, which needs root.** Nothing was changed. The summary of 05:10:48 further down this file calls it a login session torn down. That wording goes further than the evidence below.
+
+*Established, each read today.*
+
+- **Not a reboot or panic.** Boot was 25 Oct 20:14:54. `launchd` pid 1, WindowServer and root daemons are from then.
+- **No console logout on record.** `who` still shows `rodbot console Oct 25 20:15`. `loginwindow` pid 420 is from 25 Oct 20:15:14 and is still the creator of `gui/501`, on the same session, handle 100023.
+- **Not a blanket kill of the user's processes.** 8 rodbot processes older than the event survive: `loginwindow`, `lockoutagent`, `ScreenTimeAgent`, `dmd`, `BackgroundTaskManagementAgent`, the Safari `SafeBrowsing` service, `UsageTrackingAgent` and `XProtect`. A signal to all of rodbot's processes should not have left those, though nobody has tested that.
+- **It was one instant.** `pmset` records clients dying at 05:10:48, including ControlCenter and the seats' `caffeinate` processes, 90 assertion lines in that ten-second span. 172 rodbot processes still running today started in the four seconds from 05:10:48, Dock and Finder among them. Those look like launchd agents coming straight back.
+- **No SSH login came first that survives to show it.** The oldest `sshd-session` is 05:10:54, from `100.97.168.76`, six seconds after. It cannot be the cause, and a session that closed before the event would leave no trace here.
+- **No seat asked for it, as far as a text search can see.** 56 transcripts and rollouts written after 05:05 were searched for tool calls stamped 05:08 to 05:11 naming `launchctl`, `pkill`, `killall`, `kill`, `kill-server`, `logout`, `reboot`, `shutdown`, `bootout`, `osascript`, `pmset`, `softwareupdate` and similar. One hit: test code calling `server.shutdown()`. That is a grep: a script a seat ran could still have done it, and so could anything outside the seats.
+- **Not a software install or a schedule.** `install.log` has only routine `softwareupdated` lines. The two user agents with calendar schedules fire at 03:17, and at 06:00 and 07:00.
+- **No crash report.** Neither readable DiagnosticReports folder has a report near 05:10.
+
+*Read and worth nothing.* `last` has no history, because `wtmp` starts today. `launchd.log` starts at 06:20 on 6 Nov. `nfcd` loaded at 05:10:32, sixteen seconds before; nothing links it. `launchctl print` cannot separate the survivors by domain, because `gui/501` lists the user-domain services too. Pre-crash shell snapshots disagree on where the old `zeo2` server began: some carry SSH variables and some do not. So whether it was in the Aqua session is unknown.
+
+*Open, and not settled here.* What could end the session's agents and tmux in one instant and leave `loginwindow`, the console entry and those 8 agents up. The candidates are a fast `launchctl` session teardown, a fault in a system service, or a signal that those 8 did not take. This seat will not pick one without the log.
+
+*What decides it.* The unified log: `log show` refuses this seat with `Operation not permitted`, and `/var/log/system.log.*.gz` are root-only. `make teardown-log` is the operator's, with sudo, and goes through the Architect first. It writes `~/.local/state/zeo-rescue/teardown-20261105050930.log`, and this seat reads it. The event is now about 35 hours old, and `--info` entries do not stay long, so it should run soon. If nothing is left at that level, the cause may stay unknown, and that should be said rather than guessed. When it is there, read from 05:10:30 for `loginwindow`, `launchd`, `sessionlogoutd`, `runningboardd`, `launchservicesd`, `logout`, `SIGKILL` and `jetsam`.
+
+*One thing this seat did.* A `sudo -n true` probe in the first read was refused by the classifier, rightly, and nothing in that command ran. It was not needed; the log step is the operator's.
 
 **16:10 GMT, 6 Nov: Do 255 ran, and the trust edit is ready for the Architect's read. Nothing has run on the real file.** `claude-clear` ran at 15:56: the backup of `~/.claude.json` is gone, and `check: ok 50, wrong 0`. Code: `d870813`.
 
