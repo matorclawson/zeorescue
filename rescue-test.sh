@@ -20,6 +20,7 @@ case "\$3" in
   show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) cat "$T/screen" 2>/dev/null ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
+    case "\$*" in *" --resume "*) sid=\$(printf "%s\n" "\$*" | sed -E "s/.* --resume ([^ ]+).*/\\1/"); if [ -f "$T/claudeadd" ]; then for f in "$T"/projects/*/\$sid.jsonl; do cat "$T/claudeadd" >> "\$f"; done; fi; printf "9 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; [ ! -f "$T/secondclaude" ] || printf "77 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; if [ -f "$T/forksession" ]; then for f in "$T"/projects/*/\$sid.jsonl; do : > "\${f%/*}/99999999-9999-4999-8999-999999999999.jsonl"; done; fi;; esac;
     case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi; [ ! -f "$T/heldafter" ] || cp "$T/heldafter" "$T/lsof.held"; [ ! -f "$T/latehold" ] || touch "$T/heldlate"; [ ! -f "$T/rolladd" ] || cat "$T/rolladd" >> "$T/sess/full.jsonl" ;; esac ;;
 esac
 exit \$?
@@ -93,7 +94,7 @@ cat > "$T/chart.json" <<J
  {"seat_id":"disposable","mailbox":"x","desired_agent":null,"desired_host":null,"desired_tmux":null,"desired_folder":""}
 ]}
 J
-export ZEO_RESCUE_ZSH="$T/bin/zsh-probe"
+export ZEO_RESCUE_ZSH="$T/bin/zsh-probe" ZEO_RESCUE_CLAUDE_JSON="$T/claude.json"
 export ZEO_RESCUE_PINS="$T/no-pins" ZEO_RESCUE_STATE="$T/state" ZEO_RESCUE_PROJECTS="$T/projects" ZEO_RESCUE_CODEX_DB="$T/db" ZEO_RESCUE_TMUX="$T/bin/tmux" ZEO_RESCUE_SNAPSHOTS="$T/snap" \
   ZEO_RESCUE_SQLITE="$T/bin/sqlite3" ZEO_RESCUE_PS="$T/bin/ps" ZEO_RESCUE_LSOF="$T/bin/lsof" ZEO_RESCUE_KILL="$T/bin/kill" ZEO_RESCUE_CLAUDE=/x/claude ZEO_RESCUE_CODEX=/x/codex \
   ZEO_RESCUE_PROOF_TRIES=2 ZEO_RESCUE_PROOF_PAUSE=0 ZEO_RESCUE_STOP_TRIES=2 ZEO_RESCUE_DAEMON_WAIT=0
@@ -387,8 +388,6 @@ printf 'cx %s\ncxi %s\n' "$T/w/new" "$T/w/new" > "$T/moves"
 grep -q "^UNRESOLVED cx: two seats would move to" <<< "$(R --seat cx 2>&1)" && ok "two seats in one folder are refused" || bad "two: $(R --seat cx 2>&1)"
 printf 'cx %s\ncx %s\n' "$T/w/new" "$T/w/newgit" > "$T/moves"
 grep -q "^UNRESOLVED cx: more than one line" <<< "$(R --seat cx 2>&1)" && ok "two lines for one seat are refused" || bad "two lines: $(R --seat cx 2>&1)"
-printf 'cl %s\n' "$T/w/new" > "$T/moves"
-grep -q '^UNRESOLVED cl: only a Codex seat can move' <<< "$(R --seat cl 2>&1)" && ok "a Claude seat cannot move" || bad "claude: $(R --seat cl 2>&1)"
 printf 'cx %s\n' "$T/w/new" > "$T/moves"
 grep -q '^UNRESOLVED cx: it moves folder, so .* must name its thread' <<< "$(ZEO_RESCUE_PINS=$T/no-pins R --seat cx 2>&1)" && ok "a seat with no pinned thread cannot move" || bad "no pin"
 printf 'cx %s\n' "$T/w/newgit" > "$T/moves"; : > "$T/config.toml"
@@ -447,6 +446,44 @@ grep -q "^UNRESOLVED cx: its pane does not hold $SID" <<< "$(R --reseat --relaun
 "$HERE/rescue.sh" --relaunch >/dev/null 2>&1; [ $? -eq 2 ] && ok "--relaunch needs --reseat" || bad "relaunch alone"
 printf '' > "$T/psE.out"; : > "$T/moves"; : > "$T/ps.out"; : > "$T/panes"; rm -f "$T/heldafter" "$T/rolladd" "$T/snapwrite"; export ZEO_RESCUE_PINS="$T/no-pins"; reset_live
 
+echo "-- a Claude seat moves folder and keeps its session, memory and transcript"
+CS=22222222-2222-4222-8222-222222222222; enc2() { printf %s "$1" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'; }
+CO=$T/projects/$(enc2 "$T/w/cl"); CN=$T/projects/$(enc2 "$T/w/cnew"); mkdir -p "$T/w/cnew" "$CO/memory"; echo m > "$CO/memory/MEMORY.md"
+cp -R "$CO" "$T/cproj"
+printf 'cl %s\n' "$CS" > "$T/cpins"; export ZEO_RESCUE_PINS="$T/cpins" ZEO_RESCUE_MOVES="$T/moves" ZEO_RESCUE_CLAUDE_JSON="$T/claude.json"
+printf 'cl %s\n' "$T/w/cnew" > "$T/moves"; echo master > "$T/seatmark"
+printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"; : > "$T/ps.out"; : > "$T/lsof.out"
+cfresh() { reset_live; rm -rf "$CO" "$CN"; cp -R "$T/cproj" "$CO"; printf '{"cwd":"%s"}\n' "$T/w/cnew" > "$T/claudeadd"; : > "$T/ps.out"; }
+trustnew() { printf '{"projects":{"%s":{"hasTrustDialogAccepted":true}}}' "$T/w/cnew" > "$T/claude.json"; }
+echo '{"projects":{}}' > "$T/claude.json"; cfresh
+grep -q 'has no trusted entry in .* so Claude would stop at a question nobody may answer' <<< "$(R --seat cl 2>&1)" && ok "a folder with no trust entry is refused, git or not" || bad "claude trust: $(R --seat cl 2>&1)"
+trustnew
+git -C "$T/w/newgit" -c user.email=t@t -c user.name=t commit -q --allow-empty -m x; git -C "$T/w/newgit" worktree add -q "$T/w/cwt" 2>/dev/null
+printf '{"projects":{"%s":{"hasTrustDialogAccepted":true}}}' "$T/w/cwt" > "$T/claude.json"; printf 'cl %s\n' "$T/w/cwt" > "$T/moves"
+grep -q 'is a git worktree, and no Claude move into one is proved' <<< "$(R --seat cl 2>&1)" && ok "a worktree target is refused" || bad "worktree: $(R --seat cl 2>&1)"
+trustnew; printf 'cl %s\n' "$T/w/cnew" > "$T/moves"; mkdir -p "$CN"
+grep -q 'it has projects under both folders' <<< "$(R --seat cl 2>&1)" && ok "two projects are never merged" || bad "both: $(R --seat cl 2>&1)"
+cfresh; out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q "^MOVED OK cl: session $CS, one transcript, one process, in $T/w/cnew" && ok "a move proves one transcript, one process" || bad "claude move: $rc $out"
+[ -f "$CN/memory/MEMORY.md" ] && [ -f "$CN/$CS.jsonl" ] && [ ! -e "$CO" ] && ok "the whole project goes by one rename, memory too" || bad "project: $(ls "$T/projects")"
+grep -q -- "-c $T/w/cnew -- $HERE/seat-exec.sh cl claude" "$T/launched" && ok "it starts in the new folder" || bad "launch: $(cat "$T/launched")"
+cp "$CN/$CS.jsonl" "$T/keep.jsonl"
+cfresh; cp "$T/keep.jsonl" "$CO/$CS.jsonl"; rm -f "$T/claudeadd"; out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q "^STOPPED: cl: its transcript took no line from" && ok "an old record of the folder does not pass: only new bytes count" || bad "vacuous: $rc $out"
+cfresh; mkdir -p "$T/projects/x"; : > "$T/projects/x/$CS.jsonl"; out=$(R --apply --seat cl 2>&1); rc=$?; rm -rf "$T/projects/x"
+[ $rc -eq 1 ] && echo "$out" | grep -q 'STOPPED: cl: 2 transcripts carry session' && ok "a second transcript stops the run" || bad "two transcripts: $rc $out"
+cfresh; touch "$T/forksession"; out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/forksession"
+[ $rc -eq 1 ] && echo "$out" | grep -q 'STOPPED: cl: 1 new sessions appeared' && ok "a forked session stops the run" || bad "fork: $rc $out"
+cfresh; touch "$T/secondclaude"; out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/secondclaude"
+[ $rc -eq 1 ] && echo "$out" | grep -q "^STOPPED: cl: session $CS is held by pids '9 77'" && ok "a second process stops the run" || bad "second process: $rc $out"
+cfresh; echo "800 /x/claude --resume $CS" > "$T/ps.out"; echo cl-maintainer >> "$T/live"; echo 'cl-maintainer|%3|800|1|claude' > "$T/panes"
+out=$(R --reseat --relaunch --seat cl 2>&1); echo "$out" | grep -q '^RESEAT cl:' && echo "$out" | grep -q '^MOVE cl' && ok "a right seat still under its old folder is restarted to move" || bad "relaunch claude: $out"
+grep -q 'not yet in its new folder' <<< "$(R --check --seat cl 2>&1)" && ok "--check names it" || bad "check claude: $(R --check --seat cl 2>&1)"
+mv "$CO" "$CN"
+grep -q '^OK cl: started by rescue, right already' <<< "$(R --reseat --relaunch --seat cl 2>&1)" && ok "once its project has moved it is left alone" || bad "claude right: $(R --reseat --relaunch --seat cl 2>&1)"
+grep -q '^OK cl (claude)' <<< "$(R --check --seat cl 2>&1)" && ok "and passes --check" || bad "check moved: $(R --check --seat cl 2>&1)"
+: > "$T/moves"; : > "$T/ps.out"; : > "$T/panes"; printf '' > "$T/psE.out"; rm -f "$T/claudeadd"; rm -rf "$CN"; cp -R "$T/cproj" "$CO"; export ZEO_RESCUE_PINS="$T/no-pins"; reset_live
+
 echo "-- a check reads all its input: under pipefail a reader that leaves early turns a match into a miss"
 pad() { printf '%s\n' "$1"; head -c 1000000 /dev/zero | tr '\0' x; echo; }
 hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh")
@@ -473,14 +510,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-20261106.txt folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt folder-moves zshenv-lines.sh; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-20261106.txt folder-moves zshenv-lines.sh; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -529,5 +566,25 @@ echo '  Working (3s • esc to interrupt)' > "$T/screen"
 out=$(ZEO_RESCUE_PINS="$HERE/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_CHART="$T/chart2.json" ZEO_RESCUE_CODEX_CONFIG="$T/cfg-ok.toml" sh -c "printf '[projects.\"$T/d/zeoapp\"]\ntrust_level = \"trusted\"\n' > '$T/cfg-ok.toml'; '$T/run/reseat-lines.sh' codex-first" 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run' && echo "$out" | grep -q 'WORK zeoapp: a turn is in progress' && ok "codex-first refuses while the seat is working, and names it" || bad "busy first: $rc $out"
 rm -f "$T/screen"
+
+echo "-- the Claude steps"
+: > "$T/live"; mkdir -p "$T/d/creator"; sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
+echo "# none" > "$T/run/folder-moves"; repin
+grep -q '^NOT READY, nothing was run: folder-moves needs zeocreator' <<< "$(L claude-first 2>&1)" && ok "claude-first refuses until the Architect names the folder" || bad "claude ready: $(L claude-first 2>&1)"
+echo "zeocreator $T/d/creator" > "$T/run/folder-moves"; repin
+printf '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' > "$T/cj.json"; chmod 640 "$T/cj.json"
+out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L claude-trust 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^ADDED' && [ "$(jq -r --arg d "$T/d/creator" '.projects[$d].hasTrustDialogAccepted' "$T/cj.json")" = true ] && [ "$(jq -r '.keep,.projects["/a"].hasTrustDialogAccepted' "$T/cj.json" | tr '\n' ' ')" = "1 true " ] && ok "claude-trust adds one entry and keeps the rest" || bad "claude trust: $rc $out"
+[ "$(stat -f %Lp "$T/cj.json")" = 640 ] && [ ! -e "$T/cj.json.lock" ] && ok "with the file's mode, and lets go of the lock" || bad "mode or lock"
+grep -q '^NOTHING TO ADD' <<< "$(ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L claude-trust 2>&1)" && ok "a second run changes nothing" || bad "trust twice"
+printf '{"projects":{}}' > "$T/cj2.json"; mkdir "$T/cj2.json.lock"
+out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj2.json" L claude-trust 2>&1); rc=$?; rmdir "$T/cj2.json.lock"
+[ $rc -eq 1 ] && echo "$out" | grep -q "Claude's config lock stayed held" && [ "$(cat "$T/cj2.json")" = '{"projects":{}}' ] && ok "it waits for Claude's own lock and changes nothing if it stays held" || bad "lock: $rc $out"
+out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'take zeocreator out of folder-moves first' && ok "claude-back refuses while the seat's line stands" || bad "back: $rc $out"
+echo "# none" > "$T/run/folder-moves"; repin; SIDC=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; kn=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); ko=$(printf %s "$T/d/oldc" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$T/pj/$kn/memory"; : > "$T/pj/$kn/$SIDC.jsonl"
+out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
+if ps -axo command= | grep -F "$SIDC" | grep -F -e '--resume' >/dev/null; then [ $rc -eq 2 ] && echo "$out" | grep -q 'a process still holds session' && ok "claude-back refuses while the seat runs" || bad "back held: $rc $out"
+else [ $rc -eq 0 ] && [ -f "$T/pj/$ko/$SIDC.jsonl" ] && ok "claude-back puts the project back" || bad "back: $rc $out"; fi
 
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }
