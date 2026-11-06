@@ -621,4 +621,39 @@ mkdir -p "$T/d/oldc"; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=
 if ps -axo command= | grep -F "$SIDC" | grep -F -e '--resume' >/dev/null; then [ $rc -eq 2 ] && echo "$out" | grep -q 'a process still holds session' && ok "claude-back refuses while the seat runs" || bad "back held: $rc $out"
 else [ $rc -eq 0 ] && [ -f "$T/pj/$ko/$SIDC.jsonl" ] && ok "claude-back puts the project back" || bad "back: $rc $out"; fi
 
+echo "-- the two old Codex trust entries"
+ua="$T/d/goneA" ub="$T/d/goneB"; uc="$T/u.toml"; ubk="$T/state/codex-config.before-untrust-20261106"
+mku() { printf 'model = "x"\n\n[projects."/keep1"]\ntrust_level = "trusted"\n\n[projects."%s"]\ntrust_level = "trusted"\n\n[projects."%s"]\ntrust_level = "trusted"\n\n[projects."/keep2"]\ntrust_level = "trusted"\n' "$ua" "$ub" > "$uc"; chmod 640 "$uc"; rm -f "$ubk"; }
+upin() { sed -e "s#^UNTRUST=.*#UNTRUST=\"$ua $ub\"#" -e "s#^UNTRUST_FROM=.*#UNTRUST_FROM=$(/usr/bin/shasum -a 256 "$uc" | cut -d' ' -f1)#" "$HERE/reseat-lines.sh" | sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" > "$T/run/reseat-lines.sh"; repin; }
+U() { ZEO_RESCUE_CODEX_CONFIG="$uc" L codex-untrust 2>&1; }
+mku; upin; cp "$uc" "$T/u.before"; out=$(U); rc=$?
+want='model = "x"
+
+[projects."/keep1"]
+trust_level = "trusted"
+
+[projects."/keep2"]
+trust_level = "trusted"'
+[ $rc -eq 0 ] && echo "$out" | grep -q '^REMOVED: 2 entries are gone' && [ "$(cat "$uc")" = "$want" ] && ok "codex-untrust removes the two entries and nothing else" || bad "untrust: $rc $out $(cat "$uc")"
+[ "$(stat -f %Lp "$uc")" = 640 ] && [ "$(stat -f %Lp "$ubk")" = 600 ] && cmp -s "$ubk" "$T/u.before" && [ ! -e "$uc.zeo" ] && ok "the file keeps its mode, the backup is the old file at 600, no copy is left" || bad "untrust files"
+grep -q '^NOTHING TO REMOVE' <<< "$(U)" && ok "a second run changes nothing" || bad "untrust twice: $(U)"
+mku; upin; echo '# later' >> "$uc"; cp "$uc" "$T/u.before"; out=$(U); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^HASH MISMATCH, nothing was changed' && cmp -s "$uc" "$T/u.before" && [ ! -e "$ubk" ] && ok "any other file is refused" || bad "untrust hash: $rc $out"
+mku; upin; mkdir -p "$ub"; out=$(U); rc=$?; rmdir "$ub"
+[ $rc -eq 2 ] && echo "$out" | grep -q 'exists again' && ok "a folder that came back is refused" || bad "untrust folder: $rc $out"
+mku; upin; mkdir -p "$T/bin5"; printf '#!/bin/bash\necho "/x/codex resume -a never -C %s --no-daemon id p"\n' "$ub" > "$T/bin5/ps"; chmod +x "$T/bin5/ps"; out=$(PATH="$T/bin5:$PATH" U); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'a Codex process is in' && ok "a Codex process in an old folder is refused" || bad "untrust process: $rc $out"
+mku; sed -i '' "/gone[A]/,+1d" "$uc"; upin; out=$(U); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'only 1 of 2 entries' && ok "one entry alone is refused" || bad "untrust one: $rc $out"
+mku; sed -i '' '/goneB/{n;s/"trusted"/"untrusted"/;}' "$uc"; upin; cp "$uc" "$T/u.before"; out=$(U); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'not a plain trusted one' && cmp -s "$uc" "$T/u.before" && [ ! -e "$uc.zeo" ] && ok "an entry that is not plainly trusted is refused" || bad "untrust level: $rc $out"
+mku; sed -i '' '/goneB/{n;a\
+extra = 1
+}' "$uc"; upin; cp "$uc" "$T/u.before"; out=$(U); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'not exactly those entries' && cmp -s "$uc" "$T/u.before" && ok "an entry with more in it is refused" || bad "untrust extra: $rc $out"
+mku; upin
+perl -i -pe 's/^(\s+if \[ "\$\(sha "\$CODEX_CONFIG"\)" != "\$was" \]; then echo "REFUSED, nothing was changed: \$CODEX_CONFIG changed)/    echo "# a writer" >> "\$CODEX_CONFIG"\n$1/' "$T/run/reseat-lines.sh"
+out=$(U); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'changed during the edit' && grep -q '^# a writer$' "$uc" && grep -q 'goneA' "$uc" && [ ! -e "$ubk" ] && ok "a writer during the edit is refused, and its write stands" || bad "untrust writer: $rc $out"
+
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }

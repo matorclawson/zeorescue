@@ -12,6 +12,7 @@
 #   reseat-lines.sh codex-first  restarts the first seat in folder-moves alone, in its new folder; needs .zshenv changed first
 #   reseat-lines.sh codex-rest   restarts every other Codex seat that needs it, about 12 minutes; needs the first seat right
 #   reseat-lines.sh claude-trust adds the Claude trust entry for the seat moving, under Claude's own config lock; starts nothing
+#   reseat-lines.sh codex-untrust removes the two Codex trust entries for folders that left rodriveracom, only from the exact file the Architect read; starts nothing
 #   reseat-lines.sh claude-first restarts that one Claude seat in its new folder; says which Claude will run; refuses while it is working, or on a Claude nobody rehearsed
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
@@ -33,12 +34,14 @@ CLAUDE_BIN=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
 PROJECTS=${ZEO_RESCUE_PROJECTS:-$HOME/.claude/projects}
 CODEX_CONFIG=${ZEO_RESCUE_CODEX_CONFIG:-$HOME/.codex/config.toml}
+UNTRUST="/Volumes/AIPEMedia1/code/rodriveracom/org-ducktyper-ai/main /Volumes/AIPEMedia1/code/rodriveracom/profrod-site/worktrees/profrod--author-public-gate-20261104"
+UNTRUST_FROM=41abedf3cde0a10cf52f16e3bd3eb6ecbad0c032c5ed13fbcb84e53447df7f1a
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 TMUX_BIN=${ZEO_RESCUE_TMUX:-/opt/homebrew/bin/tmux}
 STATE=${ZEO_RESCUE_STATE:-$HOME/.local/state/zeo-rescue}
 CLAUDE_BACKUP=$STATE/claude-json.before-20261106
 step=${1:-}
-case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|claude-trust|claude-first|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|claude-trust|claude-first|claude-clear|claude-back; nothing was run"; exit 2;; esac
+case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|claude-trust|claude-first|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|claude-trust|claude-first|claude-clear|claude-back; nothing was run"; exit 2;; esac
 place="$(id -un)@$(hostname -s)"
 [ "$place" = "$WANT" ] || { echo "WRONG PLACE, nothing was run: you are $place. Open the rodbot terminal on the Mac mini."; exit 2; }
 cd "$HERE" || exit 2
@@ -107,6 +110,31 @@ case "$step" in
     [ -e "$STATE/codex-config.before-20261106" ] || cp -p "$CODEX_CONFIG" "$STATE/codex-config.before-20261106" || { echo "FAILED, nothing was changed: no backup"; exit 1; }
     tmp=$(mktemp "$CODEX_CONFIG.XXXXXX") && cp -p "$CODEX_CONFIG" "$tmp" && printf '%s' "$add" >> "$tmp" && mv -f "$tmp" "$CODEX_CONFIG" || { echo "FAILED, nothing was changed"; exit 1; }
     echo "ADDED: backup at $STATE/codex-config.before-20261106. Tell zeo-rescue: done."; exit 0;;
+  codex-untrust)
+    b=$STATE/codex-config.before-untrust-20261106; tmp="$CODEX_CONFIG.zeo"; made=""; n=0; c=0; procs=$(ps -axo command=) # read first, or a grep would find itself
+    for p in $UNTRUST; do
+      c=$((c+1)); if /usr/bin/grep -qxF "[projects.\"$p\"]" "$CODEX_CONFIG"; then n=$((n+1)); fi
+      [ ! -e "$p" ] || { echo "REFUSED, nothing was changed: $p exists again."; exit 2; }
+      case "$procs" in *"-C $p "*) echo "REFUSED, nothing was changed: a Codex process is in $p."; exit 2;; esac
+    done
+    [ "$n" != 0 ] || { echo "NOTHING TO REMOVE: neither entry is there; nothing was changed"; exit 0; }
+    [ "$n" = "$c" ] || { echo "REFUSED, nothing was changed: only $n of $c entries are there."; exit 2; }
+    was=$(sha "$CODEX_CONFIG"); [ "$was" = "$UNTRUST_FROM" ] || { echo "HASH MISMATCH, nothing was changed: $CODEX_CONFIG is ${was:-missing}, not the file the Architect read"; exit 2; }
+    drop() { rm -f "$tmp"; [ -z "$made" ] || rm -f "$b"; }
+    trap drop EXIT
+    cp -p "$CODEX_CONFIG" "$tmp" && UNTRUST=$UNTRUST awk 'BEGIN {n = split(ENVIRON["UNTRUST"], d, " "); for (i = 1; i <= n; i++) h["[projects.\"" d[i] "\"]"] = 1}
+      s == 1 {s = ($0 == "trust_level = \"trusted\"") ? 2 : 0; if (s) next; bad = 1}
+      s == 2 {s = 0; if ($0 == "") next}
+      $0 in h {s = 1; next}
+      {print} END {exit bad}' "$CODEX_CONFIG" > "$tmp" || { echo "REFUSED, nothing was changed: an entry is not a plain trusted one."; exit 2; }
+    # Six lines go, three for each entry, and nothing else changes.
+    [ "$(/usr/bin/diff "$CODEX_CONFIG" "$tmp" | /usr/bin/grep -c '^<')" = $((c*3)) ] && [ "$(/usr/bin/diff "$CODEX_CONFIG" "$tmp" | /usr/bin/grep -c '^>')" = 0 ] || { echo "REFUSED, nothing was changed: the edit is not exactly those entries."; exit 2; }
+    if [ ! -e "$b" ]; then (umask 077; /bin/cat "$CODEX_CONFIG" > "$b") || { echo "FAILED, nothing was changed: no backup"; exit 1; }; made=1; fi
+    [ "$(sha "$b")" = "$was" ] || { echo "FAILED, nothing was changed: the backup is not the file the Architect read"; exit 1; }
+    if [ "$(sha "$CODEX_CONFIG")" != "$was" ]; then echo "REFUSED, nothing was changed: $CODEX_CONFIG changed during the edit. Bring this to zeo-rescue."; exit 2; fi
+    mv -f "$tmp" "$CODEX_CONFIG" || { echo "FAILED, nothing was changed"; exit 1; }
+    made=""
+    echo "REMOVED: $c entries are gone from $CODEX_CONFIG, now $(sha "$CODEX_CONFIG"); backup at $b. Tell zeo-rescue: done."; exit 0;;
   claude-trust)
     claude_ready
     if [ "$(jq -r --arg d "$CLAUDE_NEW" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON")" = true ]; then echo "NOTHING TO ADD: $CLAUDE_NEW is already trusted; nothing was changed"; exit 0; fi
