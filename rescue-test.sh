@@ -20,7 +20,7 @@ case "\$3" in
   show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) cat "$T/screen" 2>/dev/null ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
-    case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi; [ ! -f "$T/heldafter" ] || cp "$T/heldafter" "$T/lsof.held"; [ ! -f "$T/rolladd" ] || cat "$T/rolladd" >> "$T/sess/full.jsonl" ;; esac ;;
+    case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi; [ ! -f "$T/heldafter" ] || cp "$T/heldafter" "$T/lsof.held"; [ ! -f "$T/latehold" ] || touch "$T/heldlate"; [ ! -f "$T/rolladd" ] || cat "$T/rolladd" >> "$T/sess/full.jsonl" ;; esac ;;
 esac
 exit \$?
 S
@@ -34,7 +34,7 @@ exit 0
 S
 cat > "$T/bin/lsof" <<S
 #!/bin/bash
-case "\$1" in -t) echo "\$*" >> "$T/lsof.args"; cat "$T/lsof.held" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
+case "\$1" in -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
 S
 cat > "$T/bin/kill" <<S
 #!/bin/bash
@@ -402,6 +402,11 @@ out=$(R --apply --seat cx 2>&1); rc=$?
 echo "$out" | grep -q "^MOVE cx: from $T/w/cx to $T/w/new" && ok "the plan says where from and to" || bad "move line: $out"
 grep -q -- "resume -a never -s danger-full-access -C $T/w/new --no-daemon $SID" "$T/launched" && ok "it resumes the pinned thread in the new folder" || bad "argv: $(cat "$T/launched")"
 grep -q "moved from $T/w/cx to $T/w/new" "$T/state/prompts/cx.txt" && ok "the seat is told" || bad "note"
+{ printf '{"cwd":"%s"}\n' "$T/w/new"; head -c 1000000 /dev/zero | tr '\0' x; echo; } > "$T/rolladd"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && ok "a rollout larger than the pipe does not stop a good seat" || bad "big rollout: $rc $out"
+printf '{"cwd":"%s"}\n' "$T/w/new" > "$T/rolladd"
+touch "$T/latehold"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?; rm -f "$T/latehold" "$T/heldlate"
+[ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && ok "a rollout that opens a moment late does not stop a good seat" || bad "late hold: $rc $out"
 echo "$T/w/cx" > "$T/threadcwd"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^NOTE cx: Codex.s thread record still says' && ok "an old thread record is named, and does not stop a seat the pin still finds" || bad "record: $rc $out"
 echo "$T/w/new" > "$T/threadcwd"
@@ -438,6 +443,22 @@ sed -i '' 's/^cx-maintainer|%8|800|1|codex$/cx-maintainer|%8|900|1|codex/' "$T/p
 grep -q "^UNRESOLVED cx: its pane does not hold $SID" <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "a pane holding another thread is not touched" || bad "other thread: $(R --reseat --relaunch --seat cx 2>&1)"
 "$HERE/rescue.sh" --relaunch >/dev/null 2>&1; [ $? -eq 2 ] && ok "--relaunch needs --reseat" || bad "relaunch alone"
 printf '' > "$T/psE.out"; : > "$T/moves"; : > "$T/ps.out"; : > "$T/panes"; rm -f "$T/heldafter" "$T/rolladd" "$T/snapwrite"; export ZEO_RESCUE_PINS="$T/no-pins"; reset_live
+
+echo "-- a check reads all its input: under pipefail a reader that leaves early turns a match into a miss"
+pad() { printf '%s\n' "$1"; head -c 1000000 /dev/zero | tr '\0' x; echo; }
+hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh")
+[ -z "$hits" ] && ok "no script pipes into grep -q" || bad "pipes into grep -q: $hits"
+reset_live; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"
+echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/cx --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
+pad '  Working (9s, esc to interrupt)' > "$T/screen"
+grep -q '^WORK cx: a turn is in progress' <<< "$(R --reseat --seat cx 2>&1)" && ok "a turn is found on a screen larger than the pipe" || bad "big screen"
+pad '  Trust this folder? Codex can read, edit, and run files here' > "$T/screen"
+echo 'cx-maintainer|%8|800|1|codex' > "$T/panes"
+grep -q 'waiting at the trust prompt' <<< "$(R --check --seat cx 2>&1)" && ok "a seat at the trust screen is found the same way" || bad "big trust"
+rm -f "$T/screen"; reset_live
+echo "700 /x/codex resume 44444444-4444-4444-8444-444444444444" > "$T/ps.out"; pad "n$T/w/cx" > "$T/lsof.out"
+grep -q '^RUNNING cx:' <<< "$(R --seat cx 2>&1)" && ok "a process in the folder is found in a long lsof answer, so no second writer starts" || bad "big lsof"
+: > "$T/lsof.out"; : > "$T/ps.out"; reset_live
 
 echo "-- the chart and usage"
 grep -q 'WARNING.*last good' <<< "$(R --chart "$T/gone.json" 2>&1)" && ok "an unreadable chart falls back to the last good one, out loud" || bad "fallback"

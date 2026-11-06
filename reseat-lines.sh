@@ -32,7 +32,7 @@ cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin e0d57ddec4b045fd109fe88c797b98fc6e4439423865db6c6990d8f4fceb0d0b rescue.sh
+pin ac21a00d9e74947482752a8a134136a17991ab13d42a6d1e49e82b6c5da907eb rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871 Makefile
 pin a4ed4324fa60ee3b4561b4b6050e0dbf00e5cdb121e77d090a280646df889826 session-pins
@@ -51,7 +51,7 @@ moves_ready() { # every seat has its folder, and the folder exists; the folders 
     [ "$n" = 1 ] && [ -d "$to" ] || { echo "NOT READY, nothing was run: folder-moves needs one existing folder for $s. The Architect names each one."; exit 2; }
   done
 }
-zshenv_first() { ./zshenv-lines.sh verify 2>/dev/null | /usr/bin/grep -q '^CHANGED' || { echo "OUT OF ORDER, nothing was run: the .zshenv line comes first."; exit 2; }; }
+zshenv_first() { ./zshenv-lines.sh verify 2>/dev/null | /usr/bin/grep '^CHANGED' >/dev/null || { echo "OUT OF ORDER, nothing was run: the .zshenv line comes first."; exit 2; }; }
 not_busy() { # a restart cuts a turn in progress, so a turn on any seat this step would restart stops it; a quiet result is what can be seen
   local w; w=$(./rescue.sh --reseat --relaunch --harness codex --before $BEFORE "$@" 2>&1 | /usr/bin/grep 'a turn is in progress')
   [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when these are idle:"; echo "$w"; exit 2; }
@@ -69,7 +69,7 @@ case "$step" in
     "$TMUX_BIN" -L zeo2 has-session -t "=zeoarchitect-maintainer" 2>/dev/null || { echo "OUT OF ORDER, nothing was run: zeoarchitect is not up. Run the zeoarchitect line first."; exit 2; }
     { make reseat ARGS="--before $BEFORE --note-file $NOTE" && make check; } 2>&1 | tee "$log";;
   lic)
-    if "$TMUX_BIN" -L zeo2 capture-pane -p -t "=$LIC_SEAT:" 2>/dev/null | /usr/bin/grep -q 'esc to interrupt'; then echo "BUSY, nothing was run: $LIC_SEAT has a turn in progress. Try again when it is idle."; exit 2; fi
+    if "$TMUX_BIN" -L zeo2 capture-pane -p -t "=$LIC_SEAT:" 2>/dev/null | /usr/bin/grep 'esc to interrupt' >/dev/null; then echo "BUSY, nothing was run: $LIC_SEAT has a turn in progress. Try again when it is idle."; exit 2; fi
     # rescue started this seat, so a reseat would leave it alone while the pane keeps @zeo_rescue. The seat runs on until the reseat stops it.
     "$TMUX_BIN" -L zeo2 set-option -pu -t "=$LIC_SEAT:" @zeo_rescue || { echo "FAILED, nothing was run: could not clear the mark on $LIC_SEAT"; exit 1; }
     { make reseat ARGS="--seat $LIC_SEAT --before $BEFORE --note-file $LIC_NOTE" && make check ARGS="--seat $LIC_SEAT"; } 2>&1 | tee "$log";;

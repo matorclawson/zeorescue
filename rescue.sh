@@ -121,7 +121,7 @@ running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell
   [ -n "$pids" ] || return 1
   local out rc; out=$("$LSOF" -a -d cwd -Fn -p "$pids" 2>/dev/null); rc=$?
   [ $rc -le 1 ] || return 2
-  printf '%s\n' "$out" | grep -qxF "n$2"
+  printf '%s\n' "$out" | grep -xF "n$2" >/dev/null
 }
 holds() { # holds SID: does a harness process hold this session? Only harness binaries count: a tmux server keeps the command line of its first client as its title, for life.
   "$PS_BIN" -axo pid=,command= | awk -v id="$1" '($2 ~ /(^|\/)(claude|codex)$/ || $2 ~ /\/(claude|codex)\/versions\//) && index($0, id) {f=1} END {exit !f}'
@@ -223,7 +223,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
   IFS='|' read -r id pid opt cmd < <(panes_of "$2")
   [ "$opt" = 1 ] || why="not started by rescue"
   # Nobody may type into a seat's terminal, so a seat stopped at a harness question waits for the operator. It is not resumed.
-  if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -q -E 'Yes, I trust this folder|Do you trust the files|Trust this folder\?'; then
+  if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -E 'Yes, I trust this folder|Do you trust the files|Trust this folder\?' >/dev/null; then
     why="${why:+$why; }waiting at the trust prompt: the operator must answer it"
   fi
   if [ "$3" = codex ]; then
@@ -282,7 +282,7 @@ prove_claude() { # the same for the first Claude seat, from the environment of t
 prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a folder change the seat is still one thread, one rollout and one writer
   local seat=$1 sid=$2 roll=$3 to=$4 sess=$5 since=$6 i n=0 found="" others was id pid opt cmd who
   for ((i = 0; i < PROOF_TRIES; i++)); do
-    if tail -c 2000000 "$roll" 2>/dev/null | grep -qF "\"cwd\":\"$to\""; then found=1; break; fi
+    if tail -c 2000000 "$roll" 2>/dev/null | grep -F "\"cwd\":\"$to\"" >/dev/null; then found=1; break; fi
     pause "$PROOF_PAUSE"
   done
   [ -n "$found" ] || { echo "STOPPED: $seat: its thread never recorded $to; no other seat was started"; return 1; }
@@ -292,7 +292,11 @@ prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a fol
   others=$("$SQLITE" "file:$CODEX_DB?mode=ro" "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;" 2>/dev/null)
   [ "$others" = 0 ] || { echo "STOPPED: $seat: ${others:-an unknown number of} new threads appeared in $to; no other seat was started"; return 1; }
   IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
-  who=$("$LSOF" -t -- "$roll" 2>/dev/null | paste -sd' ' -)
+  for ((i = 0; i < PROOF_TRIES; i++)); do # the rollout may not be open yet when the proof gets here, so one empty answer proves nothing
+    who=$("$LSOF" -t -- "$roll" 2>/dev/null | paste -sd' ' -)
+    [ "$who" != "$pid" ] || break
+    pause "$PROOF_PAUSE"
+  done
   [ "$who" = "$pid" ] || { echo "STOPPED: $seat: its rollout is held by pids '${who}', not only by pid $pid; no other seat was started"; return 1; }
   was=$("$SQLITE" "file:$CODEX_DB?mode=ro" "select cwd from threads where id = '$sid';" 2>/dev/null)
   [ "$was" = "$to" ] || echo "NOTE $seat: Codex's thread record still says ${was:-nothing}; session-pins holds the thread either way"
@@ -302,7 +306,7 @@ prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a fol
 folder_ready() { # folder_ready SEAT TO: sets WHY unless the seat may move there. Only git folders ask for trust: Codex prompts when a project has no entry.
   local seat=$1 to=$2 how
   [[ "$to" = /* ]] && [ -d "$to" ] || { WHY="new folder $to does not exist"; return 1; }
-  if printf '%s\n' "$rows" | cut -d$'\x1f' -f5 | grep -qxF "$to"; then WHY="new folder $to is already a seat's folder in the chart"; return 1; fi
+  if printf '%s\n' "$rows" | cut -d$'\x1f' -f5 | grep -xF "$to" >/dev/null; then WHY="new folder $to is already a seat's folder in the chart"; return 1; fi
   if [ "$(awk -v t="$to" '$2==t' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="two seats would move to $to"; return 1; fi
   git -C "$to" rev-parse --git-dir >/dev/null 2>&1 || return 0
   how=$(awk -v p="[projects.\"$to\"]" '$0==p {f=1; next} f && /^\[/ {exit} f && /^trust_level *=/ {print; exit}' "$CODEX_CONFIG" 2>/dev/null)
@@ -332,7 +336,7 @@ work_list() { # what a restart would cut: it reads only, and a quiet result is w
   for ((i = 0; i < ${#P_SEAT[@]}; i++)); do
     [ -n "${P_PANE[$i]}" ] || continue
     seats=$((seats+1)) hit=0
-    if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "${P_PANE[$i]}" 2>/dev/null | grep -q 'esc to interrupt'; then echo "WORK ${P_SEAT[$i]}: a turn is in progress on its screen"; hit=1; fi
+    if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "${P_PANE[$i]}" 2>/dev/null | grep 'esc to interrupt' >/dev/null; then echo "WORK ${P_SEAT[$i]}: a turn is in progress on its screen"; hit=1; fi
     kids=$(children "$tree" "${P_PID[$i]}")
     if [ -n "$kids" ]; then hit=1; while IFS= read -r line; do echo "WORK ${P_SEAT[$i]}: $line"; done <<< "$kids"; fi
     busy=$((busy+hit))
