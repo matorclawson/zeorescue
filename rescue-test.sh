@@ -482,6 +482,9 @@ grep -q 'not yet in its new folder' <<< "$(R --check --seat cl 2>&1)" && ok "--c
 mv "$CO" "$CN"
 grep -q '^OK cl: started by rescue, right already' <<< "$(R --reseat --relaunch --seat cl 2>&1)" && ok "once its project has moved it is left alone" || bad "claude right: $(R --reseat --relaunch --seat cl 2>&1)"
 grep -q '^OK cl (claude)' <<< "$(R --check --seat cl 2>&1)" && ok "and passes --check" || bad "check moved: $(R --check --seat cl 2>&1)"
+: > "$T/moves"; mv "$CN" "$CO"; mv "$T/w/cl" "$T/w/cl.gone"; rm -f "$T/launched"; out=$(R --reseat --relaunch --apply --seat cl 2>&1); rc=$?; mv "$T/w/cl.gone" "$T/w/cl"
+[ $rc -eq 3 ] && echo "$out" | grep -q "^UNRESOLVED cl: no directory $T/w/cl" && [ ! -e "$T/launched" ] && ok "a live seat whose folder is gone, with no line, is named and left alone" || bad "gone folder: $rc $out"
+rm -rf "$CO"; mkdir -p "$CN"
 : > "$T/moves"; : > "$T/ps.out"; : > "$T/panes"; printf '' > "$T/psE.out"; rm -f "$T/claudeadd"; rm -rf "$CN"; cp -R "$T/cproj" "$CO"; export ZEO_RESCUE_PINS="$T/no-pins"; reset_live
 
 echo "-- a check reads all its input: under pipefail a reader that leaves early turns a match into a miss"
@@ -576,6 +579,35 @@ printf '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' > "$T/cj.j
 out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L claude-trust 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^ADDED' && [ "$(jq -r --arg d "$T/d/creator" '.projects[$d].hasTrustDialogAccepted' "$T/cj.json")" = true ] && [ "$(jq -r '.keep,.projects["/a"].hasTrustDialogAccepted' "$T/cj.json" | tr '\n' ' ')" = "1 true " ] && ok "claude-trust adds one entry and keeps the rest" || bad "claude trust: $rc $out"
 [ "$(stat -f %Lp "$T/cj.json")" = 640 ] && [ ! -e "$T/cj.json.lock" ] && ok "with the file's mode, and lets go of the lock" || bad "mode or lock"
+B="$T/state/claude-json.before-20261106"; [ "$(stat -f %Lp "$B")" = 600 ] && [ "$(jq -c . "$B")" = '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' ] && ok "the backup is the old file, mode 600, though the file is 640" || bad "backup: $(stat -f %Lp "$B")"
+chmod 644 "$B"; printf '{"projects":{}}' > "$T/cj4.json"; ZEO_RESCUE_CLAUDE_JSON="$T/cj4.json" L claude-trust >/dev/null 2>&1; [ "$(stat -f %Lp "$B")" = 600 ] && ok "a backup already there is brought to 600" || bad "old backup mode: $(stat -f %Lp "$B")"
+rm -f "$B"; mkdir -p "$T/bin3"; realjq=$(command -v jq)
+cat > "$T/bin3/jq" <<S
+#!/bin/bash
+"$realjq" "\$@"; rc=\$?
+case "\$*" in *"+ {hasTrustDialogAccepted: true}"*) printf '{"projects":{},"writer":1}' > "$T/cj3.json";; esac
+exit \$rc
+S
+chmod +x "$T/bin3/jq"; printf '{"projects":{}}' > "$T/cj3.json"
+out=$(PATH="$T/bin3:$PATH" ZEO_RESCUE_CLAUDE_JSON="$T/cj3.json" L claude-trust 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^REFUSED, nothing was changed: .* changed while the lock was held' && [ "$(cat "$T/cj3.json")" = '{"projects":{},"writer":1}' ] && ok "a writer that ignores the lock is refused, and its write stands" || bad "writer: $rc $out $(cat "$T/cj3.json")"
+[ ! -e "$T/cj3.json.zeo" ] && [ ! -e "$T/cj3.json.lock" ] && [ ! -e "$B" ] && ok "and the refusal leaves no copy, no lock and no backup behind" || bad "refusal left: $(ls "$T" | grep cj3) $(ls "$B" 2>/dev/null)"
+printf '#!/bin/sh\ncat "%s" 2>/dev/null\n' "$T/ver" > "$T/bin/claudev"; chmod +x "$T/bin/claudev"; rm -f "$T/launched"
+echo "2.1.999 (Claude Code)" > "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is 2.1.999' && [ ! -e "$T/launched" ] && ok "claude-first refuses a Claude nobody rehearsed" || bad "version: $rc $out"
+rm -f "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is unknown' && ok "and one it cannot read" || bad "no version: $rc $out"
+rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "$rv (Claude Code)" > "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1)
+echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "the version is read just before the line and printed, in the kept log too" || bad "version print: $out"
+SIDC=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zeocreator","mailbox":"zeocreator","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
+C() { ZEO_RESCUE_CHART="$T/zc.json" ZEO_RESCUE_PINS="$T/run/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_PROJECTS="$T/pc" ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L "$@" 2>&1; }
+mkdir -p "$T/pc/$kc"; : > "$T/pc/$kc/$SIDC.jsonl"; echo x > "$B"; echo zc >> "$T/live"; echo "zc|%9|900|1|claude" > "$T/panes"; echo "900 /x/claude --resume $SIDC" > "$T/ps.out"
+echo "$GOOD ZMAIL_INSTANCE=other" > "$T/psE.out"; out=$(C claude-clear); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was deleted: zeocreator is not right yet' && [ -e "$B" ] && ok "claude-clear keeps the backup while the seat is wrong" || bad "clear wrong: $rc $out"
+echo "$GOOD ZMAIL_INSTANCE=zeocreator" > "$T/psE.out"; out=$(C claude-clear); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^DELETED' && [ ! -e "$B" ] && ok "claude-clear deletes it once the seat checks right" || bad "clear: $rc $out"
+grep -q '^NOTHING TO DELETE' <<< "$(C claude-clear)" && ok "and a second run has nothing to do" || bad "clear twice"
+: > "$T/live"; : > "$T/panes"; : > "$T/ps.out"; : > "$T/psE.out"
 grep -q '^NOTHING TO ADD' <<< "$(ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L claude-trust 2>&1)" && ok "a second run changes nothing" || bad "trust twice"
 printf '{"projects":{}}' > "$T/cj2.json"; mkdir "$T/cj2.json.lock"
 out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj2.json" L claude-trust 2>&1); rc=$?; rmdir "$T/cj2.json.lock"
@@ -583,7 +615,9 @@ out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj2.json" L claude-trust 2>&1); rc=$?; rmdir "$
 out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q 'take zeocreator out of folder-moves first' && ok "claude-back refuses while the seat's line stands" || bad "back: $rc $out"
 echo "# none" > "$T/run/folder-moves"; repin; SIDC=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; kn=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); ko=$(printf %s "$T/d/oldc" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$T/pj/$kn/memory"; : > "$T/pj/$kn/$SIDC.jsonl"
-out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
+rmdir "$T/d/oldc" 2>/dev/null; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'is gone, so the project would have no folder' && [ -f "$T/pj/$kn/$SIDC.jsonl" ] && ok "claude-back refuses while the old folder is gone" || bad "back gone: $rc $out"
+mkdir -p "$T/d/oldc"; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
 if ps -axo command= | grep -F "$SIDC" | grep -F -e '--resume' >/dev/null; then [ $rc -eq 2 ] && echo "$out" | grep -q 'a process still holds session' && ok "claude-back refuses while the seat runs" || bad "back held: $rc $out"
 else [ $rc -eq 0 ] && [ -f "$T/pj/$ko/$SIDC.jsonl" ] && ok "claude-back puts the project back" || bad "back: $rc $out"; fi
 

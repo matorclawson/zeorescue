@@ -502,6 +502,8 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   if "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null; then
     if [ $CHECK -eq 1 ]; then if check_seat "$seat" "$sess" "$harness"; then ok=$((ok+1)); else wrong=$((wrong+1)); fi; continue; fi
     if [ $RESEAT -eq 0 ]; then echo "LIVE $seat ($sess)"; live=$((live+1)); continue; fi
+    # tmux would start it somewhere else, and Claude would resume there; a folder moved under a live seat with no line in folder-moves is the case
+    [ -d "$cwd" ] || { echo "UNRESOLVED $seat: no directory $cwd"; unresolved=$((unresolved+1)); continue; }
     if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
     find_pane "$sess" "$SID"
     case "$PANE_STATE" in
