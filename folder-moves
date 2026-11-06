@@ -1,4 +1,8 @@
-# SEAT /new/folder: a Codex seat that leaves the chart's folder. Folders come from the Architect, not from zeo-rescue, once the seats' reports are in.
+# SEAT /new/folder: a Codex seat that leaves the chart's folder. Folders come from the Architect, not from zeo-rescue.
 # One line each, no spaces in a folder. The first line is the first seat: it moves alone and proves the path before the rest.
-# Seats waiting for a folder, by seat id (tmux session): zeoapp (zeoapp-maintainer), rasa (rasa-community-maintainer),
-# ducktyper (dt-animationstudio-maintainer), profrod (profrod-site-maintainer), zeo-rt (zeoruntime-maintainer).
+# A line goes quiet once the chart names the same folder; zeo-rt changes the chart after the moves, on the Architect's word.
+rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
+zeoapp /Volumes/AIPEMedia1/code/zeoapp
+ducktyper /Volumes/AIPEMedia1/code/rodriveracom/org-ducktyper-ai/main
+profrod /Volumes/AIPEMedia1/code/rodriveracom/profrod-site/worktrees/profrod--author-public-gate-20261104
+zeo-rt /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoruntime/worktrees/rt-codex-recovery

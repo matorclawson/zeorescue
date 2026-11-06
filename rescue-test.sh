@@ -475,9 +475,10 @@ grep -q 'set-option -pu -t =dt-brandedimage-maintainer: @zeo_rescue' "$T/tmux.lo
 echo "-- the Codex steps refuse out of order"
 sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 printf '#!/bin/bash\nif [ -f "%s/zshenv-changed" ]; then echo CHANGED; else echo ORIGINAL; fi\n' "$T" > "$T/run/zshenv-lines.sh"; chmod +x "$T/run/zshenv-lines.sh"
+repin() { h=$(/usr/bin/shasum -a 256 "$T/run/folder-moves" | cut -d' ' -f1); perl -i -pe "s/^pin [0-9a-f]+ folder-moves\$/pin $h folder-moves/" "$T/run/reseat-lines.sh"; }
+echo "# no folders yet" > "$T/run/folder-moves"; repin
 grep -q '^NOT READY, nothing was run: folder-moves needs one existing folder for zeoapp' <<< "$(L codex-first 2>&1)" && ok "codex-first refuses until every folder is named" || bad "ready: $(L codex-first 2>&1)"
 grep -q '^NOT READY' <<< "$(L trust 2>&1)" && ok "so does trust" || bad "trust ready"
-repin() { h=$(/usr/bin/shasum -a 256 "$T/run/folder-moves" | cut -d' ' -f1); perl -i -pe "s/^pin [0-9a-f]+ folder-moves\$/pin $h folder-moves/" "$T/run/reseat-lines.sh"; }
 mkdir -p "$T/d"; for s in zeoapp rasa ducktyper profrod zeo-rt; do mkdir -p "$T/d/$s"; echo "$s $T/d/$s"; done > "$T/run/folder-moves"; repin
 grep -q '^OUT OF ORDER, nothing was run: the .zshenv line comes first' <<< "$(L codex-first 2>&1)" && ok "codex-first needs .zshenv first" || bad "zshenv first: $(L codex-first 2>&1)"
 grep -q '^OUT OF ORDER, nothing was run: the .zshenv line comes first' <<< "$(L codex-rest 2>&1)" && ok "so does codex-rest" || bad "zshenv rest"
