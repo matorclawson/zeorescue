@@ -16,6 +16,7 @@ case "\$3" in
   new-session) printf '%s\n' "\$*" >> "$T/launched"; echo "\$6" >> "$T/live" ;;
   list-panes)  s=\${6#=}; if grep -q "^\$s|" "$T/panes" 2>/dev/null; then grep "^\$s|" "$T/panes" | cut -d'|' -f2-; else echo "%\$s|9|1|sleep"; fi ;;
   set-option)  printf '%s\n' "\$*" >> "$T/opts" ;;
+  show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) cat "$T/screen" 2>/dev/null ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
     case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi ;; esac ;;
@@ -147,12 +148,12 @@ echo "\$@" > "$T/seatargs"
 S
 chmod +x "$T/bin/zsh-out"
 printf 'hello world' > "$T/p"
-sed "s#/bin/zsh \"\$flags\" 'exec \"\$@\"' zeo-rescue#$T/bin/zsh-out \"\$flags\"#" "$HERE/seat-exec.sh" > "$T/seat-exec.sh"
+sed "s#/bin/zsh -lic 'exec \"\$@\"' zeo-rescue#$T/bin/zsh-out -lic#" "$HERE/seat-exec.sh" > "$T/seat-exec.sh"
 SECRET_LEAK=1 TMUX=/t TMUX_PANE=%9 sh "$T/seat-exec.sh" sx codex "$T/p" /x/codex resume id
 grep -q '^ZMAIL_INSTANCE=sx$' "$T/seatenv" && ok "the seat gets its own identity" || bad "identity"
 grep -q '^TMUX_PANE=%9$' "$T/seatenv" && ok "the loader can find its pane" || bad "pane"
 grep -q SECRET_LEAK "$T/seatenv" && bad "the environment leaked" || ok "the environment is clean"
-grep -q '^-lc /x/codex resume id hello world$' "$T/seatargs" && ok "a codex seat gets a login shell and the prompt" || bad "seat args: $(cat "$T/seatargs")"
+grep -q '^-lic /x/codex resume id hello world$' "$T/seatargs" && ok "a codex seat gets an interactive shell, so .zshrc runs, and the prompt" || bad "seat args: $(cat "$T/seatargs")"
 sh "$T/seat-exec.sh" sy claude "$T/p" /x/claude; grep -q '^-lic ' "$T/seatargs" && ok "a claude seat gets an interactive shell, so .zshrc runs" || bad "claude flags"
 
 echo "-- the first seat gate"
@@ -302,7 +303,21 @@ S
 reset_live; echo cx-maintainer >> "$T/live"; echo cl-maintainer >> "$T/live"
 { echo 'cx-maintainer|%8|800|1|codex'; echo 'cl-maintainer|%3|300|1|claude'; } > "$T/panes"
 echo "800 /x/codex resume -a never -s danger-full-access -C /w --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
-printf 'ZMAIL_INSTANCE=cl HOME=/x' > "$T/psE.out"
+# The probe shell stands in for zsh reading the host's .zshenv: it gives a master seat its author, and can reset gh as the real file does.
+cat > "$T/bin/zsh-probe" <<S
+#!/bin/bash
+env | sort > "$T/probe.env"
+[ ! -f "$T/zshenv-resets-gh" ] || GH_CONFIG_DIR=/x/gh-matorclawson
+[ "\$1" != -c ] || [ ! -f "$T/plain-c-git-on" ] || GIT_ALLOW_PROTOCOL=ssh
+[ "\$ZEO_TMUX_SEAT:\${ZEO_TMUX_ACCOUNT:-}" != master:matorclawson ] || GIT_AUTHOR_EMAIL=a@noreply
+echo "gh=\${GH_CONFIG_DIR##*/} author=\${GIT_AUTHOR_EMAIL:-none}"
+[ "\${GIT_ALLOW_PROTOCOL:-}" != file ] || echo "fatal: transport 'ssh' not allowed"
+S
+chmod +x "$T/bin/zsh-probe"
+export ZEO_RESCUE_ZSH="$T/bin/zsh-probe"
+echo master > "$T/seatmark"
+GOOD='ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson GIT_ALLOW_PROTOCOL=ssh:https:file GH_CONFIG_DIR=/x/gh-master'
+printf 'ZMAIL_INSTANCE=cl HOME=/x %s' "$GOOD" > "$T/psE.out"
 out=$(R --check --seat cx --seat cl 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^OK cx (codex)' && echo "$out" | grep -q '^OK cl (claude)' && ok "seats started right pass" || bad "check: $rc $out"
 echo '  Yes, I trust this folder' > "$T/screen"
@@ -315,7 +330,33 @@ out=$(R --check --seat cx --seat cl 2>&1); rc=$?
 echo "$out" | grep -q '^WRONG cx (codex): no --no-daemon' && ok "a seat on the daemon is named" || bad "check daemon: $out"
 echo "$out" | grep -q '^WRONG cl (claude): environment has another identity' && ok "a seat with another identity is named" || bad "check id: $out"
 grep -q '^WRONG cxn (codex): no session' <<< "$(R --check --seat cxn 2>&1)" && ok "a missing seat is named" || bad "check missing"
-: > "$T/ps.out"
+
+echo "-- check reads the process and a shell outside the folder, not only the snapshot"
+echo "800 /x/codex resume -a never -s danger-full-access -C /w --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
+C() { R --check --seat cx 2>&1; }
+INACTIVE='ZEO_TMUX_SEAT=inactive ZEO_TMUX_ACCOUNT=none GIT_ALLOW_PROTOCOL=file GH_CONFIG_DIR=/x/disabled'
+printf 'HOME=/x' > "$T/psE.out"
+grep -q '^WRONG cx (codex): process has no seat settings' <<< "$(C)" && ok "a right snapshot does not hide a process without settings" || bad "no settings: $(C)"
+: > "$T/seatmark"; printf '%s' "$GOOD" > "$T/psE.out"
+grep -q '^WRONG cx (codex): process says master, pane says inactive' <<< "$(C)" && ok "a process that disagrees with its pane is named" || bad "disagree: $(C)"
+printf 'ZEO_TMUX_SEAT=inactive ZEO_TMUX_ACCOUNT=none GIT_ALLOW_PROTOCOL=ssh:https:file GH_CONFIG_DIR=/x/disabled' > "$T/psE.out"
+grep -q '^WRONG cx (codex): a shell outside its folder has git on' <<< "$(C)" && ok "an inactive seat with git on is named" || bad "git on: $(C)"
+printf '%s' "$INACTIVE" > "$T/psE.out"
+grep -q '^OK cx (codex)' <<< "$(C)" && ok "an inactive seat with everything off passes" || bad "inactive: $(C)"
+touch "$T/plain-c-git-on"
+grep -q '^WRONG cx (codex): a shell outside its folder has git on' <<< "$(C)" && ok "both kinds of tool shell are read: a fault only in zsh -c is named" || bad "plain -c: $(C)"
+rm -f "$T/plain-c-git-on"
+touch "$T/zshenv-resets-gh"
+grep -q '^WRONG cx (codex): a shell outside its folder has gh on' <<< "$(C)" && ok "a startup file that turns gh back on is named" || bad "gh on: $(C)"
+rm -f "$T/zshenv-resets-gh"
+echo master > "$T/seatmark"; printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson GIT_ALLOW_PROTOCOL=file' > "$T/psE.out"
+grep -q '^WRONG cx (codex): a shell outside its folder has git off' <<< "$(C)" && ok "a master seat with git off is named" || bad "git off: $(C)"
+printf 'ZEO_TMUX_SEAT=master GIT_ALLOW_PROTOCOL=ssh:https:file' > "$T/psE.out"
+grep -q '^WRONG cx (codex): a shell outside its folder has no seat author' <<< "$(C)" && ok "a seat that would commit under the wrong author is named" || bad "author: $(C)"
+printf '/x/codex resume p You were told ZEO_TMUX_SEAT=inactive and GIT_ALLOW_PROTOCOL=file HOME=/x %s GH_TOKEN=do-not-copy' "$GOOD" > "$T/psE.out"
+grep -q '^OK cx (codex)' <<< "$(C)" && ok "prompt text that looks like a setting does not count" || bad "decoy: $(C)"
+grep -q 'GH_TOKEN' "$T/probe.env" && bad "a credential reached the probe" || ok "a credential in the process never reaches the probe"
+: > "$T/ps.out"; : > "$T/seatmark"
 
 echo "-- the chart and usage"
 grep -q 'WARNING.*last good' <<< "$(R --chart "$T/gone.json" 2>&1)" && ok "an unreadable chart falls back to the last good one, out loud" || bad "fallback"
@@ -327,14 +368,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -342,5 +383,12 @@ done
 : > "$T/live"
 out=$(L all 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was run: zeoarchitect is not up' && ok "all refuses until zeoarchitect has its own note" || bad "order: $rc $out"
+: > "$T/tmux.log"; echo '  Working (3s • esc to interrupt)' > "$T/screen"
+out=$(L lic 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run: dt-brandedimage-maintainer' && ok "lic refuses while the seat is working" || bad "busy: $rc $out"
+grep -q 'set-option -pu' "$T/tmux.log" && bad "lic cleared the mark on a working seat" || ok "and leaves its mark alone"
+rm -f "$T/screen"; : > "$T/tmux.log"
+ZEO_RESCUE_CHART="$T/chart.json" L lic >/dev/null 2>&1
+grep -q 'set-option -pu -t =dt-brandedimage-maintainer: @zeo_rescue' "$T/tmux.log" && ok "lic clears the mark, or a reseat would skip the seat" || bad "lic mark: $(cat "$T/tmux.log")"
 
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }

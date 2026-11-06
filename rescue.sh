@@ -13,7 +13,8 @@
 #   UNRESOLVED  dead, and something needed is missing           left alone and named: this is the agent stage's work
 #
 # --reseat also restarts LIVE seats that rescue did not start the right way: RESEAT, or OK when the pane already carries @zeo_rescue.
-# --check starts nothing and judges every seat: OK or WRONG, with the reason.
+# --check starts nothing and judges every seat: OK or WRONG, with the reason. It reads the running process and a fresh shell in another
+# folder given the process's own settings, not only the snapshot, because Codex uses the snapshot only in the thread's directory and with -lc.
 # It lists what a restart would cut first, as WORK lines, in the plan and again just before --apply stops anything.
 # --session ID (with exactly one --seat) names the session to resume. Use it when the newest transcript in a seat's directory is not
 # the seat's own, such as after someone ran another session there.
@@ -48,6 +49,7 @@ LSOF=${ZEO_RESCUE_LSOF:-/usr/sbin/lsof}
 KILL_BIN=${ZEO_RESCUE_KILL:-/bin/kill}
 CLAUDE=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CODEX=${ZEO_RESCUE_CODEX:-$HOME/.local/bin/codex}
+ZSH_BIN=${ZEO_RESCUE_ZSH:-/bin/zsh}
 DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
@@ -179,6 +181,33 @@ find_pane() { # find_pane SESSION SID: sets PANE, PANE_PID and PANE_STATE (done,
   done < <(panes_of "$1")
 }
 
+SET_WHY=""
+check_settings() { # check_settings PANE PID: sets SET_WHY unless the seat's settings are in its process and reach a shell that has no snapshot
+  local want settings got acct proto ghdir f out
+  SET_WHY=""
+  want=$("$TMUX_BIN" -L "$SOCKET" show-options -pqv -t "$1" @zeo_seat 2>/dev/null); [ -n "$want" ] || want=inactive
+  # The environment follows the arguments, and a prompt can hold text that looks like a setting, so a name's last appearance wins.
+  # Only these four names are kept: a credential in the seat's environment never leaves this pipe.
+  settings=$("$PS_BIN" -Ewwp "$2" -o command= 2>/dev/null | tr ' ' '\n' | grep -E '^(ZEO_TMUX_SEAT|ZEO_TMUX_ACCOUNT|GIT_ALLOW_PROTOCOL|GH_CONFIG_DIR)=')
+  got=$(printf '%s\n' "$settings" | sed -n 's/^ZEO_TMUX_SEAT=//p' | tail -1)
+  acct=$(printf '%s\n' "$settings" | sed -n 's/^ZEO_TMUX_ACCOUNT=//p' | tail -1)
+  proto=$(printf '%s\n' "$settings" | sed -n 's/^GIT_ALLOW_PROTOCOL=//p' | tail -1)
+  ghdir=$(printf '%s\n' "$settings" | sed -n 's/^GH_CONFIG_DIR=//p' | tail -1)
+  if [ -z "$got" ]; then SET_WHY="process has no seat settings, so tools outside its folder miss them"; return 0; fi
+  if [ "$got" != "$want" ]; then SET_WHY="process says $got, pane says $want"; return 0; fi
+  # What a tool shell without the snapshot gets. Real git refuses before connecting, and ssh is /usr/bin/false, so this enters no seat and reaches nothing.
+  for f in -lc -c; do
+    out=$(cd / && /usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin ZEO_TMUX_SEAT="$got" ${acct:+ZEO_TMUX_ACCOUNT="$acct"} ${proto:+GIT_ALLOW_PROTOCOL="$proto"} ${ghdir:+GH_CONFIG_DIR="$ghdir"} \
+      GIT_SSH_COMMAND=/usr/bin/false GIT_TERMINAL_PROMPT=0 "$ZSH_BIN" "$f" 'print -r -- "gh=${GH_CONFIG_DIR##*/} author=${GIT_AUTHOR_EMAIL:-none}"; git ls-remote ssh://127.0.0.1/x 2>&1' 2>&1)
+    case "$want:$out" in
+      inactive:*"not allowed"*) case "$out" in *gh=disabled*) ;; *) SET_WHY="a shell outside its folder has gh on"; return 0;; esac;;
+      inactive:*) SET_WHY="a shell outside its folder has git on"; return 0;;
+      *"not allowed"*) SET_WHY="a shell outside its folder has git off"; return 0;;
+      *author=none*) SET_WHY="a shell outside its folder has no seat author"; return 0;;
+    esac
+  done
+}
+
 check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the reason
   local id pid opt cmd line env snap why="" sid
   IFS='|' read -r id pid opt cmd < <(panes_of "$2")
@@ -198,6 +227,7 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
     env=$("$PS_BIN" -Ewwp "$pid" -o command= 2>/dev/null)
     case "$env" in *"ZMAIL_INSTANCE=$1 "*|*"ZMAIL_INSTANCE=$1") ;; *) why="${why:+$why; }environment has another identity";; esac
   fi
+  check_settings "$id" "$pid"; [ -z "$SET_WHY" ] || why="${why:+$why; }$SET_WHY"
   if [ -z "$why" ]; then echo "OK $1 ($3)"; return 0; fi
   echo "WRONG $1 ($3): $why"; return 1
 }
