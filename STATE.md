@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~04:58 GMT, by `zeo-rescue`, line 4 ran; prove_codex and the .zshenv line held for the Architect.
+Last updated: 2026-11-06 ~05:20 GMT, by `zeo-rescue`, the bulk-restart set built for the Architect's one read; the five folders are theirs; nothing has run.
 
 ## Do next, in this order
 
@@ -10,7 +10,45 @@ Last updated: 2026-11-06 ~04:58 GMT, by `zeo-rescue`, line 4 ran; prove_codex an
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**04:58 GMT, 6 Nov: line 4 ran; a real Codex works under `-lic`. The `.zshenv` line and the `prove_codex` change are ready for the Architect's read. Neither has run, and no other Codex seat restarts until they have read line 4's result.** Code: `34d4c51`.
+**05:20 GMT, 6 Nov: the whole set for the bulk restart is built, for the Architect's one read. Nothing has run: no seat restarted, `~/.zshenv` and `~/.codex/config.toml` untouched. One input is still theirs: the five folders.** The Architect accepted line 4's result and the `codex-code-mode-host` token. Their order: build the Codex-only step and a new note; let it take a new folder for a named seat; one thread per seat across the change, proved on one seat first; the order stays `.zshenv`, the first seat, the rest; they read `prove_codex`, `zshenv-lines.sh` and the new step together, once, and clear them as one set. Code: `34d4c51` and `edb2bb9`.
+
+*What Codex 0.164.0 does on a folder change, from its source at that tag.* `-C` skips the "which directory?" prompt on resume (`effective_resume_cwd_mode`). It rewrites the thread's folder in its own record (`extract.rs`, `ThreadSettingsApplied`), so after a move a lookup by the chart's folder finds nothing, or another thread. **A git folder with no trust entry stops at "Trust this folder?"** (`read_remote_project_trust`). A folder outside git does not, which is why the recovery folders never asked. Nobody may answer that screen, so it has to be caught before anything stops.
+
+*What was built.*
+
+- **`--relaunch`** (`rescue.sh`, with `--reseat`): restarts a seat rescue started only if its process has no seat settings or it is not yet in its folder. A seat already right reads `OK ...: right already`, so the same line can run again after a stop. A fault a restart cannot fix reads `UNRESOLVED`.
+- **`folder-moves`**: `SEAT /new/folder`, pinned, **shipped with no folders**. The first line is the first seat. The seat ids are `zeoapp`, `rasa`, `ducktyper`, `profrod` and `zeo-rt`, for the sessions you named. A move is refused for a Claude seat, a folder that does not exist, another seat's chart folder, two seats in one folder, two lines for one seat, no session pin, or a git folder with no trusted entry.
+- **One thread per seat.** `session-pins` now names all five threads, so the thread comes from the pin, not the folder. The read-only plan finds the same five threads as line 3. `prove_moved` runs after every move, not only the first: the rollout records the new folder, exactly one rollout carries the thread, no new user thread appeared in the folder since the launch, and only the seat's process holds the rollout. Any failure stops the run, stops that seat and says `RECOVERY`. If Codex's own record still shows the old folder it prints `NOTE` and goes on, because the pin still finds the thread.
+- **`reseat-lines.sh`:** `trust`, `codex-first`, `codex-rest`. `codex-first` and `codex-rest` refuse with `NOT READY` until all five folders exist, with `OUT OF ORDER` unless `.zshenv` is changed, and with `BUSY` while a turn shows on a seat they would restart. `codex-rest` also needs the first seat to pass `--check`. `trust` adds an entry only for a git folder that needs one, keeps a backup, never overrides an untrusted entry, and starts nothing.
+- **`notes/codex-relaunch-20261106.txt`:** this is planned, not a crash; settings now reach every shell; leave other-author commits alone. A moved seat also gets one line naming the old and new folder.
+
+*The order for the operator, once cleared:* `zshenv-lines.sh apply`, then `reseat-lines.sh trust`, then `codex-first`, then a read of the result, then `codex-rest`. About 12 minutes for 33 seats at 20 seconds each.
+
+*Read-only plan at 05:19 on the real files:* 34 seats to restart, `work: 0 of 34`, and `dt-brandedimage-maintainer` `UNRESOLVED` on gh until the `.zshenv` line. That seat has already been restarted the new way, so `.zshenv` turns it into `right already`. `codex-first`, `codex-rest` and `trust` all answer `NOT READY`.
+
+*Evidence.* `make test`: 211 checks pass, and the real tmux suite passed again. On real tmux, with a fake harness: a seat started the old way is relaunched into a new folder and proves itself with a real `lsof`, its process really runs there, a side window survives, a second run leaves it alone, and after a crash the pin still finds the thread and keeps it in the new folder. Broken on purpose in a copy, each caught: a move with no pin; no trust check; the one-rollout, new-thread and one-writer proofs each dropped; the move never proved; relaunch restarting right seats; `--check` ignoring the folder; the runner skipping the `.zshenv` order. One of those broken copies wrote a stray `reseat-20261106-051937.log` to the real state folder, with stubs only; it is harmless.
+
+*Not proved until the first seat runs.* A real Codex resuming a real thread in a new folder: everything above reads source or uses a fake harness. Whether the trust match works on the folders the Architect picks. Whether Codex's record updates, which is why that is a `NOTE`.
+
+*For the Architect to decide or know.*
+
+- **First seat:** the first line of `folder-moves`. Suggestion: `zeoapp`, the smallest rollout of the five at 0.8 GB. The others are rasa 0.9, ducktyper 1.6, zeo-rt 1.7 and profrod 1.7.
+- **The chart:** it still names the recovery folders. `folder-moves` bridges that, and a line goes quiet once the chart says the same folder. Changing the chart is not this seat's.
+- **`trust` writes `~/.codex/config.toml`**, a real permission grant, for git folders only. A seat that writes that file in the same moment could lose its change; the backup is at `~/.local/state/zeo-rescue/codex-config.before-20261106`.
+- **`make check` still reads `ok 15, wrong 35`.** Once folders are filled, the five also read `not yet in its new folder` until they move.
+- **Rolling a move back:** remove the seat's line from `folder-moves`, which means a new pin and read, and run the same step. The thread stays pinned.
+
+*When the folders arrive.* zeo-rescue writes them to `folder-moves`, in the Architect's order, and updates that one pin. That is a five-line diff, and it changes `reseat-lines.sh`'s hash, so the three reseat lines are written then, with their final hash. The `.zshenv` apply and rollback lines in the block below stand: `zshenv-lines.sh` has not changed.
+
+| File | sha256 |
+|---|---|
+| `rescue.sh` (changed) | `e0d57ddec4b045fd109fe88c797b98fc6e4439423865db6c6990d8f4fceb0d0b` |
+| `reseat-lines.sh` (changed; final hash only after the folders) | `9e8eb05aa8fa0c5716cfcd1f89d453886efa056cb4e4e7212eac2e0ee67e30a6` |
+| `session-pins` (five seats added) | `a4ed4324fa60ee3b4561b4b6050e0dbf00e5cdb121e77d090a280646df889826` |
+| `folder-moves` (new, no folders yet) | `9407e2bdfb6b9c383dc4f1a5cfaf9d42fc201686a0714aeea6809bd9a48b2392` |
+| `notes/codex-relaunch-20261106.txt` (new) | `caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de` |
+| `zshenv-lines.sh` (unchanged; now also pinned by the runner) | `13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d` |
+
 
 *Line 4's result.* The operator ran it at 04:49:26. Log: `reseat-lines-lic-20261106-044926.log`. It ended `WRONG ...: a shell outside its folder has gh on`, `check: ok 0, wrong 1`, as expected, with `.zshenv` unchanged. Pid 43135 is the only holder of the rollout, with `--no-daemon` and 0 error events. The seat stayed idle after its turn and left nothing half-done.
 
