@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~04:44 GMT, by `zeo-rescue`, the -lic launcher held for the Architect; nothing has run.
+Last updated: 2026-11-06 ~04:58 GMT, by `zeo-rescue`, line 4 ran; prove_codex and the .zshenv line held for the Architect.
 
 ## Do next, in this order
 
@@ -10,7 +10,52 @@ Last updated: 2026-11-06 ~04:44 GMT, by `zeo-rescue`, the -lic launcher held for
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**04:44 GMT, 6 Nov: the `-lic` launcher is ready for the Architect's read. Nothing has run. No seat was restarted. Line 4 below must not run until they clear it.** Their ruling: not option (a) alone; prepare (b); test on `dt-brandedimage-maintainer` only; add a check that reads the process and a shell from a different folder; measure author and account, read-only; no other seat restarts until cleanup settles and they have read the test. Code: `8f4a2fd`.
+**04:58 GMT, 6 Nov: line 4 ran; a real Codex works under `-lic`. The `.zshenv` line and the `prove_codex` change are ready for the Architect's read. Neither has run, and no other Codex seat restarts until they have read line 4's result.** Code: `34d4c51`.
+
+*Line 4's result.* The operator ran it at 04:49:26. Log: `reseat-lines-lic-20261106-044926.log`. It ended `WRONG ...: a shell outside its folder has gh on`, `check: ok 0, wrong 1`, as expected, with `.zshenv` unchanged. Pid 43135 is the only holder of the rollout, with `--no-daemon` and 0 error events. The seat stayed idle after its turn and left nothing half-done.
+
+- **The process has the settings:** `ZEO_TMUX_SEAT=inactive`, `ZEO_TMUX_ACCOUNT=none`, `GIT_ALLOW_PROTOCOL=file`, `GIT_SSH_COMMAND=/usr/bin/false`, and `GH_CONFIG_DIR` on the disabled folder.
+- **Real tool shells agree.** At 04:49:48 the seat printed its own environment in its root and in `notes-backfill-producer` and `rasa-runtime-worktree`, the two folders where the pushes got through at 03:42. All three say `GIT_ALLOW_PROTOCOL: file`.
+- **Not shown:** a real `transport not allowed` from that seat. It ran no network git, and was right not to. The value in its shells is the evidence.
+- **Two differences from my expected output.** It exited 2, not 1, because `make` failed. And it read `work: 1 of 1`, not 0: every `--no-daemon` Codex seat keeps an idle `codex-code-mode-host`, so nothing was cut, but a bulk plan would have said 35 busy. Fixed below.
+
+*`prove_codex`.* It now also runs `check_settings` after the snapshot checks, so a first seat whose process lacks its settings stops the run: `STOPPED: SEAT: process has no seat settings...`. An inactive first seat now stops on gh unless the `.zshenv` lines are in, so the order for bulk use is `.zshenv`, then the restart.
+
+*Beyond your order, one token, say if you want it out.* `children` no longer lists `codex-code-mode-host`. It lists a process's direct children only, so anything under that helper is not listed; a turn on screen still is.
+
+*The `.zshenv` line.* `zshenv-lines.sh` runs only if the file is exactly the one read, `f519538e...`, and each old line appears exactly once. It keeps a backup at `~/.local/state/zeo-rescue/zshenv.before-20261106` and verifies it, tries the new text in a private copy across inactive, master, no-seat and stray-token shells, under both `-c` and `-lc`, checks the new text is `d33b5930...`, and swaps the file whole. If a shell then disagrees, it puts the original back by itself. Rollback runs only if the file is exactly what apply left. It has **not** been run against the real file: the tests used a copy. `./zshenv-lines.sh verify` says `ORIGINAL` now.
+
+*What it changes when it runs.* It applies to every new zsh, so running seats pick it up in their next shell. Claude seats' tools stay on `gh-master` instead of being reset to `gh-matorclawson`; both answer `matorclawson`. Codex seats not yet restarted have no `GH_CONFIG_DIR` in the process, so they stay as they are. `dt-brandedimage-maintainer` gets gh off, and `make check ARGS='--seat dt-brandedimage-maintainer'` should then read `check: ok 1, wrong 0`.
+
+Apply, for just before the bulk restart, after cleanup settles:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 zshenv-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d" ]; then ./zshenv-lines.sh apply; else echo "HASH MISMATCH, nothing was changed: zshenv-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was changed: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect `Already on 'zeo-rescue/seat-bootstrap-20261105'`, the branch line, then `APPLIED: /Users/rodbot/.zshenv changed, backup at /Users/rodbot/.local/state/zeo-rescue/zshenv.before-20261106. Tell zeo-rescue: done.` `HASH MISMATCH`, `LINES NOT FOUND`, `BACKUP IN THE WAY` or `REFUSED` means nothing changed. `PUT BACK` means it changed and was restored. Bring any of them here.
+
+Rollback, the same way:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 zshenv-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d" ]; then ./zshenv-lines.sh rollback; else echo "HASH MISMATCH, nothing was changed: zshenv-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was changed: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect `ROLLED BACK: /Users/rodbot/.zshenv is the original again. Tell zeo-rescue: done.` If zsh itself is broken, the script needs bash only: `/bin/bash /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue/zshenv-lines.sh rollback`.
+
+*Evidence.* `make test`: 159 checks pass, both suites. Broken on purpose in a copy, each caught: `prove_codex` skipping the process; the helper counted as work; apply skipping its hash; rollback skipping its hash; no put-back. The real `.zshenv` still reads `f519538e...`. My runner test wrote two stray logs to the real state folder, `reseat-20261106-044134.log` and `reseat-20261106-044756.log`. They only say the test chart was unreadable, and the test no longer does it.
+
+*Not ready: the bulk restart itself.* `reseat-lines.sh all` would do nothing now: every seat has `@zeo_rescue`, so a reseat reads `OK ...: started by rescue`. Bulk needs its own step, Codex seats only, with a new note, because `notes/reseat-20261105.txt` tells seats they were started wrong. Not built; it waits for the Architect's word.
+
+| File | sha256 |
+|---|---|
+| `rescue.sh` (changed) | `1f2a22fad65d1c6260ac9fac74e0ba83768b7f1b2a72c4d7cb1fb85cca3868de` |
+| `reseat-lines.sh` (changed; a new pin for `rescue.sh`) | `6e818d980c1b6aa3218adeebc8d75c83c0f98985db302d55b6efdffe511119b6` |
+| `zshenv-lines.sh` (new; its lines pin it) | `13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d` |
+| `seat-exec.sh` (unchanged since line 4) | `9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810` |
+| `~/.zshenv` now | `f519538e482e131efc38b8ed54636d3e435f2d9fa3ad78e15ecad90c9ad44eeb` |
+| `~/.zshenv` after apply | `d33b59306ff3c3694ee161990a9d8fc611e13ae9b2b78e8e5f31cf783c62f8ca` |
+
 
 *Read before clearing: `-lic` alone does not turn gh off.* `~/.zshenv` runs in every zsh, sets `GH_CONFIG_DIR` to `gh-matorclawson` and unsets `GH_TOKEN`. So in a shell without the snapshot, `-lic` keeps `GIT_ALLOW_PROTOCOL=file` and `GIT_SSH_COMMAND=/usr/bin/false` (real shells, measured) and fixes the author, but gh stays on for an inactive seat. That file is on the host, outside this repo, and was not touched. Two lines fix it, tried only on a private copy through `ZDOTDIR`:
 
@@ -40,7 +85,7 @@ On that copy: inactive gives gh off, master keeps `gh-master` and the noreply au
 | `reseat-lines.sh` (changed; the line pins it) | `aa8d8a8e766bcca84d8bd0c624d41043263778fcbce984205bbbf5a310e2c32d` |
 | `notes/lic-test-20261106.txt` (new) | `be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2` |
 
-*Line 4, the operator's, after clearance, when the seat is idle.* It restarts that seat only, and the seat loses network git in every folder:
+*Line 4, DONE at 04:49:26, see the block above. The record:* it restarts that seat only, and the seat loses network git in every folder:
 
 ```
 if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "aa8d8a8e766bcca84d8bd0c624d41043263778fcbce984205bbbf5a310e2c32d" ]; then ./reseat-lines.sh lic; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
