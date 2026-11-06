@@ -2,15 +2,31 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~03:14 GMT, by `zeo-rescue`, line 2 ended A, line 3 cleared and not yet run.
+Last updated: 2026-11-06 ~03:49 GMT, by `zeo-rescue`, line 3 ran clean, `check: ok 50, wrong 0`.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
-**2. The reseat (urgent), CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+**2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**03:14 GMT, 6 Nov: line 2 ended A, and line 3 is cleared by the Architect and has not run.** Line 2 ran twice. The run at 03:11:16 resumed the seat: `reseat-lines-proof-20261106-031116.log`, `FIRST SEAT OK ...: own identity, marker master, git on`, `check: ok 1, wrong 0`. The run at 03:11:55 found it up and did nothing, which is why the output pasted here has no `RESUMED` line. No second writer: one holder of the rollout, pid 57703, `--no-daemon`.
+**03:49 GMT, 6 Nov: line 3 ran and ended clean. `check: ok 50, wrong 0`, still true at 03:48.** Log: `reseat-lines-all-20261106-031750.log`. 48 seats resumed; no `STOPPED`, `FAILED` or `RECOVERY` line. The reseat itself is done. Do not rerun it.
+
+*Read from the seats, not only from `make check`:*
+
+- The daemon is gone: no app-server process. 35 Codex seats, all `--no-daemon`, no thread with two processes, plus 15 Claude seats.
+- All 35 Codex seats have a snapshot with their own identity: 31 with marker `master` and git on, 4 `inactive` with `file`.
+- 34 Codex rollouts since 03:17:50: at least 721 tool calls, 0 error events. So the 0.164 CLI resumed every thread, including those the 0.167 daemon had written.
+- Network git works: 29 real pushes from 14 git-on seats, counted from git's own `To github.com` output. Text quoting older refusals was excluded. The only real refusals are 2, both on `inactive` seats. "failed to push" text on `zeo-rt`, `zeo-rt-pr`, `zeo-rt-ledger` and `ducktyper` comes from the repos' own preflight (`PUSH BLOCKED`), not from transport.
+
+*Not checked:* real tool calls on the 15 Claude seats beyond `make check`, and whether every seat's work is healthy. Processes and a passing check do not mean the org is recovered.
+
+*New, for the Architect, cause unknown:* `dt-brandedimage-maintainer` is `inactive`, and its snapshot has `GIT_ALLOW_PROTOCOL=file`. Its `git fetch origin` was refused, yet two plain `git push origin` calls landed on GitHub (branches `cleanup/dt-brandedimage-maintainer/...` on the fork). Its commands set nothing and changed nothing, so this does not look like a workaround. But "inactive means git off" did not hold for those pushes. zeo-rescue changed nothing and did not find the mechanism.
+
+*Also seen:* `dt-comic-slides-editor` (`workspace-write`) cannot resolve `messenger.zeo.ac` from its tools, so its report did not go by mail. It saved a recovery note instead. Windows 1 and 2 of `zeoruntime-maintainer` (the calendar and org-chart schedules) were not touched by the reseat.
+
+*Still open from before:* the cause of the teardown, ENG-UK, SOW-18, the collector install (operator's), this seat's mailbox, and the integration branch (unused, unpushed, needs the anchor fix at 202 and 206).
+
 
 The Architect's clearance is on their screen at 03:12, Do 240: the same line as line 3 below, with `git switch` to this branch first. Their checkpoint is written. Expected end: `check: ok 50, wrong 0`.
 
