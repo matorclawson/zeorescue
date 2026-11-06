@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~05:20 GMT, by `zeo-rescue`, the bulk-restart set built for the Architect's one read; the five folders are theirs; nothing has run.
+Last updated: 2026-11-06 ~05:27 GMT, by `zeo-rescue`, folders in, final lines written; held for the Architect's read of the diff.
 
 ## Do next, in this order
 
@@ -10,7 +10,79 @@ Last updated: 2026-11-06 ~05:20 GMT, by `zeo-rescue`, the bulk-restart set built
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**05:20 GMT, 6 Nov: the whole set for the bulk restart is built, for the Architect's one read. Nothing has run: no seat restarted, `~/.zshenv` and `~/.codex/config.toml` untouched. One input is still theirs: the five folders.** The Architect accepted line 4's result and the `codex-code-mode-host` token. Their order: build the Codex-only step and a new note; let it take a new folder for a named seat; one thread per seat across the change, proved on one seat first; the order stays `.zshenv`, the first seat, the rest; they read `prove_codex`, `zshenv-lines.sh` and the new step together, once, and clear them as one set. Code: `34d4c51` and `edb2bb9`.
+**05:27 GMT, 6 Nov: the Architect's five folders are in `folder-moves`, rasa first. These are the final hashes and the three reseat lines. Nothing has run. They read this diff, then file the lines with the `.zshenv` line. Nothing runs before that read, and the zeoapp folder must be finished.** The Architect read the set at `09f9487`, with no changes asked, and accepted the five pins and the trust step. Code: `165c1a6`. The diff is `folder-moves`, its one pin in `reseat-lines.sh`, and a test that no longer depends on the real file. `rescue.sh`, `seat-exec.sh`, `session-pins` and `zshenv-lines.sh` are unchanged.
+
+```
+rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
+zeoapp /Volumes/AIPEMedia1/code/zeoapp
+ducktyper /Volumes/AIPEMedia1/code/rodriveracom/org-ducktyper-ai/main
+profrod /Volumes/AIPEMedia1/code/rodriveracom/profrod-site/worktrees/profrod--author-public-gate-20261104
+zeo-rt /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoruntime/worktrees/rt-codex-recovery
+```
+
+*Read at 05:25 on the real folders.* None has a process in it, none is a chart folder, and none has another thread. All five are in git, clean, with no trust entry, so `trust` adds five.
+
+- **zeoapp:** the folder exists now, but it was created at 05:24 and changed at 05:25, so the seat may still be working on it. Head `e5be155`, 1,110 tracked files, on `main`. Its `origin` is `https://github.com/rodriveracom/zeoapp.git`. The Architect should confirm it is finished. `moves_ready` checks only that the folder exists.
+- **Branches, for the Architect's eye:** ducktyper's `main` folder is on `ducktyper/profrod-companions-20261009`. profrod's is on `profrod/author-fragment-fix-20261104`. zeo-rt's `rt-codex-recovery` is on `principal/rt-broker-door-wire-20261012`.
+- **What trust switches on:** `rasa-community` has `.codex/skills` and `org-ducktyper-ai/main` has `.codex/agents`. Trusting a folder lets Codex load what its `.codex` holds.
+
+*What the host reads now.* `make check`: still `ok 15, wrong 35`, but the five now read as having no trusted entry until `trust` runs. `codex-first` answers `OUT OF ORDER` until `.zshenv`. `make test`: 211 checks pass.
+
+*The order.* 1. The `.zshenv` apply line, in the block below; unchanged and still valid. 2. Trust. 3. First seat, rasa. 4. Bring the result here and the Architect reads it. 5. The rest. Each line starts with `Already on 'zeo-rescue/seat-bootstrap-20261105'` and the branch line. `BUSY`, `NOT READY`, `OUT OF ORDER`, `REFUSED` and `HASH MISMATCH` each mean nothing ran. `STOPPED` or `FAILED`: start nothing by hand and bring it here.
+
+Trust, after `.zshenv`:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "953abd7c491ed3f655760b65818179e6c6a88b28cd8f1c8d0ce33f2ad6537ef1" ]; then ./reseat-lines.sh trust; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect a `TRUST` line for each of the five seats, then `ADDED: backup at /Users/rodbot/.local/state/zeo-rescue/codex-config.before-20261106. Tell zeo-rescue: done.`
+
+First seat, after trust. It restarts rasa alone and moves it. Expect, ending:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "953abd7c491ed3f655760b65818179e6c6a88b28cd8f1c8d0ce33f2ad6537ef1" ]; then ./reseat-lines.sh codex-first; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+```
+RESEAT rasa: codex 01a1023d-556f-7e92-ab59-5b1fb5cd23ca (-a never -s danger-full-access; marker master, recorded) in rasa-community-maintainer
+MOVE rasa: from /Volumes/AIPEMedia1/code/rasa-community-recovery-20261003 to /Volumes/AIPEMedia1/code/rasahq/rasa-community
+work: 0 of 1 seats show running work
+RESUMED rasa: codex 01a1023d-556f-7e92-ab59-5b1fb5cd23ca (-a never -s danger-full-access; marker master, recorded) in rasa-community-maintainer
+FIRST SEAT OK rasa: own identity, marker master, git on
+MOVED OK rasa: thread 01a1023d-556f-7e92-ab59-5b1fb5cd23ca, one rollout, one writer, in /Volumes/AIPEMedia1/code/rasahq/rasa-community
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 1, unresolved 0, failed 0
+OK rasa (codex)
+check: ok 1, wrong 0
+```
+
+A `NOTE rasa: Codex's thread record still says...` line before `MOVED OK` is allowed.
+
+The rest, only after the Architect has read the first seat. About 12 minutes:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "953abd7c491ed3f655760b65818179e6c6a88b28cd8f1c8d0ce33f2ad6537ef1" ]; then ./reseat-lines.sh codex-rest; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect `MOVE` and `MOVED OK` for zeoapp, ducktyper, profrod and zeo-rt, and `OK dt-brandedimage-maintainer: started by rescue, right already` with `OK rasa` likewise. It should end:
+
+```
+rescue: live 0, ok 2, running 0, to resume 0, to reseat 33, resumed 33, unresolved 0, failed 0
+check: ok 50, wrong 0
+```
+
+`NOTE` lines are allowed. After it, zeo-rt changes the chart on the Architect's word, and then `folder-moves` goes quiet.
+
+| File | sha256 |
+|---|---|
+| `reseat-lines.sh` (changed: the lines pin it) | `953abd7c491ed3f655760b65818179e6c6a88b28cd8f1c8d0ce33f2ad6537ef1` |
+| `folder-moves` (changed: five folders) | `14ce58c46adb7475ad825d8bddb6f6be5ac1bde34d4e42c6bd14e7d364231b70` |
+| `rescue.sh` | `e0d57ddec4b045fd109fe88c797b98fc6e4439423865db6c6990d8f4fceb0d0b` |
+| `seat-exec.sh` | `9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810` |
+| `session-pins` | `a4ed4324fa60ee3b4561b4b6050e0dbf00e5cdb121e77d090a280646df889826` |
+| `notes/codex-relaunch-20261106.txt` | `caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de` |
+| `zshenv-lines.sh` | `13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d` |
+
 
 *What Codex 0.164.0 does on a folder change, from its source at that tag.* `-C` skips the "which directory?" prompt on resume (`effective_resume_cwd_mode`). It rewrites the thread's folder in its own record (`extract.rs`, `ThreadSettingsApplied`), so after a move a lookup by the chart's folder finds nothing, or another thread. **A git folder with no trust entry stops at "Trust this folder?"** (`read_remote_project_trust`). A folder outside git does not, which is why the recovery folders never asked. Nobody may answer that screen, so it has to be caught before anything stops.
 
