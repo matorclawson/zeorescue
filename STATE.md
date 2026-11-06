@@ -2,13 +2,29 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 15:48 GMT, by `zeo-rescue`, the Claude proof accepted; waiting for Do 255, then the trust edit and the teardown cause.
+Last updated: 2026-11-06 16:10 GMT, by `zeo-rescue`, Do 255 done; the trust edit held for the Architect's read; the teardown read next.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**16:10 GMT, 6 Nov: Do 255 ran, and the trust edit is ready for the Architect's read. Nothing has run on the real file.** `claude-clear` ran at 15:56: the backup of `~/.claude.json` is gone, and `check: ok 50, wrong 0`. Code: `d870813`.
+
+*What goes.* Six lines of `~/.codex/config.toml`: the entries for `/Volumes/AIPEMedia1/code/rodriveracom/org-ducktyper-ai/main` and `/Volumes/AIPEMedia1/code/rodriveracom/profrod-site/worktrees/profrod--author-public-gate-20261104`, each with its trust line and its blank line. Their replacements are in the file. Read before the edit: both folders are gone, no process names them, the chart names no `code/rodriveracom/` path, and no Codex thread records one. They are the only two of 39 entries whose folder is gone. The file last changed at 06:24.
+
+*`codex-untrust`.* It edits only the exact file read, `41abedf3cde0a10cf52f16e3bd3eb6ecbad0c032c5ed13fbcb84e53447df7f1a`. It refuses a folder that came back, a Codex process there, one entry alone, an entry that is not plainly trusted, any edit but those six lines, and a writer during the edit. It swaps the file whole and keeps a 600 backup at `~/.local/state/zeo-rescue/codex-config.before-untrust-20261106`. There is no rollback step: nothing depends on these entries. Running seats already have their config, and a seat reads the new file at its next start.
+
+*Proof.* `rehearsal/codex-untrust.sh` runs the real pinned step on a private copy of the real file, read by the real Codex 0.164.0. 3869 bytes to 3635, exactly those six lines. Codex read it before and after with the same answer, and a broken file fails that read, so the read can fail. A second run reads `NOTHING TO REMOVE`. The real file was unchanged. `make test` passes, 261 checks. Each of seven guards removed in turn fails its own test. The tests also caught a false refusal before it reached a line: the step's `grep` matched its own command in `ps`.
+
+`reseat-lines.sh` `6752f81ef34661d757a8dc1e05e6ab99ab804ca48e0d513fc6a2fb82b6127316`. Only that file changed; every other pin stands.
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "6752f81ef34661d757a8dc1e05e6ab99ab804ca48e0d513fc6a2fb82b6127316" ]; then ./reseat-lines.sh codex-untrust; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect `REMOVED: 2 entries are gone from /Users/rodbot/.codex/config.toml, now 6d89f19cf80562da4f4435683fcf1ab7b342e871ccdc20f822f2996c719e075a; backup at ...`. `HASH MISMATCH` means a seat changed the file since: nothing is changed, and the pin needs a new read.
 
 **15:48 GMT, 6 Nov: the Claude proof is ACCEPTED by the Architect, read at 15:46. The move of `zeocreator` is done.** It moved at 15:44 on 2.1.319. Read by zeo-rescue from the run's own log: `MOVED OK zeocreator`, session `84bd8e22`, one transcript, one process, in `/Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main`; `check: ok 1`, and the whole org `check: ok 50, wrong 0`. The old project is gone. All 24 transcript lines since the note carry the same session and the new folder.
 
