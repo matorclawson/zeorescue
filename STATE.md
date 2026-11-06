@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-06 ~05:48 GMT, by `zeo-rescue`, checked with the old folders gone: nothing breaks, no new hash; waiting for the .zshenv line.
+Last updated: 2026-11-06 ~06:05 GMT, by `zeo-rescue`, the false stop fixed and audited; rasa parked; new lines held for the Architect.
 
 ## Do next, in this order
 
@@ -10,7 +10,60 @@ Last updated: 2026-11-06 ~05:48 GMT, by `zeo-rescue`, checked with the old folde
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**05:48 GMT, 6 Nov: with the old folders gone, nothing breaks. No code changed and there is no new hash. The lines at `cb63787` stand, with `reseat-lines.sh` at `c4f294cd...`. Nothing has run.** The Architect asked for a read-only check after the operator moved four recovery folders; `ducktyper-recovery-20261003` follows when its seat is idle.
+**06:05 GMT, 6 Nov: `STOPPED` at `codex-first` was false, and it was this seat's fault. Fixed; new hashes and two lines below, for the Architect's read. rasa stays parked, and no other seat moves.** Code: `73786d6`. `.zshenv` and `trust` are done and stay done. rasa is on a sleep with no mark, because `unseat` stopped it after the false stop. Its thread is intact.
+
+*Cause, found by the Architect.* Under `set -o pipefail`, `grep -q` exits at the first match, the program feeding it dies with 141 on its next write, and the `if` reads a miss. rasa's rollout is 885 MB, so `tail -c 2000000` was still writing. The old code gave `STOPPED` three times out of three on the real rollout here. The earlier check on a real rollout used `grep -c` in a one-off command and never ran `prove_moved`, and the tests' rollouts fit in the pipe. So it tested the string and not the code: the second false stop from a check judging a good seat. From now on, a proof that judges a seat is run as the real function on a real artifact before it is handed over.
+
+*Audit: every pipe into `grep -q` in `rescue.sh`, `reseat-lines.sh` and `zshenv-lines.sh`. Seven, all fixed the same way: `grep ... >/dev/null`, which reads to the end. The line numbers are from before the fix.*
+
+| Site | Reads | A false miss would | Reachable? |
+|---|---|---|---|
+| `rescue.sh:285` `prove_moved` | 2 MB of rollout | stop a good seat | **Yes, it happened** |
+| `rescue.sh:124` `running_in` | lsof of all harnesses | say no process runs in a folder, so a second writer could start | Not at today's few KB |
+| `rescue.sh:335` `work_list` | a seat's screen | miss a turn in progress, so a restart cuts it and `BUSY` stays quiet | Not at screen size |
+| `rescue.sh:226` `check_seat` | a seat's screen | miss a seat stuck at a trust prompt | Not at screen size |
+| `rescue.sh:305` `folder_ready` | the chart's folders | let a seat move into another seat's folder | Not at today's chart size |
+| `reseat-lines.sh:72` `lic` | a seat's screen | miss a turn; that step is finished | Not at screen size |
+| `reseat-lines.sh:54` `zshenv_first` | one line | refuse the step, which is safe | No |
+
+`zshenv-lines.sh` has none. Other early-exit readers were checked too: `head` and `awk ... exit` only supply values, none sits in a test, and `rescue.sh:386`'s `awk` reads to the end. **Fixing all seven goes beyond the one you named. Each is one token, and four guard against something worse than a false stop. Say if you want any out.**
+
+*A second false stop, found while reading this, and fixed.* The one-writer check ran once. On rasa's rerun the folder is already in the rollout, so the proof reaches that check at once, perhaps before Codex has opened the file, and would stop a good seat. It now retries, as the snapshot check does. A real second writer still stops the run.
+
+*Checked with the real rasa rollout.* The real `prove_moved`, taken from the fixed `rescue.sh`, on the real 885 MB rollout, thread record and sessions folder, with the script's own `set -uo pipefail`: `MOVED OK rasa`, rc 0, also when the rollout opens late. Only the writer was faked, because rasa is parked and nothing holds the file.
+
+*Tests.* `make test`: 217 checks pass. New: a 1 MB rollout, screen and lsof answer, each with the match first; a rollout that opens late; and a check that fails if a pipe into `grep -q` returns. Put back on purpose, each of these fails its test: the rollout, screen and lsof `grep -q`, and the single writer check. `folder_ready` has no oversized test; that check covers it. Those tests would have caught this bug.
+
+*Weakness on rasa's rerun.* The rollout already holds the new folder from 05:55, so that one check passes on the old record. One rollout, no new thread and one writer are all read fresh. The first-time moves of the other four are unaffected. The Architect has already read the 05:55 record.
+
+*What is next, all held for the Architect.* The read-only plan at 06:04 for the rerun: `RESEAT rasa`, `MOVE rasa`, `work: 0 of 1`, `to reseat 1`, `unresolved 0`.
+
+First seat, rasa again, when cleared:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "86897419ce9e3d6ca314462c65e6d3c638fd502d51b79457997e88c8de63642f" ]; then ./reseat-lines.sh codex-first; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expected output is in the superseded block below, unchanged. A `NOTE` line is allowed. The seat is told again that its folder moved, and it reads the same note.
+
+The rest, only after the Architect has read the first seat. `BUSY` means nothing ran; try again:
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "86897419ce9e3d6ca314462c65e6d3c638fd502d51b79457997e88c8de63642f" ]; then ./reseat-lines.sh codex-rest; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Earlier lines carry the old hash and refuse. `trust` needs no rerun; it would read `NOTHING TO ADD`.
+
+| File | sha256 |
+|---|---|
+| `reseat-lines.sh` (changed: two sites and the new pin) | `86897419ce9e3d6ca314462c65e6d3c638fd502d51b79457997e88c8de63642f` |
+| `rescue.sh` (changed: five sites and the retry) | `ac21a00d9e74947482752a8a134136a17991ab13d42a6d1e49e82b6c5da907eb` |
+| `folder-moves` (unchanged) | `8cb95016b63023da7b7f0d4674fd3dca5fd64716306e0f0332678209ac520dab` |
+| `seat-exec.sh` (unchanged) | `9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810` |
+| `session-pins` (unchanged) | `a4ed4324fa60ee3b4561b4b6050e0dbf00e5cdb121e77d090a280646df889826` |
+| `notes/codex-relaunch-20261106.txt` (unchanged) | `caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de` |
+| `zshenv-lines.sh` (unchanged) | `13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d` |
+
 
 *Checked at 05:46.* `trust` on a private copy of the config adds the five entries. The real `~/.codex/config.toml` (`7c834cd0...`) and `~/.zshenv` (`f519538e...`) are unchanged. The plan from that copy: all five seats read `RESEAT` and `MOVE`, each on its pinned thread, and the first-seat plan for rasa is clean with `work: 0 of 1`. The only `UNRESOLVED` is `dt-brandedimage-maintainer` on gh, which the `.zshenv` line clears. All five target folders are still valid git work trees and clean. The only chart folders missing are the four expected; no other seat is affected.
 
