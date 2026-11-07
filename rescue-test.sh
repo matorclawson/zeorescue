@@ -513,14 +513,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-20261106.txt folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt zbs-move.sh folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-20261106.txt folder-moves zshenv-lines.sh; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt zbs-move.sh folder-moves zshenv-lines.sh; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -571,15 +571,22 @@ out=$(ZEO_RESCUE_PINS="$HERE/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves
 rm -f "$T/screen"
 
 echo "-- the Claude steps"
-: > "$T/live"; mkdir -p "$T/d/creator"; sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
+: > "$T/live"; mkdir -p "$T/d/creator"; sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" -e "s#^CLAUDE_INODE=.*#CLAUDE_INODE=$(stat -f %i "$T/d/creator")#" -e "s#^CLAUDE_READY_MARK=.*#CLAUDE_READY_MARK=$T/ready#" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 echo "# none" > "$T/run/folder-moves"; repin
-grep -q '^NOT READY, nothing was run: folder-moves needs zeocreator' <<< "$(L claude-first 2>&1)" && ok "claude-first refuses until the Architect names the folder" || bad "claude ready: $(L claude-first 2>&1)"
-echo "zeocreator $T/d/creator" > "$T/run/folder-moves"; repin
+grep -q '^NOT READY, nothing was run: folder-moves needs zbs' <<< "$(L claude-first 2>&1)" && ok "claude-first refuses until the Architect names the folder" || bad "claude ready: $(L claude-first 2>&1)"
+echo "zbs $T/d/creator" > "$T/run/folder-moves"; repin
+printf '{"projects":{}}' > "$T/cj0.json"; out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj0.json" L claude-trust 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was run: the folder step has not finished' && [ "$(cat "$T/cj0.json")" = '{"projects":{}}' ] && ok "claude-trust waits for the folder step" || bad "ready mark: $rc $out"
+grep -q '^OUT OF ORDER, nothing was run: the folder step' <<< "$(L claude-first 2>&1)" && ok "so does claude-first" || bad "ready mark first: $(L claude-first 2>&1)"
+touch "$T/ready"; perl -i -pe 's/^CLAUDE_INODE=.*/CLAUDE_INODE=1/' "$T/run/reseat-lines.sh"; out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj0.json" L claude-trust 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q "^NOT READY, nothing was run: $T/d/creator is not the seat's own folder (inode 1)" && [ "$(cat "$T/cj0.json")" = '{"projects":{}}' ] && ok "another folder at the new path, such as the 24 Sep checkout, is never trusted" || bad "inode: $rc $out"
+grep -q "^NOT READY, nothing was run: .* is not the seat's own folder" <<< "$(L claude-first 2>&1)" && ok "or started in" || bad "inode first: $(L claude-first 2>&1)"
+perl -i -pe "s/^CLAUDE_INODE=.*/CLAUDE_INODE=$(stat -f %i "$T/d/creator")/" "$T/run/reseat-lines.sh"
 printf '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' > "$T/cj.json"; chmod 640 "$T/cj.json"
 out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L claude-trust 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^ADDED' && [ "$(jq -r --arg d "$T/d/creator" '.projects[$d].hasTrustDialogAccepted' "$T/cj.json")" = true ] && [ "$(jq -r '.keep,.projects["/a"].hasTrustDialogAccepted' "$T/cj.json" | tr '\n' ' ')" = "1 true " ] && ok "claude-trust adds one entry and keeps the rest" || bad "claude trust: $rc $out"
 [ "$(stat -f %Lp "$T/cj.json")" = 640 ] && [ ! -e "$T/cj.json.lock" ] && ok "with the file's mode, and lets go of the lock" || bad "mode or lock"
-B="$T/state/claude-json.before-20261106"; [ "$(stat -f %Lp "$B")" = 600 ] && [ "$(jq -c . "$B")" = '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' ] && ok "the backup is the old file, mode 600, though the file is 640" || bad "backup: $(stat -f %Lp "$B")"
+B="$T/state/claude-json.before-20261107"; [ "$(stat -f %Lp "$B")" = 600 ] && [ "$(jq -c . "$B")" = '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' ] && ok "the backup is the old file, mode 600, though the file is 640" || bad "backup: $(stat -f %Lp "$B")"
 chmod 644 "$B"; printf '{"projects":{}}' > "$T/cj4.json"; ZEO_RESCUE_CLAUDE_JSON="$T/cj4.json" L claude-trust >/dev/null 2>&1; [ "$(stat -f %Lp "$B")" = 600 ] && ok "a backup already there is brought to 600" || bad "old backup mode: $(stat -f %Lp "$B")"
 rm -f "$B"; mkdir -p "$T/bin3"; realjq=$(command -v jq)
 cat > "$T/bin3/jq" <<S
@@ -599,12 +606,12 @@ rm -f "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/ch
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is unknown' && ok "and one it cannot read" || bad "no version: $rc $out"
 rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "$rv (Claude Code)" > "$T/ver"; out=$(STATE="$T/state" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1)
 echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "the version is read just before the line and printed, in the kept log too" || bad "version print: $out"
-SIDC=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zeocreator","mailbox":"zeocreator","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
+SIDC=d7fc6540-05c6-43ec-94c5-520b66af4133; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zbs","mailbox":"zbs","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
 C() { ZEO_RESCUE_CHART="$T/zc.json" ZEO_RESCUE_PINS="$T/run/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_PROJECTS="$T/pc" ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L "$@" 2>&1; }
 mkdir -p "$T/pc/$kc"; : > "$T/pc/$kc/$SIDC.jsonl"; echo x > "$B"; echo zc >> "$T/live"; echo "zc|%9|900|1|claude" > "$T/panes"; echo "900 /x/claude --resume $SIDC" > "$T/ps.out"
 echo "$GOOD ZMAIL_INSTANCE=other" > "$T/psE.out"; out=$(C claude-clear); rc=$?
-[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was deleted: zeocreator is not right yet' && [ -e "$B" ] && ok "claude-clear keeps the backup while the seat is wrong" || bad "clear wrong: $rc $out"
-echo "$GOOD ZMAIL_INSTANCE=zeocreator" > "$T/psE.out"; out=$(C claude-clear); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was deleted: zbs is not right yet' && [ -e "$B" ] && ok "claude-clear keeps the backup while the seat is wrong" || bad "clear wrong: $rc $out"
+echo "$GOOD ZMAIL_INSTANCE=zbs" > "$T/psE.out"; out=$(C claude-clear); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^DELETED' && [ ! -e "$B" ] && ok "claude-clear deletes it once the seat checks right" || bad "clear: $rc $out"
 grep -q '^NOTHING TO DELETE' <<< "$(C claude-clear)" && ok "and a second run has nothing to do" || bad "clear twice"
 : > "$T/live"; : > "$T/panes"; : > "$T/ps.out"; : > "$T/psE.out"
@@ -613,18 +620,95 @@ printf '{"projects":{}}' > "$T/cj2.json"; mkdir "$T/cj2.json.lock"
 out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj2.json" L claude-trust 2>&1); rc=$?; rmdir "$T/cj2.json.lock"
 [ $rc -eq 1 ] && echo "$out" | grep -q "Claude's config lock stayed held" && [ "$(cat "$T/cj2.json")" = '{"projects":{}}' ] && ok "it waits for Claude's own lock and changes nothing if it stays held" || bad "lock: $rc $out"
 out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
-[ $rc -eq 2 ] && echo "$out" | grep -q 'take zeocreator out of folder-moves first' && ok "claude-back refuses while the seat's line stands" || bad "back: $rc $out"
-echo "# none" > "$T/run/folder-moves"; repin; SIDC=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; kn=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); ko=$(printf %s "$T/d/oldc" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$T/pj/$kn/memory"; : > "$T/pj/$kn/$SIDC.jsonl"
+[ $rc -eq 2 ] && echo "$out" | grep -q 'take zbs out of folder-moves first' && ok "claude-back refuses while the seat's line stands" || bad "back: $rc $out"
+echo "# none" > "$T/run/folder-moves"; repin; SIDC=d7fc6540-05c6-43ec-94c5-520b66af4133; kn=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); ko=$(printf %s "$T/d/oldc" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$T/pj/$kn/memory"; : > "$T/pj/$kn/$SIDC.jsonl"
 rmdir "$T/d/oldc" 2>/dev/null; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q 'is gone, so the project would have no folder' && [ -f "$T/pj/$kn/$SIDC.jsonl" ] && ok "claude-back refuses while the old folder is gone" || bad "back gone: $rc $out"
 mkdir -p "$T/d/oldc"; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
 if ps -axo command= | grep -F "$SIDC" | grep -F -e '--resume' >/dev/null; then [ $rc -eq 2 ] && echo "$out" | grep -q 'a process still holds session' && ok "claude-back refuses while the seat runs" || bad "back held: $rc $out"
 else [ $rc -eq 0 ] && [ -f "$T/pj/$ko/$SIDC.jsonl" ] && ok "claude-back puts the project back" || bad "back: $rc $out"; fi
 
+
+echo "-- the zbs move: the seat's folder becomes the repository, then moves whole (zbs-move.sh, on a copy in the same shape)"
+# Never the real script: a copy with every path rewritten into $T. The real one would act on the real folders.
+Z=$(cd "$T" && pwd -P)/z; ZG() { git -c user.email=t@t -c user.name=t -c init.defaultBranch=main "$@"; }
+printf '#!/bin/bash\ncat "%s/lsofz.out" 2>/dev/null\n' "$T" > "$T/bin/lsofz"; chmod +x "$T/bin/lsofz"
+ZPRUNE="-engine r41-38 verify-main-3b16cf4 verify-pr-43b283e wt-dryrun wt-ecamm wt-jev wt-mcp2 wt-series wt-split"
+mkz() { # the shape read on 7 Nov: a store with its own clean checkout, the seat's worktree, wt-screensaver, 10 dead records
+  rm -rf "$Z"; mkdir -p "$Z/dt" "$Z/org" "$Z/tmpz" "$Z/proj" "$Z/state"; : > "$T/lsofz.out"; : > "$T/screen"
+  ZM_MAIN=$Z/dt/main ZM_SEAT=$Z/org/zeobroacastingstudio-zbs ZM_WT=$Z/tmpz/wt-screensaver
+  ZG init -q "$ZM_MAIN"; printf 'data/\n.claude/settings.local.json\n' > "$ZM_MAIN/.gitignore"; echo a > "$ZM_MAIN/a.txt"; ZG -C "$ZM_MAIN" add -A; ZG -C "$ZM_MAIN" commit -qm A
+  ZG -C "$ZM_MAIN" update-ref refs/remotes/origin/main HEAD; ZM_MH=$(git -C "$ZM_MAIN" rev-parse HEAD)
+  ZG -C "$ZM_MAIN" worktree add -q --detach "$ZM_SEAT"; echo b > "$ZM_SEAT/b.txt"; ZG -C "$ZM_SEAT" add b.txt; ZG -C "$ZM_SEAT" commit -qm B; ZM_SH=$(git -C "$ZM_SEAT" rev-parse HEAD)
+  mkdir -p "$ZM_SEAT/data" "$ZM_SEAT/.claude"; echo class > "$ZM_SEAT/data/CLASS-ITAM.md"; ln -s data/CLASS-ITAM.md "$ZM_SEAT/CLASS-LINK.md"; echo u > "$ZM_SEAT/untracked.txt"
+  printf '{\n  "permissions": {\n    "allow": [\n      "Bash(ls)",\n      "Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)"\n    ],\n    "deny": [\n      "Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**/.git/**)"\n    ]\n  }\n}\n' > "$ZM_SEAT/.claude/settings.local.json"
+  ZG -C "$ZM_MAIN" worktree add -q -b zbs/set-screensaver "$ZM_WT"; echo w > "$ZM_WT/w-untracked.txt"
+  for n in $ZPRUNE; do ZG -C "$ZM_MAIN" worktree add -q --detach "$Z/tmpz/$n" && rm -rf "$Z/tmpz/$n"; done
+  for d in "$ZM_MAIN/.git" "$ZM_MAIN/.git/worktrees/zeobroacastingstudio-zbs"; do for f in ORIG_HEAD FETCH_HEAD COMMIT_EDITMSG; do [ -f "$d/$f" ] || echo x > "$d/$f"; done; mkdir -p "$d/refs"; done
+  ZM_KEY=$(enc2 "$ZM_SEAT"); mkdir -p "$Z/proj/$ZM_KEY" "$Z/proj/$(enc2 "$Z/org/zeobroacastingstudio")/memory/sub"; : > "$Z/proj/$ZM_KEY/d7fc6540-05c6-43ec-94c5-520b66af4133.jsonl"
+  echo '- [a](a.md)' > "$Z/proj/$(enc2 "$Z/org/zeobroacastingstudio")/memory/MEMORY.md"; echo s > "$Z/proj/$(enc2 "$Z/org/zeobroacastingstudio")/memory/sub/s.md"
+  sed -e "s#^MAIN=.*#MAIN=$ZM_MAIN#" -e "s#^SEAT=.*#SEAT=$ZM_SEAT#" -e "s#^ASIDE=.*#ASIDE=$Z/dt/main-old-20260924#" -e "s#^WT=.*#WT=$ZM_WT#" -e "s#^MEM_FROM_DIR=.*#MEM_FROM_DIR=$Z/org/zeobroacastingstudio#" \
+    -e "s#^SEAT_INODE=.*#SEAT_INODE=$(stat -f %i "$ZM_SEAT")#" -e "s#^SEAT_HEAD=.*#SEAT_HEAD=$ZM_SH#" -e "s#^MAIN_HEAD=.*#MAIN_HEAD=$ZM_MH#" "$HERE/zbs-move.sh" > "$Z/zbs-move.sh"
+}
+ZM() { STATE="$Z/state" ZEO_RESCUE_PROJECTS="$Z/proj" ZEO_RESCUE_TMUX="$T/bin/tmux" ZEO_RESCUE_LSOF="$T/bin/lsofz" bash "$Z/zbs-move.sh" "$@" 2>&1; }
+zfp() { find "$Z/dt" "$Z/org" "$Z/tmpz" "$Z/proj" -exec stat -f '%N %i %z' {} + | LC_ALL=C sort | shasum; cat "$ZM_SEAT/.git" "$ZM_WT/.git" 2>/dev/null; }
+zrefuse() { # zrefuse WHAT PATTERN: the step refuses in those words, and nothing in the shape changed
+  local f0 out rc; f0=$(zfp); out=$(ZM "${3:-repo}"); rc=$?
+  [ $rc -eq 2 ] && echo "$out" | grep -q "$2" && [ "$(zfp)" = "$f0" ] && ok "$1" || bad "$1: $rc $out"
+}
+mkz
+grep -E '^(MAIN|SEAT|ASIDE|WT|MEM_FROM_DIR)=/Volumes' "$Z/zbs-move.sh" >/dev/null && bad "the copy still names a real folder" || ok "the copy names no real folder"
+echo '  Working (3s • esc to interrupt)' > "$T/screen"; zrefuse "the repo step refuses while the seat has a turn in progress" '^BUSY, nothing was changed'; : > "$T/screen"
+mkdir "$Z/dt/main-old-20260924"; zrefuse "it refuses if the set-aside name is taken" 'main-old-20260924 is already there'; rmdir "$Z/dt/main-old-20260924"
+cp "$ZM_SEAT/.git" "$T/gf"; echo "gitdir: /elsewhere" > "$ZM_SEAT/.git"; zrefuse "a seat folder not linked to that store is refused" 'is not the link to'; cp "$T/gf" "$ZM_SEAT/.git"
+echo dirt > "$ZM_MAIN/dirt.txt"; zrefuse "a 24 Sep checkout that is not clean is refused" 'the 24 Sep checkout is not clean'; rm "$ZM_MAIN/dirt.txt"
+git -C "$ZM_MAIN" update-ref -d refs/remotes/origin/main; zrefuse "its commit must be on origin/main" 'is not on origin/main'; ZG -C "$ZM_MAIN" update-ref refs/remotes/origin/main "$ZM_MH"
+ZG -C "$ZM_MAIN" worktree add -q --detach "$Z/tmpz/extra" && rm -rf "$Z/tmpz/extra"; zrefuse "a worktree record not read on 7 Nov is refused" 'are not the 12 read on 7 Nov'; rm -rf "$ZM_MAIN/.git/worktrees/extra"
+mkdir -p "$Z/tmpz/wt-jev"; cp "$ZM_SEAT/.git" "$Z/tmpz/wt-jev/.git"; perl -i -pe 's/zeobroacastingstudio-zbs/wt-jev/' "$Z/tmpz/wt-jev/.git"; echo "$Z/tmpz/wt-jev/.git" > "$ZM_MAIN/.git/worktrees/wt-jev/gitdir"
+zrefuse "a dead record that came back to life is not pruned" "a prune would remove '-engine r41-38 verify-main-3b16cf4 verify-pr-43b283e wt-dryrun wt-ecamm wt-mcp2 wt-series wt-split'"; rm -rf "$Z/tmpz/wt-jev"
+echo x > "$ZM_MAIN/.git/worktrees/zeobroacastingstudio-zbs/MERGE_HEAD"; zrefuse "a seat record mid-merge is refused" "the seat's record holds something not read"; rm "$ZM_MAIN/.git/worktrees/zeobroacastingstudio-zbs/MERGE_HEAD"
+echo x > "$ZM_MAIN/.git/MERGE_HEAD"; zrefuse "a store holding anything not read is refused" 'holds something not read on 7 Nov'; rm "$ZM_MAIN/.git/MERGE_HEAD"
+: > "$ZM_MAIN/.git/refs/heads/main.lock"; zrefuse "git at work is refused" 'git is at work'; rm "$ZM_MAIN/.git/refs/heads/main.lock"
+printf 'p1\nfcwd\nn%s/sub\n' "$ZM_MAIN" > "$T/lsofz.out"; zrefuse "a process working in the 24 Sep checkout is refused" 'a process works in the 24 Sep checkout'; : > "$T/lsofz.out"
+cp "$ZM_WT/.git" "$T/wf"; echo "gitdir: /elsewhere" > "$ZM_WT/.git"; zrefuse "wt-screensaver must be linked to the store" 'is not linked to'; cp "$T/wf" "$ZM_WT/.git"
+zrefuse "the folder step waits for the repo step" '^OUT OF ORDER, nothing was changed: the repo step comes first' folder
+sb=$(git -C "$ZM_SEAT" status --porcelain=v2 --branch --ignored); wb=$(git -C "$ZM_WT" status --porcelain=v2 --branch --ignored); nb=$(git -C "$ZM_MAIN" for-each-ref | wc -l)
+out=$(ZM repo); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^PRUNED: ' && echo "$out" | grep -q '^PROVED: ' && echo "$out" | grep -q '^REPO DONE: ' && ok "the repo step runs and proves itself" || bad "repo: $rc $out"
+[ -d "$ZM_SEAT/.git" ] && [ "$(git -C "$ZM_SEAT" rev-parse --absolute-git-dir)" = "$(git -C "$ZM_SEAT" rev-parse --path-format=absolute --git-common-dir)" ] && ok "the seat's folder is the repository, not a worktree" || bad "still a worktree"
+[ "$(git -C "$ZM_SEAT" rev-parse HEAD)" = "$ZM_SH" ] && ! git -C "$ZM_SEAT" symbolic-ref -q HEAD >/dev/null && ok "at the seat's own detached HEAD" || bad "head: $(git -C "$ZM_SEAT" rev-parse HEAD)"
+[ "$(git -C "$ZM_SEAT" status --porcelain=v2 --branch --ignored)" = "$sb" ] && [ "$(git -C "$ZM_WT" status --porcelain=v2 --branch --ignored)" = "$wb" ] && [ "$(git -C "$ZM_SEAT" for-each-ref | wc -l)" = "$nb" ] && ok "git status in both, and the refs, read as before, by a reader outside the step" || bad "status changed"
+[ "$(git -C "$ZM_SEAT" worktree list --porcelain | sed -n 's/^worktree //p' | paste -sd' ' -)" = "$ZM_SEAT $ZM_WT" ] && [ "$(cat "$ZM_WT/.git")" = "gitdir: $ZM_SEAT/.git/worktrees/wt-screensaver" ] && ok "the 10 dead records are gone, and wt-screensaver points at the seat's store" || bad "worktrees: $(git -C "$ZM_SEAT" worktree list)"
+[ ! -e "$ZM_MAIN" ] && [ -f "$Z/dt/main-old-20260924/a.txt" ] && [ ! -e "$Z/dt/main-old-20260924/.git" ] && ok "the 24 Sep checkout is set aside, with no .git" || bad "aside: $(ls -a "$Z/dt")"
+[ "$(cat "$Z/state/zbs-move-20261107/store-checkout-files/HEAD")" = "ref: refs/heads/main" ] && [ "$(stat -f %Lp "$Z/state/zbs-move-20261107")" = 700 ] && ok "its own git files are kept in the state folder, mode 700" || bad "kept: $(ls "$Z/state/zbs-move-20261107")"
+grep -q '^ALREADY DONE' <<< "$(ZM repo)" && ok "a second repo step changes nothing" || bad "repo twice: $(ZM repo)"
+mo=$Z/proj/$(enc2 "$Z/org/zeobroacastingstudio")/memory
+mkdir "$Z/proj/$ZM_KEY/memory"; zrefuse "two memories are never merged" 'memory is already there, and two memories are not merged' folder; rmdir "$Z/proj/$ZM_KEY/memory"
+mkdir "$Z/proj/$(enc2 "$ZM_MAIN")"; zrefuse "a project already under the new folder is refused" "holds more than an empty memory folder" folder; mkdir "$Z/proj/$(enc2 "$ZM_MAIN")/memory"; : > "$Z/proj/$(enc2 "$ZM_MAIN")/memory/x.md"; zrefuse "so is one whose memory folder holds anything" "holds more than an empty memory folder" folder; rm -rf "$Z/proj/$(enc2 "$ZM_MAIN")"
+cp "$ZM_SEAT/.claude/settings.local.json" "$T/sl"; perl -i -pe 's#"Bash\(ls\)"#"Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)"#' "$ZM_SEAT/.claude/settings.local.json"; zrefuse "the allow rule must be there exactly once" 'exactly once' folder; cp "$T/sl" "$ZM_SEAT/.claude/settings.local.json"
+perl -i -pe 's#"Edit\(/Volumes/AIPEMedia1/code/zeroemployeeorg/\*\*/\.git/\*\*\)"#"Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)"#' "$ZM_SEAT/.claude/settings.local.json"; zrefuse "and its text only once, or a deny of the same text would move too" "the rule.s text is not on exactly one line" folder; cp "$T/sl" "$ZM_SEAT/.claude/settings.local.json"
+echo '  Working (3s • esc to interrupt)' > "$T/screen"; zrefuse "the folder step refuses while the seat has a turn in progress" '^BUSY' folder; : > "$T/screen"
+cp "$Z/state/zbs-move-20261107/before-wt.txt" "$T/bw"; echo changed >> "$Z/state/zbs-move-20261107/before-wt.txt"; ino0=$(stat -f %i "$ZM_SEAT"); out=$(ZM folder); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED at the proof: it differs from before' && [ -d "$mo" ] && [ ! -e "$ZM_MAIN/.claude/settings.local.json.zeo" ] && grep -q 'zeroemployeeorg/\*\*)"' "$ZM_MAIN/.claude/settings.local.json" && ok "a git status that differs stops it before the memory and the settings" || bad "proof stop: $rc $out"
+mv "$ZM_MAIN" "$ZM_SEAT"; git -C "$ZM_SEAT" worktree repair "$ZM_WT" 2>/dev/null; cp "$T/bw" "$Z/state/zbs-move-20261107/before-wt.txt"; mf=$(cd "$mo" && find . -type f | LC_ALL=C sort | xargs shasum)
+mkdir -p "$Z/proj/$(enc2 "$ZM_MAIN")/memory"
+out=$(ZM folder); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED: ' && echo "$out" | grep -q '^MEMORY: 2 files' && echo "$out" | grep -q '^SETTINGS: ' && echo "$out" | grep -q "^CLEARED: the empty $Z/proj/$(enc2 "$ZM_MAIN")" && [ ! -e "$Z/proj/$(enc2 "$ZM_MAIN")" ] && echo "$out" | grep -q '^FOLDER DONE' && ok "the folder step runs and proves itself, clearing only the empty memory folder Claude makes under the new key" || bad "folder: $rc $out"
+[ "$(stat -f %i "$ZM_MAIN")" = "$ino0" ] && [ ! -e "$ZM_SEAT" ] && [ -f "$ZM_MAIN/data/CLASS-ITAM.md" ] && [ "$(cat "$ZM_MAIN/CLASS-LINK.md")" = class ] && [ -f "$ZM_MAIN/untracked.txt" ] && ok "the folder moved whole: the same folder, ignored files, links and untracked files with it" || bad "moved: $(ls -a "$ZM_MAIN")"
+[ "$(cat "$ZM_WT/.git")" = "gitdir: $ZM_MAIN/.git/worktrees/wt-screensaver" ] && [ "$(git -C "$ZM_WT" status --porcelain=v2 --branch --ignored)" = "$wb" ] && [ "$(git -C "$ZM_MAIN" status --porcelain=v2 --branch --ignored)" = "$sb" ] && ok "wt-screensaver is repaired again, and both read as before" || bad "wt after: $(cat "$ZM_WT/.git")"
+[ ! -e "$mo" ] && [ "$(cd "$Z/proj/$ZM_KEY/memory" && find . -type f | LC_ALL=C sort | xargs shasum)" = "$mf" ] && ok "the memory moved into the seat's project, unchanged, for the restart's rename" || bad "memory: $(ls "$Z/proj/$ZM_KEY")"
+sj=$ZM_MAIN/.claude/settings.local.json
+[ "$(jq -c .permissions "$sj")" = '{"allow":["Bash(ls)","Edit(/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/**)"],"deny":["Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**/.git/**)"]}' ] && ok "the one allow rule moved, and nothing else in the settings changed" || bad "settings: $(jq -c . "$sj")"
+[ "$(stat -f %Lp "$Z/state/zbs-move-20261107/settings.local.json.before")" = 600 ] && [ -f "$Z/state/zbs-move-20261107/folder.done" ] && ok "the old settings are kept, mode 600, and the step marks itself done" || bad "settings backup"
+grep -q '^ALREADY DONE' <<< "$(ZM folder)" && ok "a second folder step changes nothing" || bad "folder twice: $(ZM folder)"
+echo '#!/bin/bash
+echo "STUB $* STATE=$STATE"' > "$T/run/zbs-move.sh"; chmod +x "$T/run/zbs-move.sh"; zh=$(/usr/bin/shasum -a 256 "$T/run/zbs-move.sh" | cut -d' ' -f1); perl -i -pe "s/^pin [0-9a-f]+ zbs-move.sh\$/pin $zh zbs-move.sh/" "$T/run/reseat-lines.sh"
+out=$(STATE="$T/st2" L zbs-repo 2>&1); echo "$out" | grep -q "^STUB repo STATE=$T/state" && echo "$out" | grep -q '^result kept in' && ok "zbs-repo runs the pinned step with the state folder" || bad "wire: $out"
+grep -q '^STUB folder' <<< "$(L zbs-folder 2>&1)" && ok "and so does zbs-folder" || bad "wire folder"; rm -f "$T/screen"; cp "$HERE/zbs-move.sh" "$T/run/zbs-move.sh"
 echo "-- the two old Codex trust entries"
 ua="$T/d/goneA" ub="$T/d/goneB"; uc="$T/u.toml"; ubk="$T/state/codex-config.before-untrust-20261106"
 mku() { printf 'model = "x"\n\n[projects."/keep1"]\ntrust_level = "trusted"\n\n[projects."%s"]\ntrust_level = "trusted"\n\n[projects."%s"]\ntrust_level = "trusted"\n\n[projects."/keep2"]\ntrust_level = "trusted"\n' "$ua" "$ub" > "$uc"; chmod 640 "$uc"; rm -f "$ubk"; }
-upin() { sed -e "s#^UNTRUST=.*#UNTRUST=\"$ua $ub\"#" -e "s#^UNTRUST_FROM=.*#UNTRUST_FROM=$(/usr/bin/shasum -a 256 "$uc" | cut -d' ' -f1)#" "$HERE/reseat-lines.sh" | sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" > "$T/run/reseat-lines.sh"; repin; }
+upin() { sed -e "s#^UNTRUST=.*#UNTRUST=\"$ua $ub\"#" -e "s#^UNTRUST_FROM=.*#UNTRUST_FROM=$(/usr/bin/shasum -a 256 "$uc" | cut -d' ' -f1)#" "$HERE/reseat-lines.sh" | sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" -e "s#^CLAUDE_INODE=.*#CLAUDE_INODE=$(stat -f %i "$T/d/creator")#" -e "s#^CLAUDE_READY_MARK=.*#CLAUDE_READY_MARK=$T/ready#" > "$T/run/reseat-lines.sh"; repin; }
 U() { ZEO_RESCUE_CODEX_CONFIG="$uc" L codex-untrust 2>&1; }
 mku; upin; cp "$uc" "$T/u.before"; out=$(U); rc=$?
 want='model = "x"

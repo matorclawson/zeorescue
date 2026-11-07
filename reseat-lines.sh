@@ -11,8 +11,10 @@
 #   reseat-lines.sh trust        adds the trust entries the folders in folder-moves need; starts nothing
 #   reseat-lines.sh codex-first  restarts the first seat in folder-moves alone, in its new folder; needs .zshenv changed first
 #   reseat-lines.sh codex-rest   restarts every other Codex seat that needs it, about 12 minutes; needs the first seat right
-#   reseat-lines.sh claude-trust adds the Claude trust entry for the seat moving, under Claude's own config lock; starts nothing
+#   reseat-lines.sh claude-trust adds the Claude trust entry for the seat moving (zbs; zeocreator moved on 6 Nov), under Claude's own config lock; starts nothing
 #   reseat-lines.sh codex-untrust removes the two Codex trust entries for folders that left rodriveracom, only from the exact file the Architect read; starts nothing
+#   reseat-lines.sh zbs-repo     makes the zbs seat's folder its own repository and sets the 24 Sep checkout aside; refuses while the seat is working
+#   reseat-lines.sh zbs-folder   moves that folder whole to its new path, with its memory and its one allow rule; after zbs-repo
 #   reseat-lines.sh claude-first restarts that one Claude seat in its new folder; says which Claude will run; refuses while it is working, or on a Claude nobody rehearsed
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
@@ -25,10 +27,13 @@ LIC_SEAT=dt-brandedimage-maintainer
 LIC_NOTE=notes/lic-test-20261106.txt
 CODEX_NOTE=notes/codex-relaunch-20261106.txt
 MOVE_SEATS="zeoapp rasa ducktyper profrod zeo-rt"
-CLAUDE_SEAT=zeocreator
-CLAUDE_OLD=/Volumes/AIPEMedia1/code/zeroemployeeorg/zeocreator
-CLAUDE_NEW=/Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main
-CLAUDE_NOTE=notes/claude-move-20261106.txt
+# The Claude seat moving now: zbs, on the Architect's order of 2026-11-07 (zeocreator moved on 6 Nov). Its folder steps are zbs-move.sh.
+CLAUDE_SEAT=zbs
+CLAUDE_OLD=/Volumes/AIPEMedia1/code/zeroemployeeorg/zeobroacastingstudio-zbs
+CLAUDE_NEW=/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main
+CLAUDE_NOTE=notes/claude-move-zbs-20261107.txt
+# The folder read on 7 Nov, by inode: until the seat's own folder is at CLAUDE_NEW, the 24 Sep checkout is, and it must never be trusted or started in.
+CLAUDE_INODE=10850475
 CLAUDE_REHEARSED=2.1.319
 CLAUDE_BIN=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
@@ -39,9 +44,10 @@ UNTRUST_FROM=41abedf3cde0a10cf52f16e3bd3eb6ecbad0c032c5ed13fbcb84e53447df7f1a
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 TMUX_BIN=${ZEO_RESCUE_TMUX:-/opt/homebrew/bin/tmux}
 STATE=${ZEO_RESCUE_STATE:-$HOME/.local/state/zeo-rescue}
-CLAUDE_BACKUP=$STATE/claude-json.before-20261106
+CLAUDE_BACKUP=$STATE/claude-json.before-20261107
+CLAUDE_READY_MARK=$STATE/zbs-move-20261107/folder.done
 step=${1:-}
-case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|claude-trust|claude-first|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|claude-trust|claude-first|claude-clear|claude-back; nothing was run"; exit 2;; esac
+case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|claude-trust|claude-first|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|claude-trust|claude-first|claude-clear|claude-back; nothing was run"; exit 2;; esac
 place="$(id -un)@$(hostname -s)"
 [ "$place" = "$WANT" ] || { echo "WRONG PLACE, nothing was run: you are $place. Open the rodbot terminal on the Mac mini."; exit 2; }
 cd "$HERE" || exit 2
@@ -51,14 +57,15 @@ pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d "
 pin 2ae5c243dbe140212166b8b08d7eb75312127f2f230eda6446f03698997b39e9 rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871 Makefile
-pin 889dcaf03b7e41aba917cb2b64dcbdb344d222d0e8b9ad1109e70fe24982eaaa session-pins
+pin 01610ba243f2a0a3ef0b42c5eafb7761956a7081327c9bf72df89e1c2cfa2846 session-pins
 pin ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029 notes/reseat-20261105.txt
 pin 6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b notes/zeoarchitect-resume.txt
 pin be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2 notes/lic-test-20261106.txt
 pin caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de notes/codex-relaunch-20261106.txt
-pin cd5fc3d4a60aa33bd64bf2726e7a756c35381a8e2a3936d85555fe69a8cfdb97 folder-moves
+pin 4b3a5e9438aceea6a0026dd31f5af213f8a7aacdf755491d13b28a79ef8d4a51 folder-moves
 pin 13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d zshenv-lines.sh
-pin bcfaf71763f2184f40f09d7cf05b463366ceea40f547e094799df20a82bac0f0 notes/claude-move-20261106.txt
+pin 3b968b7c72d7a51005af896e2f897e4e9ed41bd19f024557662c07dea61a5e28 notes/claude-move-zbs-20261107.txt
+pin 214588547e2b625d5c1c165892dc8efa255defa078c1b8cedb5dbe003cf95759 zbs-move.sh
 # END PINS
 [ $bad -eq 0 ] || exit 2
 moves_ready() { # every seat has its folder, and the folder exists; the folders are the Architect's to name
@@ -71,6 +78,8 @@ moves_ready() { # every seat has its folder, and the folder exists; the folders 
 zshenv_first() { ./zshenv-lines.sh verify 2>/dev/null | /usr/bin/grep '^CHANGED' >/dev/null || { echo "OUT OF ORDER, nothing was run: the .zshenv line comes first."; exit 2; }; }
 claude_ready() { # the seat has its line, and the folder is there: both are the Architect's
   [ "$(awk -v s="$CLAUDE_SEAT" '$1==s {print $2}' folder-moves)" = "$CLAUDE_NEW" ] && [ -d "$CLAUDE_NEW" ] || { echo "NOT READY, nothing was run: folder-moves needs $CLAUDE_SEAT $CLAUDE_NEW, and that folder must exist."; exit 2; }
+  [ "$(stat -f %i "$CLAUDE_NEW")" = "$CLAUDE_INODE" ] || { echo "NOT READY, nothing was run: $CLAUDE_NEW is not the seat's own folder (inode $CLAUDE_INODE). Its folder step comes first."; exit 2; }
+  [ -f "$CLAUDE_READY_MARK" ] || { echo "OUT OF ORDER, nothing was run: the folder step has not finished ($CLAUDE_READY_MARK)."; exit 2; }
 }
 sha() { /usr/bin/shasum -a 256 "$1" 2>/dev/null | /usr/bin/cut -d " " -f 1; }
 not_busy() { # a restart cuts a turn in progress, so a turn on any seat this step would restart stops it; a quiet result is what can be seen
@@ -135,6 +144,8 @@ case "$step" in
     mv -f "$tmp" "$CODEX_CONFIG" || { echo "FAILED, nothing was changed"; exit 1; }
     made=""
     echo "REMOVED: $c entries are gone from $CODEX_CONFIG, now $(sha "$CODEX_CONFIG"); backup at $b. Tell zeo-rescue: done."; exit 0;;
+  zbs-repo) STATE="$STATE" ./zbs-move.sh repo 2>&1 | tee "$log";;
+  zbs-folder) STATE="$STATE" ./zbs-move.sh folder 2>&1 | tee "$log";;
   claude-trust)
     claude_ready
     if [ "$(jq -r --arg d "$CLAUDE_NEW" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON")" = true ]; then echo "NOTHING TO ADD: $CLAUDE_NEW is already trusted; nothing was changed"; exit 0; fi
