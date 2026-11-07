@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply] [--reseat] [--relaunch] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply] [--reseat] [--relaunch] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE] [--no-loader]
 #
 # For each seat of the chart on this host it decides one of:
 #   LIVE        its tmux session exists                         left alone
@@ -39,6 +39,12 @@
 # thread open, so a seat started beside it would be a second writer. A seat refused this way stays down, and the run says who holds it.
 # A first seat that fails its proof is stopped again and loses @zeo_rescue, so the next run plans it again; RECOVERY says what is down.
 #
+# --no-loader is for a host with no seat loader, such as ENG-UK (7 Nov 2026). There no marker can reach a seat, so none is set, and git and
+# gh are whatever that host's own shell gives. Every plan and proof line says so. It refuses a host whose shell files name the loader, a
+# Codex seat whose snapshot records a marker, a folder move, --reseat and ZEO_RESCUE_DEFAULT_MARKER. The first seat of each harness must
+# show its own identity, none of the rescuer's environment, no seat settings (they would mean a loader ran after all) and, for Codex,
+# --no-daemon; --check judges the same.
+#
 # Exit: 0 every seat fine or resumable; 1 a failure, or a --check found WRONG; 2 usage; 3 at least one seat UNRESOLVED.
 set -uo pipefail
 
@@ -64,7 +70,8 @@ DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" NO_LOADER=0 NOGATE_ON=""
+NOGATE="no gate: git and gh are this host's own"
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
@@ -86,6 +93,7 @@ while [ $# -gt 0 ]; do
     --socket) [ $# -ge 2 ] || usage; SOCKET=$2; shift 2;;
     --stagger) [ $# -ge 2 ] || usage; STAGGER=$2; shift 2;;
     --chart) [ $# -ge 2 ] || usage; CHART=$2; shift 2;;
+    --no-loader) NO_LOADER=1; shift;;
     *) usage;;
   esac
 done
@@ -94,6 +102,17 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
 [ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+if [ $NO_LOADER -eq 1 ]; then
+  [ $RESEAT -eq 0 ] || usage
+  [ -z "${ZEO_RESCUE_DEFAULT_MARKER+set}" ] || { echo "rescue: --no-loader sets no marker, so ZEO_RESCUE_DEFAULT_MARKER may not be given with it" >&2; exit 2; }
+  # A host with the loader must not lose its gates through this flag. The proof checks again from the running process.
+  [ ! -e "$HOME/.config/zeo-tmux-seats" ] || { echo "rescue: --no-loader refused: $HOME/.config/zeo-tmux-seats exists, so this host has the seat loader" >&2; exit 1; }
+  for f in "$HOME/.zshenv" "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.zlogin"; do
+    [ ! -f "$f" ] || ! grep -E 'zeo-tmux-seats|zeo-seat-load' "$f" >/dev/null || { echo "rescue: --no-loader refused: $f names the seat loader, so this host has one" >&2; exit 1; }
+  done
+  DEFAULT_MARKER="" NOGATE_ON=1
+  echo "rescue: --no-loader: no seat gets a marker; $NOGATE"
+fi
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [ -n "$SESSION_ARG" ]; then
   [[ "$SESSION_ARG" =~ $ID_RE ]] || usage
@@ -183,7 +202,17 @@ marker_of() { # marker_of HARNESS SID: sets MARK (empty means no marker, so git 
   fi
   MARK=$DEFAULT_MARKER MARK_WHY="no record, default"
 }
-marker_label() { if [ -n "$MARK" ]; then echo "marker $MARK, $MARK_WHY"; else echo "no marker, $MARK_WHY"; fi; }
+marker_label() { if [ $NO_LOADER -eq 1 ]; then echo "$NOGATE"; elif [ -n "$MARK" ]; then echo "marker $MARK, $MARK_WHY"; else echo "no marker, $MARK_WHY"; fi; }
+gate_recorded() { # gate_recorded HARNESS SID: with --no-loader, sets WHY when a Codex snapshot records any marker, inactive too: that seat ran behind a loader
+  local f m t
+  [ "$1" = codex ] || return 1
+  for f in $(ls -t "$SNAPSHOTS/$2".* 2>/dev/null); do
+    if [ -n "$BEFORE" ]; then t=$(date -r "$f" +%Y%m%d%H%M); [ "$t" -lt "$BEFORE" ] || continue; fi
+    m=$(grep -o 'ZEO_TMUX_SEAT=[^ ]*' "$f" | tail -1 | tr -d "\"'"); m=${m#ZEO_TMUX_SEAT=}
+    [ -z "$m" ] || { WHY="its snapshot records marker $m from a seat loader, and --no-loader would start it with no gate"; return 0; }
+  done
+  return 1
+}
 
 panes_of() { "$TMUX_BIN" -L "$SOCKET" list-panes -s -t "=$1" -F '#{pane_id}|#{pane_pid}|#{@zeo_rescue}|#{pane_current_command}' 2>/dev/null; }
 PANE="" PANE_PID="" PANE_STATE=""
@@ -224,6 +253,25 @@ check_settings() { # check_settings PANE PID: sets SET_WHY unless the seat's set
   done
 }
 
+no_loader_env() { # no_loader_env SEAT PANE PID HARNESS: with --no-loader, sets SET_WHY unless the process is the seat, clean, with no seat settings
+  local want env names n
+  SET_WHY=""
+  want=$("$TMUX_BIN" -L "$SOCKET" show-options -pqv -t "$2" @zeo_seat 2>/dev/null)
+  [ -z "$want" ] || { SET_WHY="its pane carries marker $want, and --no-loader gives no gate"; return 0; }
+  env=$("$PS_BIN" -Ewwp "$3" -o command= 2>/dev/null)
+  [ -n "$env" ] || { SET_WHY="cannot read its process"; return 0; }
+  if [ "$4" = codex ]; then case "$env" in *" --no-daemon "*) ;; *) SET_WHY="no --no-daemon"; return 0;; esac; fi
+  case "$env" in *" ZMAIL_INSTANCE=$1 "*|*" ZMAIL_INSTANCE=$1") ;; *) SET_WHY="its process has another identity"; return 0;; esac
+  # Names only, from the environment and any argument that looks like one: no value leaves this function.
+  names=$(printf '%s\n' "$env" | tr ' ' '\n' | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p')
+  for n in $names; do
+    case "$n" in
+      ZEO_TMUX_SEAT|ZEO_TMUX_ACCOUNT) SET_WHY="its process has $n, so a seat loader ran: this host is not without one"; return 0;;
+      ZEO_RESCUE_*|CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|CLAUDE_CODE_SESSION_ID|CODEX_THREAD_ID|CODEX_SANDBOX) SET_WHY="its process has the rescuer's $n, so its environment is not clean"; return 0;;
+    esac
+  done
+}
+
 moved_already() { # moved_already HARNESS PID SID: Codex says so on its command line. A Claude process follows a folder that moved under it, so its project says.
   if [ "$1" = codex ]; then case "$(ps_line "$2")" in *" -C $cwd "*) return 0;; esac; return 1; fi
   [ -f "$PROJECTS/$(project_key "$cwd")/$3.jsonl" ]
@@ -250,9 +298,10 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
     case "$env" in *"ZMAIL_INSTANCE=$1 "*|*"ZMAIL_INSTANCE=$1") ;; *) why="${why:+$why; }environment has another identity";; esac
   fi
   if [ -n "$OLD_CWD" ] && ! moved_already "$3" "$pid" "$sid"; then why="${why:+$why; }not yet in its new folder $cwd"; fi
-  check_settings "$id" "$pid"; [ -z "$SET_WHY" ] || why="${why:+$why; }$SET_WHY"
-  if [ -z "$why" ]; then echo "OK $1 ($3)"; return 0; fi
-  echo "WRONG $1 ($3): $why"; return 1
+  if [ $NO_LOADER -eq 1 ]; then no_loader_env "$1" "$id" "$pid" "$3"; else check_settings "$id" "$pid"; fi
+  [ -z "$SET_WHY" ] || why="${why:+$why; }$SET_WHY"
+  if [ -z "$why" ]; then echo "OK $1 ($3)${NOGATE_ON:+, $NOGATE}"; return 0; fi
+  echo "WRONG $1 ($3): $why${NOGATE_ON:+; $NOGATE}"; return 1
 }
 
 prove_codex() { # the first Codex seat must show the loader worked before any other starts
@@ -271,9 +320,9 @@ prove_codex() { # the first Codex seat must show the loader worked before any ot
   fi
   # A right snapshot speaks only for tools in the thread's own directory, so the process must have the settings too.
   IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
-  check_settings "$id" "$pid"
+  if [ $NO_LOADER -eq 1 ]; then no_loader_env "$seat" "$id" "$pid" codex; else check_settings "$id" "$pid"; fi
   [ -z "$SET_WHY" ] || { echo "STOPPED: $seat: $SET_WHY; no other seat was started"; return 1; }
-  echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
+  echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}${NOGATE_ON:+, --no-daemon, clean environment, $NOGATE}"
 }
 prove_claude() { # the same for the first Claude seat, from the environment of the running process
   local seat=$1 mark=$2 sess=$3 i id pid opt cmd env=""
@@ -288,7 +337,11 @@ prove_claude() { # the same for the first Claude seat, from the environment of t
     case "$env" in *"ZEO_TMUX_SEAT=$mark"*) ;; *) echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1;; esac
     case "$env" in *"GIT_ALLOW_PROTOCOL=file "*) echo "STOPPED: $seat still has network git off; no other seat was started"; return 1;; esac
   fi
-  echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
+  if [ $NO_LOADER -eq 1 ]; then
+    no_loader_env "$seat" "$id" "$pid" claude
+    [ -z "$SET_WHY" ] || { echo "STOPPED: $seat: $SET_WHY; no other seat was started"; return 1; }
+  fi
+  echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}${NOGATE_ON:+, clean environment, $NOGATE}"
 }
 
 prove_claude_moved() { # prove_claude_moved SEAT SID FOLDER OLD SESSION SIZE PROMPT: one transcript, written from the new folder, by one process
@@ -490,7 +543,8 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); fi
   if [ -n "$to" ] && [ "$to" != "$cwd" ]; then # once the chart itself says the new folder, the line has nothing left to do
     WHY=""
-    if [ "$(awk -v s="$seat" '$1==s' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="more than one line for it in $MOVES"
+    if [ $NO_LOADER -eq 1 ]; then WHY="it moves folder, and no move is proved without the seat loader"
+    elif [ "$(awk -v s="$seat" '$1==s' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="more than one line for it in $MOVES"
     elif [ -z "$SESSION" ]; then WHY="it moves folder, so $PINS must name its thread"
     else folder_ready "$seat" "$to"; fi
     if [ -n "$WHY" ]; then
@@ -526,13 +580,14 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ $rc -eq 2 ] && { echo "UNRESOLVED $seat: could not tell whether a process runs in $cwd"; unresolved=$((unresolved+1)); continue; }
   [ -d "$cwd" ] || { echo "UNRESOLVED $seat: no directory $cwd"; unresolved=$((unresolved+1)); continue; }
   if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
+  if [ $NO_LOADER -eq 1 ] && gate_recorded "$harness" "$SID"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
   marker_of "$harness" "$SID"
   echo "RESUME $seat: $harness $SID ($MODE_ARGS; $(marker_label)) in $sess"; resume=$((resume+1))
   planned "$seat" "$sess" "$cwd" "$harness" ""
 done <<< "$rows"
 
 if [ $CHECK -eq 1 ]; then
-  echo "check: ok $ok, wrong $wrong"
+  echo "check: ok $ok, wrong $wrong${NOGATE_ON:+; $NOGATE}"
   [ $wrong -eq 0 ] || exit 1
   exit 0
 fi
@@ -576,7 +631,7 @@ if [ $APPLY -eq 1 ]; then
   done
 fi
 
-echo "rescue: live $live, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
+echo "rescue: live $live, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed${NOGATE_ON:+; $NOGATE}"
 [ $stopped -eq 1 ] || exit 1
 [ $failed -eq 0 ] || exit 1
 [ $unresolved -eq 0 ] || exit 3

@@ -6,7 +6,7 @@ set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 T=$(mktemp -d /tmp/zr.XXXXXX); SOCK=zrt$$
 TM=/opt/homebrew/bin/tmux
-trap '"$TM" -L "$SOCK" kill-server 2>/dev/null; rm -rf "$T"' EXIT
+trap '"$TM" -L "$SOCK" kill-server 2>/dev/null; "$TM" -L "zrn$$" kill-server 2>/dev/null; "$TM" -L "zrm$$" kill-server 2>/dev/null; rm -rf "$T"' EXIT
 fails=0
 ok()   { echo "ok   $1"; }
 bad()  { echo "FAIL $1"; fails=$((fails+1)); }
@@ -138,6 +138,43 @@ grep -q '^OK tx: started by rescue, right already' <<< "$(R --reseat --relaunch 
 "$TM" -L "$SOCK" kill-session -t '=tx-s'; perl -e 'select(undef,undef,undef,0.5)'
 out=$(R --seat tx 2>&1); echo "$out" | grep -q '^RESUME tx: codex 44444444-4444-4444-8444-444444444444' && echo "$out" | grep -q "^MOVE tx: from $T/w/cx to $T/w/moved" && ok "after a crash the pin still finds its thread, and it stays in the new folder" || bad "after crash: $out"
 export ZEO_RESCUE_MOVES=$T/none ZEO_RESCUE_PINS=$T/none
+
+echo "-- --no-loader, on real tmux, with a HOME that has no seat loader"
+NG="no gate: git and gh are this host's own"
+out=$(R --no-loader --seat tc 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'refused: .*so this host has' && ok "this host's own HOME is refused: it has the loader" || bad "real HOME: $rc $out"
+NH=$T/nh; mkdir -p "$NH"; printf 'export PATH=/usr/bin:/bin\n' > "$NH/.zshrc"
+SOCKN=zrn$$; mkdir -p "$T/snapold"; mv "$T/snap/44444444-"* "$T/snapold/" 2>/dev/null; rm -f "$T/env.tc" "$T/env.tx" "$T/args.tx"
+RN() { HOME=$NH "$HERE/rescue.sh" --host h --socket "$SOCKN" --stagger 0 --chart "$T/chart.json" --no-loader "$@"; }
+out=$(RN --apply --seat tc --seat tx 2>&1); rc=$?
+echo "$out" | sed 's/^/     /' | cut -c1-140
+[ $rc -eq 0 ] && ok "a no-loader rescue exits 0" || bad "nl exit $rc"
+echo "$out" | grep -qxF "FIRST SEAT OK tc: own identity, clean environment, $NG" && ok "the claude path proves itself from the live process, with no gate" || bad "nl claude proof"
+echo "$out" | grep -qxF "FIRST SEAT OK tx: own identity, --no-daemon, clean environment, $NG" && ok "the codex path proves itself from a snapshot and the process, with no gate" || bad "nl codex proof"
+for s in tc tx; do
+  [ -f "$T/env.$s" ] || { bad "no env for $s"; continue; }
+  grep -qE '^(ZEO_TMUX_SEAT|ZEO_TMUX_ACCOUNT|GIT_ALLOW_PROTOCOL|GH_CONFIG_DIR|GIT_SSH_COMMAND)=' "$T/env.$s" && bad "$s has seat settings: $(grep -E '^(ZEO_TMUX|GIT_|GH_)' "$T/env.$s")" || ok "$s has no seat settings: git and gh are the shell's own"
+  grep -qx "HOME=$NH" "$T/env.$s" && grep -qx "ZMAIL_INSTANCE=$s" "$T/env.$s" && ok "$s runs as itself in the no-loader HOME" || bad "$s identity"
+  grep -qE '^(CLAUDECODE|ZEO_RESCUE_[A-Z_]*)=' "$T/env.$s" && bad "$s got the rescuer's environment" || ok "$s did not get the rescuer's environment, though this test runs inside Claude"
+  [ "$("$TM" -L "$SOCKN" list-panes -s -t "=$s-s" -F '#{@zeo_seat}|#{@zeo_rescue}')" = "|1" ] && ok "$s's pane has no marker and the rescue mark" || bad "$s pane options"
+done
+grep -qx -- '--no-daemon' "$T/args.tx" && ok "codex got --no-daemon" || bad "nl no --no-daemon"
+out=$(RN --check --seat tc --seat tx 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -qxF "OK tc (claude), $NG" && echo "$out" | grep -qxF "OK tx (codex), $NG" && ok "--check passes both, and says no gate" || bad "nl check: $rc $out"
+pane=$("$TM" -L "$SOCKN" list-panes -s -t '=tx-s' -F '#{pane_id}' | head -1); "$TM" -L "$SOCKN" set-option -p -t "$pane" @zeo_seat master
+grep -q '^WRONG tx (codex): its pane carries marker master' <<< "$(RN --check --seat tx 2>&1)" && ok "--check names a pane that carries a marker" || bad "nl check mark"
+"$TM" -L "$SOCKN" kill-server 2>/dev/null
+echo "-- --no-loader, when a loader the flag cannot see runs after all"
+NH2=$T/nh2; mkdir -p "$NH2"; printf 'export ZEO_TMUX_SEAT=master\n' > "$NH2/.zshrc"
+SOCKM=zrm$$; mv "$T/snap/44444444-"* "$T/snapold/" 2>/dev/null; n0=$(pgrep -f -- "$T/h/claude " | wc -l | tr -d " ")
+out=$(HOME=$NH2 "$HERE/rescue.sh" --host h --socket "$SOCKM" --stagger 0 --chart "$T/chart.json" --no-loader --apply --seat tx --seat tc 2>&1); rc=$?
+echo "$out" | sed 's/^/     /' | cut -c1-140
+[ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED: tc: its process has ZEO_TMUX_SEAT, so a seat loader ran' && ok "the real process of the first seat shows it, and the run stops" || bad "nl hidden loader: $rc"
+perl -e 'select(undef,undef,undef,0.5)'
+"$TM" -L "$SOCKM" has-session -t '=tc-s' 2>/dev/null && bad "the failed seat is still up" || ok "the failed seat's own new session is gone, so the next run plans it again"
+"$TM" -L "$SOCKM" has-session -t '=tx-s' 2>/dev/null && bad "a second seat was started" || ok "no other seat was started"
+[ "$(pgrep -f -- "$T/h/claude " | wc -l | tr -d " ")" = "$n0" ] && ok "and its process is gone (the other test seat on its own socket still runs)" || bad "its process still runs"
+"$TM" -L "$SOCKM" kill-server 2>/dev/null; mv "$T/snapold/"* "$T/snap/" 2>/dev/null
 
 echo "-- the .zshenv line, on a copy of the real file: the host's own file is never touched here"
 eval "$(grep -E '^(OLD|NEW)[12]=|^(OLD|NEW)_SHA=' "$HERE/zshenv-lines.sh")"; export OLD1 OLD2 NEW1 NEW2

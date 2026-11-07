@@ -215,6 +215,59 @@ out=$(snap "export GIT_ALLOW_PROTOCOL='ssh:https:file'\nexport ZEO_TMUX_SEAT='ma
 echo "$out" | grep -q 'FIRST SEAT OK cx' && ok "a quoted top-level value still passes" || bad "quoted: $out"
 reset_live; rm -f "$T/snapwrite"
 
+echo "-- --no-loader: a host with no seat loader (ENG-UK, 7 Nov)"
+NG="no gate: git and gh are this host's own"
+mkdir -p "$T/nlh"; echo 'export PATH=/usr/bin:/bin' > "$T/nlh/.zshrc"
+NL() { HOME=$T/nlh R --no-loader "$@"; }
+reset_live; : > "$T/seatmark"
+out=$(NL --seat cl --seat cxn 2>&1); rc=$?
+[ $rc -eq 0 ] && [ ! -s "$T/launched" ] && ok "a no-loader plan exits 0 and starts nothing" || bad "nl plan: $rc $out"
+echo "$out" | grep -qx "rescue: --no-loader: no seat gets a marker; $NG" && ok "it says so before anything else" || bad "nl banner: $out"
+echo "$out" | grep -qxF "RESUME cl: claude 22222222-2222-4222-8222-222222222222 (--permission-mode auto; $NG) in cl-maintainer" && ok "a claude plan line says no gate, with no marker" || bad "nl claude: $out"
+echo "$out" | grep -qxF "RESUME cxn: codex 77777777-7777-4777-8777-777777777777 (-a never -s danger-full-access; $NG) in cxn-s" && ok "a codex seat whose record has no marker plans with no gate" || bad "nl codex: $out"
+echo "$out" | grep -q '^rescue: live .*; no gate' && ok "and so does the summary" || bad "nl summary: $out"
+echo "$out" | grep -q 'marker master' && bad "a no-loader plan named a marker" || ok "no line names a marker"
+out=$(NL --seat cx 2>&1); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q '^UNRESOLVED cx: its snapshot records marker master from a seat loader' && ok "a codex seat that recorded a marker is refused" || bad "nl master: $rc $out"
+grep -q '^UNRESOLVED cxi: its snapshot records marker inactive' <<< "$(NL --seat cxi 2>&1)" && ok "inactive counts as a marker: that seat ran behind a loader with git off" || bad "nl inactive"
+NL --reseat --seat cl >/dev/null 2>&1; [ $? -eq 2 ] && ok "--no-loader with --reseat is a usage error" || bad "nl reseat"
+out=$(ZEO_RESCUE_DEFAULT_MARKER= NL --seat cl 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'ZEO_RESCUE_DEFAULT_MARKER may not be given' && ok "a default marker, even empty, is refused with it" || bad "nl default: $rc $out"
+mkdir -p "$T/nlh2"; printf 'source "$HOME/.config/zeo-tmux-seats/activate.zsh"\n' > "$T/nlh2/.zshrc"
+out=$(HOME=$T/nlh2 R --no-loader --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'refused: .*/nlh2/.zshrc names the seat loader' && [ ! -s "$T/launched" ] && ok "a host whose .zshrc names the loader is refused, and nothing starts" || bad "nl zshrc: $rc $out"
+mkdir -p "$T/nlh3/.config/zeo-tmux-seats"
+out=$(HOME=$T/nlh3 R --no-loader --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'zeo-tmux-seats exists, so this host has the seat loader' && ok "so is one with the loader's folder" || bad "nl folder: $rc $out"
+echo "cl $T/w/cl2" > "$T/nlmoves"
+grep -q '^UNRESOLVED cl: it moves folder, and no move is proved without the seat loader' <<< "$(ZEO_RESCUE_MOVES=$T/nlmoves NL --seat cl 2>&1)" && ok "a folder move is refused" || bad "nl move"
+reset_live; printf 'export ZMAIL_INSTANCE=cxn\nexport PATH=/usr/bin:/bin\n' > "$T/snapwrite"
+envcx="/x/codex resume -a never -s danger-full-access -C $T/w/cxn --no-daemon 77777777-7777-4777-8777-777777777777 You were restarted HOME=/h PATH=/usr/bin:/bin ZMAIL_INSTANCE=cxn"
+printf '%s' "$envcx" > "$T/psE.out"
+out=$(NL --apply --seat cxn 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -qxF "FIRST SEAT OK cxn: own identity, --no-daemon, clean environment, $NG" && ok "the first codex seat is proved with no gate" || bad "nl codex proof: $rc $out"
+echo "$out" | grep -qF "RESUMED cxn: codex 77777777-7777-4777-8777-777777777777 (-a never -s danger-full-access; $NG)" && ok "the RESUMED line says no gate" || bad "nl resumed: $out"
+grep -q '@zeo_seat [a-z]' "$T/opts" && bad "a marker was set: $(cat "$T/opts")" || ok "no marker is set on the pane"
+grep -q -- "set-option -pu -t %cxn-s @zeo_seat" "$T/tmux.log" && ok "any old marker on the pane is cleared" || bad "nl unset: $(cat "$T/tmux.log")"
+nlstop() { reset_live; printf '%s' "$1" > "$T/psE.out"; NL --apply --seat "${2:-cxn}" 2>&1; }
+grep -q '^STOPPED: cxn: its process has ZEO_TMUX_SEAT, so a seat loader ran' <<< "$(nlstop "$envcx ZEO_TMUX_SEAT=master")" && ok "a loader that ran after all stops the run" || bad "nl loader ran"
+grep -q "^STOPPED: cxn: its process has the rescuer's ZEO_RESCUE_JQ" <<< "$(nlstop "$envcx ZEO_RESCUE_JQ=/usr/bin/jq")" && ok "the rescuer's environment in the seat stops the run" || bad "nl leak"
+grep -q "^STOPPED: cxn: its process has the rescuer's CODEX_THREAD_ID" <<< "$(nlstop "$envcx CODEX_THREAD_ID=x")" && ok "so does a Codex rescuer's thread id" || bad "nl codex leak"
+grep -q '^STOPPED: cxn: no --no-daemon' <<< "$(nlstop "${envcx/ --no-daemon/}")" && ok "a codex seat without --no-daemon stops the run" || bad "nl daemon"
+grep -q '^STOPPED: cxn: its process has another identity' <<< "$(nlstop "${envcx/ZMAIL_INSTANCE=cxn/ZMAIL_INSTANCE=zeo-rt}")" && ok "a process with another identity stops the run, though its snapshot is right" || bad "nl identity"
+echo master > "$T/seatmark"
+grep -q '^STOPPED: cxn: its pane carries marker master' <<< "$(nlstop "$envcx")" && ok "a pane that carries a marker stops the run" || bad "nl pane mark"
+: > "$T/seatmark"
+envcl="/x/claude --resume 22222222-2222-4222-8222-222222222222 --permission-mode auto You were restarted HOME=/h ZMAIL_INSTANCE=cl"
+out=$(nlstop "$envcl" cl); echo "$out" | grep -qxF "FIRST SEAT OK cl: own identity, clean environment, $NG" && ok "the first claude seat is proved with no gate" || bad "nl claude proof: $out"
+out=$(NL --check --seat cl 2>&1); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -qxF "OK cl (claude), $NG" && echo "$out" | grep -q "^check: ok 1, wrong 0; $NG" && ok "--check passes it, and says no gate" || bad "nl check: $rc $out"
+printf '%s' "$envcl CLAUDECODE=1" > "$T/psE.out"
+out=$(NL --check --seat cl 2>&1); grep -q "^WRONG cl (claude): its process has the rescuer.s CLAUDECODE, so its environment is not clean; $NG" <<< "$out" && ok "--check names a leaked environment" || bad "nl check leak: $out"
+grep -q '^STOPPED: cl: its process has ZEO_TMUX_SEAT' <<< "$(nlstop "$envcl ZEO_TMUX_SEAT=master" cl)" && ok "a claude seat with seat settings stops the run" || bad "nl claude loader"
+out=$(R --seat cl --seat cxn 2>&1); echo "$out" | grep -q 'no gate' && bad "without the flag a line said no gate" || ok "without the flag nothing says no gate"
+: > "$T/psE.out"; echo master > "$T/seatmark"; reset_live; rm -f "$T/snapwrite"
+
 echo "-- reseating a live seat"
 reset_live
 printf 'export ZEO_TMUX_SEAT=master\nexport ZMAIL_INSTANCE=cx\nexport GIT_ALLOW_PROTOCOL=ssh:https:file\n' > "$T/snapwrite"
