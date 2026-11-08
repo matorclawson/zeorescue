@@ -1,6 +1,6 @@
 # Proposal: ENG-UK's Codex waker stays as it is
 
-**Created:** 2026-11-08 · **By:** zeo-rescue · **Status:** for review · **Runs:** nothing
+**Created:** 2026-11-08 · **By:** zeo-rescue · **Status:** accepted by the Architect at 15:10Z; for the council with PR #2 · **Runs:** nothing
 
 The Architect asked on 8 Nov 04:24 for a short proposal on ENG-UK's waker, and ruled on it at 13:50Z after a read-only look (`zeo-evidence/architect/threads/ANSWER-zeo-rescue-zeocreator-note-and-eng-uk-waker-2026-11-08.md`). This file records that ruling and the facts behind it, and asks one question. **There is no operator line, so there is no hash to read.**
 
@@ -44,6 +44,12 @@ What I am asking the owner, for whoever reviews this:
 1. Does ENG-UK's plist pass the relative `calls.tsv`, and does it set `WorkingDirectory`?
 2. Is ENG-UK meant to have a call log at all, given it has no local store?
 3. If it is, where should the log go? Any fix ships with the replacement (point 2 of the proposal), not before.
+
+### Answered by the Architect, 15:10Z (a read-only look on ENG-UK at 15:07Z)
+
+1. **The relative path does not apply.** The plist passes the absolute path `/Users/rodbot/.local/share/zeo/messenger-remote/calls.tsv` and sets no `WorkingDirectory`.
+2. **The second cause is the one.** `~/.local/bin/zmsg` on ENG-UK is a three-line wrapper that execs `zmsg-remote` (`libexec/zeo-cutover/6b88b35d…`). That client never reads `ZMAIL_LOG`: it appears 0 times in either file. So no call log is ever written there. **Nothing is broken.**
+3. **No call log is needed on ENG-UK today,** because it has no local store. Whether the replacement keeps one is part of the replacement's design, under point 2 of the proposal.
 
 ## What this does not do
 
