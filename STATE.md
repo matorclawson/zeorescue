@@ -2,13 +2,40 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-08 15:20 GMT, by `zeo-rescue`: zeocreator-note delivered and accepted; PR #3 accepted, both PRs go to the council; dt-animationstudio-ops next.
+Last updated: 2026-11-08 16:00 GMT, by `zeo-rescue`: the ducktyper-ops move built and rehearsed, its two lines waiting for the Architect's read; make check ok 49, wrong 1 (its line) until line 1.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**16:00 GMT, 8 Nov: the ducktyper-ops move is built, tested and rehearsed. Its two lines wait for the Architect's read. Nothing has run on the seat.**
+- **Code and lines.** The code is `3998a360`. The lines are in `notes/ducktyper-ops-lines-20261108.txt`, reseat-lines.sh `dba45d67…`.
+- **The seat as read today.**
+  - Seat id `ducktyper-ops`, tmux `dt-animationstudio-ops`. Claude 2.1.318, pid 1326, `--permission-mode auto`, session `ca076ba8` (an 84 MB transcript), 4 memory files.
+  - Its folder `/Volumes/AIPEMedia1/code/zeroemployeeorg/ducktyper-ops` is **empty**: inode `75427963`, not in git, no settings. Its work is in `/Volumes/ZeoWork/ducktyper-ops`, as its memory says.
+  - Its saved prompt names the old key's memory folder (26 times).
+- **The new folder: `/Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops`, proposed for the Architect to confirm.** The Architect names folders. Its line is in `folder-moves` and its session in `session-pins`, so `make check` reads ok 49, wrong 1 until line 1 runs. The same was true of zbs.
+- **Why not a rename.** A probe on 2.1.318 renamed a live seat's empty folder. The seat's next Bash call failed: `Working directory "…" was deleted; shell cwd recovered to` its home. It ran from home after that.
+  - So nothing moves under the live seat.
+  - `ops-move.sh folder` makes the new folder, empty and mode 755, and doesn't touch the seat.
+  - `claude-first` stops the seat, renames its project with its memory, and starts it in the new folder.
+  - `ops-move.sh old` removes the old empty folder, and only when the seat is working in the new one.
+- **`claude-first`** now proves that the note's words reached the transcript, and runs once (`ops-move-ducktyper-ops/first.done`). The note is `notes/claude-move-ducktyper-ops-20261108.txt`. It names the new memory folder and says the old one must never be written or made. `claude_ready` reads the inode of the folder the step made from the step's own mark.
+- **Tests.**
+  - `make test` passes: 319 hermetic checks, and `tmux-test`.
+  - 18 guards were mutated one at a time on a copy. Each was caught by its own test, after one test was added for a move that fails.
+  - All 10 of the folder step's read guards pass on the real state, read by hand.
+- **Rehearsal** (`rehearsal/ops-move.sh`): the real transcript and memory, with the seat started by rescue on 2.1.318.
+  - `ops-folder` ran with the seat live, and the same process stayed up in its old folder.
+  - `claude-trust`, then `claude-first` on 2.1.319: `MOVED OK`, `check: ok 1`, `NOTE DELIVERED`, 6.3 s.
+  - The note and the memory index from the new key reached the model. No old-key folder came back.
+  - `ops-old` removed the old folder, and `claude-clear` deleted the backup. Second runs were ALREADY DONE. The real seat was unchanged.
+- **The next two ops seats are different shapes.**
+  - `profrod-ops`: 965 MB, holding `.claude` and a `profrod-site` repository.
+  - `rasa-ops`: 321 MB, holding `.claude`, `fork` and `resources` repositories.
+  - Each gets its own read and design after ducktyper-ops.
 
 **15:20 GMT, 8 Nov: zeocreator-note ran clean and was accepted, so item 4 is closed. PR #3 is accepted, and both PRs go to the council.** (`threads/ANSWER-zeo-rescue-waker-pr3-and-zeocreator-done-2026-11-08.md`)
 
