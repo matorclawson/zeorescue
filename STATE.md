@@ -2,13 +2,61 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-08 16:00 GMT, by `zeo-rescue`: the ducktyper-ops move built and rehearsed, its two lines waiting for the Architect's read; make check ok 49, wrong 1 (its line) until line 1.
+Last updated: 2026-11-08 23:10 GMT, by `zeo-rescue`: the structure reseats designed; the carry built, tested and rehearsed; zeoarchitect's two lines wait for the Architect's read. make check reads WRONG for zeoarchitect until line 1.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**23:10 GMT, 8 Nov: the structure reseats. The design and zeoarchitect's lines wait for the Architect's read. Nothing has run on any seat.**
+- **The order.** The Architect's 22:10Z order is in `threads/ANSWER-zeo-rescue-structure-reseats-2026-11-08.md`. It says to move the 23 rows of `STRUCTURE-INVENTORY-2026-11-08/per-seat-reseat.tsv` into `<org>/<repo>/{main,worktrees/<seat>}`, one seat at a time, by the ducktyper-ops method. The design and the first seat's lines go to the Architect first.
+- **ducktyper-ops is closed.**
+  - The Architect accepted it at 18:15 (`ANSWER-zeo-rescue-ducktyper-ops-move-2026-11-08.md`), as Do 375.
+  - Line 1 ran at 18:29: MADE, then NOTE DELIVERED after byte 83787718, check ok 1. Line 2 ran at 18:39: REMOVED, and the backup is gone.
+  - The seat works in `ducktyper-ai/ducktyper-ops`. At 18:32 it made `doorbells` there, a git repository with its waker running in it.
+  - The new list moves this seat again, to dt-animationstudio/worktrees: design question 1.
+- **The design:** `notes/DESIGN-structure-reseats-20261108.md`. It holds the read of all 20 seats, the method, the proof, and 11 questions.
+  - **New in rescue.sh.** A `carry` line in folder-moves moves the seat's own clone while the seat is stopped, then repairs the clone's linked worktrees.
+  - **New: `structure-move.sh SEAT trust|first|clear`.** It reads one row of the pinned `structure-moves` and refuses any state but "before" or "after". reseat-lines.sh runs it as `structure-trust|structure-first|structure-clear SEAT`.
+  - **The note:** `notes/structure-move-claude.txt` is a template. It is rendered with the seat's four paths.
+- **The first seat: zeoarchitect.** Its row says inode `65492221`, session `766f4d22`, to `zeroemployeeorg/zeoarchitect/main`.
+  - It is clean and on main, written in Go with no virtualenv.
+  - Only the seat works in it. It has one live linked worktree outside, `/Volumes/ZeoWorkCS/zeoarchitect/za-ci`, and 7 prunable ones.
+  - Nothing on the host names its path.
+  - Read-only today, its plan stops only at the missing trust entry. `make check` now reads WRONG for it until line 1, as with ducktyper-ops.
+- **Code and lines.** The code is `a76266c2`.
+  - reseat-lines.sh is `26dc26924a17b243d73173746fb955078875d7f436d38f5da9eb4bdb13a11f1f`.
+  - Pins: rescue.sh `633424ca`, structure-move.sh `f67d0e65`, structure-moves `09108ef5`, the note template `6bd94575`, folder-moves `ed89d274`. session-pins is unchanged, at `1adcb305`.
+  - The lines are in `notes/zeoarchitect-structure-lines-20261108.txt`. Line 1 is `structure-trust zeoarchitect && structure-first zeoarchitect`, with the seat idle. Line 2 is `structure-clear zeoarchitect`, after the Architect accepts the seat's reply.
+  - The Architect sets `NNN`, the Do number, in each echo.
+  - Both lines were tested in bash and `zsh -f`, with verify in place of the steps: they verified at the real hash, and refused on a wrong place and on a wrong hash.
+- **Tests.** `make test` passes: rescue-test 383 ok (it was 319), and tmux-test PASS.
+  - The carry has 31 tests, structure-move.sh has 30, and there are 3 pin-change tests.
+  - Mutations, on copies:
+
+    | result | guards |
+    |---|---|
+    | caught | 34 |
+    | removed | 2 checks found implied by others: the git-dir half of "ordinary clone", and a line count |
+    | given a test | 1, a placeholder left in the note |
+- **Rehearsal** (`rehearsal/structure-move.sh`, `dd218c65`), on the final code: a copy of zeoarchitect's real 90.8 MB transcript and its 5 memory files, with a clone of the same shape.
+  - The seat started on 2.1.318.
+  - structure-first refused 2.1.318, and refused before the trust entry. Then trust ran, and structure-first on 2.1.319 printed CARRIED, MOVED OK, check ok 1 and NOTE DELIVERED, in 6.1 s.
+  - The clone kept its inode and HEAD, and its untracked and ignored files came along. The old path holds only main/.
+  - The linked worktree reaches the new .git, and the prunable one was left as it was.
+  - The note and the memory under the new key reached the model, and the harness told it the working directory was main. The old key didn't come back.
+  - clear ran, and the second runs said ALREADY DONE, NOTHING TO ADD and NOTHING TO DELETE.
+  - The real side was unchanged.
+  - The output is not in the repository. It printed the lines above.
+- **Read on 8 Nov 22:15Z, for the next seats.**
+  - zeoapp was busy: a gate run in its folder.
+  - zeocouncil has 11 uncommitted entries and had a pipeline running.
+  - The wakers in zeocontrolling, zeocouncil, zeomessenger, zeoconnect-ops/org and ducktyper-ops/doorbells are children of their seats' own Claude processes, so they stop with the seat.
+  - Folders with a .venv: zeoconnect, zeocore (four), zeonewsroom (design question 7).
+  - Seven seats are Codex. structure-move.sh refuses them until a Codex carry is rehearsed.
+- **A refusal to remember.** The classifier refused one call that bundled `structure-move.sh zeoarchitect first` with read-only plans, because that step can restart a seat. It was not retried. Only the plan without `--apply`, and `--check`, were run.
 
 **16:00 GMT, 8 Nov: the ducktyper-ops move is built, tested and rehearsed. Its two lines wait for the Architect's read. Nothing has run on the seat.**
 - **Code and lines.** The code is `3998a360`. The lines are in `notes/ducktyper-ops-lines-20261108.txt`, reseat-lines.sh `dba45d67…`.
