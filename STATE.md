@@ -2,13 +2,30 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-08 04:50 GMT, by `zeo-rescue`: zbs moved and accepted, ok 50; the zeocreator-note fix rehearsed and waiting for the Architect's read; branch pushed, PR #2 open for council review; teardown closed as unknown; waker proposal owed; the three ops seats next.
+Last updated: 2026-11-08 14:35 GMT, by `zeo-rescue`: zbs closed; the zeocreator-note line accepted and with the operator; the waker left as it is, proposal PR #3; the three ops seats next.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**14:35 GMT, 8 Nov: the Architect's word of 13:50Z. zbs closed. The zeocreator-note line is accepted and with the operator. The waker stays as it is, and the proposal is PR #3.** (`threads/ANSWER-zeo-rescue-zeocreator-note-and-eng-uk-waker-2026-11-08.md`)
+
+- **zbs: closed.**
+- **zeocreator-note: accepted.**
+  - The Architect checked reseat-lines.sh `6daee41b` at `e6c3b9c`: all 13 pins equal the files at `536c463`, the proof sentence is in the note, the old memory folder does not exist, and `rescue-test` passes there.
+  - The line is with the operator. If it prints BUSY, run it again later.
+  - Expected: the Claude version, then `RESEAT`, `RESUMED`, `FIRST SEAT OK`, `check: ok 1`, `NOTE DELIVERED`.
+  - If it prints `NOT DELIVERED`, bring it to the Architect. A re-run refuses once the words are in the transcript, and the mark stays missing, so nothing runs twice.
+  - After it runs, read the seat's reply and record it here.
+- **The waker: leave it exactly as it is.** The Architect looked at ENG-UK read-only at 13:45Z:
+  - PID 15291 runs under `ac.zeo.messenger.codex-wake`, binary `4d358cf3` (29 Oct). Its config names one seat, `pomar`, and it wakes thread `01a101bc`, which the live `pomar-maintainer` holds. It last woke the seat at 08:04Z.
+  - pomar-cc has its own hook (PID 5866).
+  - No restart, config edit or binary change. Any change ships with its replacement, as an operator line on the Architect's word.
+  - The proposal is on its own branch off `main`, `zeo-rescue/eng-uk-waker-proposal-20261108` at `df64fb53`: PR #3, https://github.com/matorclawson/zeorescue/pull/3. It runs nothing, so it has no hash.
+  - The missing `calls.tsv` is a question there, not a fix. In the source, the waker only passes `-call-log` to `zmsg` as `ZMAIL_LOG`, and `zmsg` drops a failed log write without a word. So a relative `calls.tsv` under launchd's default working directory `/` would fail and leave no file. A remote-only `zmsg` would do the same.
+- **Next:** the zeocreator result, then the three ops seats, one at a time, rehearsed the same way.
 
 **04:50 GMT, 8 Nov: zbs moved and accepted; `make check` ok 50, wrong 0. The zeocreator-note fix waits for the Architect's read.**
 
@@ -17,7 +34,7 @@ Last updated: 2026-11-08 04:50 GMT, by `zeo-rescue`: zbs moved and accepted, ok 
 - **wt-screensaver:** keep it. "repair: .git file broken" is git's normal report of a fix: reproduced, exit 0, link right. Its link is right, and git reads it. Nothing uses it: no process, pane, chart entry, wallpaper, screensaver or launch agent. Its commit (29 Sep) is on `origin/main`, its upstream branch is gone, and its only untracked files are two empty npm leftovers. But its ignored `data/screensaver/` holds 65 wallpaper files (37 MB) that are not in the seat's `data/`: the commit's "kept where nothing deletes them". Pruning it would lose them.
 - **Pushed** on the Architect's order. The remote read back `78d2824` after the push. PR #2 (https://github.com/matorclawson/zeorescue/pull/2) is open for the council's review, at the operator's request. This seat has no mailbox (`zmsg whoami` 403), so the council has to be asked through the Architect.
 - **The teardown: closed. Cause unknown, none found.** The log cannot say what ended the session.
-- **The waker:** proposal owed. It needs a read of ENG-UK's waker (the pre-existing Codex waker, PID 15291 on 7 Nov), and the standing order is not to touch ENG-UK, so I asked the Architect for a read-only look first.
+- **The waker:** answered at 13:50Z; see the block above.
 - **Next:** the zeocreator line after the Architect's read; then the three ops seats, one at a time.
 
 **8 Nov: the Architect's word of 03:09 is done here, and the new zbs lines wait for the Architect's read. Nothing has run on the seat.** Code `e004751`. The lines are in `notes/zbs-lines-20261108.txt`, reseat-lines.sh `b3cdc793…`; they replace the 7 Nov lines, which were removed.
