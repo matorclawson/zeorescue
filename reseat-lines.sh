@@ -14,8 +14,10 @@
 #   reseat-lines.sh claude-trust adds the Claude trust entry for the seat moving (zbs; zeocreator moved on 6 Nov), under Claude's own config lock; starts nothing
 #   reseat-lines.sh codex-untrust removes the two Codex trust entries for folders that left rodriveracom, only from the exact file the Architect read; starts nothing
 #   reseat-lines.sh zbs-repo     makes the zbs seat's folder its own repository and sets the 24 Sep checkout aside; refuses while the seat is working
-#   reseat-lines.sh zbs-folder   moves that folder whole to its new path, with its memory and its one allow rule; after zbs-repo
+#   reseat-lines.sh zbs-folder   moves that folder whole to its new path, with its memory, its one allow rule and the 20 guard rules mirrored; after zbs-repo
+#   reseat-lines.sh zbs-folder-abs  the same, with the 20 mirrored rules as absolute paths, the form that takes effect; the Architect picks one of the two
 #   reseat-lines.sh claude-first restarts that one Claude seat in its new folder; says which Claude will run; refuses while it is working, or on a Claude nobody rehearsed
+#   reseat-lines.sh zeocreator-note  restarts zeocreator in place with a note naming its real memory folder; refuses while it is working, or on a Claude nobody rehearsed
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
 set -uo pipefail
@@ -32,6 +34,8 @@ CLAUDE_SEAT=zbs
 CLAUDE_OLD=/Volumes/AIPEMedia1/code/zeroemployeeorg/zeobroacastingstudio-zbs
 CLAUDE_NEW=/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main
 CLAUDE_NOTE=notes/claude-move-zbs-20261107.txt
+# zeocreator, on the Architect's word of 2026-11-08 03:09: its saved prompt names a memory folder that went on 6 Nov.
+ZEOCREATOR_NOTE=notes/zeocreator-memory-20261108.txt
 # The folder read on 7 Nov, by inode: until the seat's own folder is at CLAUDE_NEW, the 24 Sep checkout is, and it must never be trusted or started in.
 CLAUDE_INODE=10850475
 CLAUDE_REHEARSED=2.1.319
@@ -47,7 +51,7 @@ STATE=${ZEO_RESCUE_STATE:-$HOME/.local/state/zeo-rescue}
 CLAUDE_BACKUP=$STATE/claude-json.before-20261107
 CLAUDE_READY_MARK=$STATE/zbs-move-20261107/folder.done
 step=${1:-}
-case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|claude-trust|claude-first|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|claude-trust|claude-first|claude-clear|claude-back; nothing was run"; exit 2;; esac
+case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|claude-trust|claude-first|zeocreator-note|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|claude-trust|claude-first|zeocreator-note|claude-clear|claude-back; nothing was run"; exit 2;; esac
 place="$(id -un)@$(hostname -s)"
 [ "$place" = "$WANT" ] || { echo "WRONG PLACE, nothing was run: you are $place. Open the rodbot terminal on the Mac mini."; exit 2; }
 cd "$HERE" || exit 2
@@ -64,8 +68,9 @@ pin be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2 notes/lic-t
 pin caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de notes/codex-relaunch-20261106.txt
 pin 4b3a5e9438aceea6a0026dd31f5af213f8a7aacdf755491d13b28a79ef8d4a51 folder-moves
 pin 13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d zshenv-lines.sh
-pin 3b968b7c72d7a51005af896e2f897e4e9ed41bd19f024557662c07dea61a5e28 notes/claude-move-zbs-20261107.txt
-pin 214588547e2b625d5c1c165892dc8efa255defa078c1b8cedb5dbe003cf95759 zbs-move.sh
+pin c8cae72eb76d4376a682d9425486d0e47c48e7f7c1c5ee046b51b34532ef7afb notes/claude-move-zbs-20261107.txt
+pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
+pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2
 moves_ready() { # every seat has its folder, and the folder exists; the folders are the Architect's to name
@@ -146,6 +151,7 @@ case "$step" in
     echo "REMOVED: $c entries are gone from $CODEX_CONFIG, now $(sha "$CODEX_CONFIG"); backup at $b. Tell zeo-rescue: done."; exit 0;;
   zbs-repo) STATE="$STATE" ./zbs-move.sh repo 2>&1 | tee "$log";;
   zbs-folder) STATE="$STATE" ./zbs-move.sh folder 2>&1 | tee "$log";;
+  zbs-folder-abs) STATE="$STATE" ./zbs-move.sh folder-abs 2>&1 | tee "$log";;
   claude-trust)
     claude_ready
     if [ "$(jq -r --arg d "$CLAUDE_NEW" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON")" = true ]; then echo "NOTHING TO ADD: $CLAUDE_NEW is already trusted; nothing was changed"; exit 0; fi
@@ -171,6 +177,12 @@ case "$step" in
     w=$(./rescue.sh --reseat --relaunch --harness claude --seat "$CLAUDE_SEAT" 2>&1 | /usr/bin/grep 'a turn is in progress')
     [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when it is idle:"; echo "$w"; exit 2; }
     { echo "claude $v"; make reseat ARGS="--relaunch --harness claude --seat $CLAUDE_SEAT --note-file $CLAUDE_NOTE" && make check ARGS="--seat $CLAUDE_SEAT"; } 2>&1 | tee "$log";;
+  zeocreator-note)
+    v=$("$CLAUDE_BIN" --version 2>/dev/null | /usr/bin/awk 'NR==1 {print $1}'); echo "the Claude that will run: ${v:-unknown}; rehearsed on $CLAUDE_REHEARSED"
+    [ "$v" = "$CLAUDE_REHEARSED" ] || { echo "VERSION CHANGED, nothing was run: Claude is ${v:-unknown} and the rehearsal ran on $CLAUDE_REHEARSED. Bring this to zeo-rescue."; exit 2; }
+    w=$(./rescue.sh --reseat --relaunch --harness claude --seat zeocreator 2>&1 | /usr/bin/grep 'a turn is in progress')
+    [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when it is idle:"; echo "$w"; exit 2; }
+    { echo "claude $v"; make reseat ARGS="--relaunch --harness claude --seat zeocreator --note-file $ZEOCREATOR_NOTE" && make check ARGS="--seat zeocreator"; } 2>&1 | tee "$log";;
   claude-clear)
     claude_ready
     ./rescue.sh --check --seat "$CLAUDE_SEAT" 2>&1 | /usr/bin/grep "^OK $CLAUDE_SEAT " >/dev/null || { echo "OUT OF ORDER, nothing was deleted: $CLAUDE_SEAT is not right yet."; exit 2; }

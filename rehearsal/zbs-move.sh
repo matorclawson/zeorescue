@@ -9,6 +9,7 @@
 # refuse to start if they could reach zeo2 or a real folder. Private tmux socket and config; the API is a local listener. Nothing leaves this machine.
 # KEEP=1 keeps the working folder, which holds a copy of the transcript.
 set -uo pipefail
+FOLDER=${FOLDER:-zbs-folder}; case "$FOLDER" in zbs-folder|zbs-folder-abs) ;; *) echo "FOLDER is zbs-folder or zbs-folder-abs"; exit 2;; esac
 port=${1:-39032}; HERE=$(cd "$(dirname "$0")" && pwd -P); R0=$(dirname "$HERE")
 orig=d7fc6540-05c6-43ec-94c5-520b66af4133 sid=ffffffff-05c6-43ec-94c5-520b66af4133
 RS=/Volumes/AIPEMedia1/code/zeroemployeeorg/zeobroacastingstudio-zbs RM=/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main RW=/Volumes/ZeoWork/tmp/zbs/wt-screensaver
@@ -104,8 +105,8 @@ echo "rz $MAIN" > "$P/run/folder-moves"
 Ln zbs-repo 2>&1 | grep -E '^(READ|PRUNED|MOVED|PROVED|REPO DONE|REFUSED|BUSY|STOPPED|OUT OF ORDER)' | show
 projs "after zbs-repo"
 turn 'a wake after the repo step'; [ "$(pane '#{pane_pid}')" = "$pid" ] && echo "the same process is still up" || echo "IT DIED in the repo step"; projs "after its wake"
-echo "== zbs-folder with the seat live"
-Ln zbs-folder 2>&1 | grep -E '^(CLEARED|MOVED|PROVED|MEMORY|SETTINGS|FOLDER DONE|REFUSED|BUSY|STOPPED|OUT OF ORDER)' | show
+echo "== $FOLDER with the seat live"
+Ln "$FOLDER" 2>&1 | grep -E '^(CLEARED|MOVED|PROVED|MEMORY|SETTINGS|FOLDER DONE|REFUSED|BUSY|STOPPED|OUT OF ORDER)' | show
 turn 'a wake after the rename'; [ "$(pane '#{pane_pid}')" = "$pid" ] && echo "the same process is still up" || echo "IT DIED under the rename"
 printf 'old folder there: %s; a project made under the new folder: %s\n' "$([ -e "$SEAT" ] && echo YES || echo no)" "$([ -e "$ne" ] && echo YES || echo no)"
 echo "== claude-trust, then claude-first on $INSTALLED"
@@ -125,6 +126,7 @@ printf 'the memory path its prompt names: %s\n' "$(jq -r '.system | if type=="ar
 jq -r '[.messages[]|.content|if type=="array" then map(.text//"")|join(" ") else . end]|join(" ")' "$last" > "$P/all.txt"; printf 'last words [%s] found: ' "$(cat "$P/lastwords")"; LC_ALL=C grep -oF -f "$P/lastwords" "$P/all.txt" | wc -l | tr -d ' '
 printf 'the note reached it: '; LC_ALL=C grep -c 'the broadcasting studio now belongs to ducktyper-ai' "$P/all.txt"
 printf 'and its word on the memory path: '; LC_ALL=C grep -c 'The memory path in your system prompt is an old saved copy' "$P/all.txt"
+printf 'and its word on the rules: '; LC_ALL=C grep -c 'a copy of each deny and ask rule that guards' "$P/all.txt"
 printf 'the turns before and after the steps reached it: '; for w in 'a wake before the move' 'a wake after the repo step' 'a wake after the rename'; do printf '%s ' "$(LC_ALL=C grep -c "$w" "$P/all.txt")"; done; echo
 echo "== on disk"
 printf 'old project gone: %s; memory in the new project: %s files, the same bytes as the real memory (its MEMORY.md without the marker): %s; its old place empty: %s\n' "$([ -e "$oe" ] && echo NO || echo yes)" "$(find "$ne/memory" -type f | wc -l | tr -d ' ')" \
@@ -134,8 +136,13 @@ tail -c +$((b2+1)) "$ne/$sid.jsonl" | jq -r 'select(.cwd) | [.sessionId,.cwd]|@t
 printf 'the repository: own git dir %s; HEAD %s; worktrees: %s\n' "$([ "$(git -C "$MAIN" rev-parse --absolute-git-dir)" = "$MAIN/.git" ] && echo yes || echo NO)" "$(git -C "$MAIN" rev-parse --short HEAD)" "$(git -C "$MAIN" worktree list --porcelain | sed -n 's/^worktree //p' | show | paste -sd' ' -)"
 printf 'git status as the real seat and wt-screensaver read it: %s %s\n' "$([ "$(snap "$RS" | sed 's#/STAND-IN##')" = "$(snap "$MAIN")" ] && echo yes || echo NO)" "$([ "$(snap "$RW")" = "$(snap "$WT")" ] && echo yes || echo NO)"
 printf 'the 24 Sep checkout set aside without .git: %s; allow rule: %s\n' "$([ -d "$P/w/dt/main-old-20260924" ] && [ ! -e "$P/w/dt/main-old-20260924/.git" ] && echo yes || echo NO)" "$(jq -r '.permissions.allow[] | select(test("dt-broadcastingstudio|^Edit\\(/Volumes/AIPEMedia1/code/zeroemployeeorg/\\*\\*\\)$"))' "$MAIN/.claude/settings.local.json" | paste -sd' ' -)"
+sl=$MAIN/.claude/settings.local.json rl=$RS/.claude/settings.local.json
+printf 'the settings against the real seat'"'"'s: deny %s then %s, ask %s then %s; every old rule kept, in order: %s; changed lines: %s out, %s in\n' "$(jq '.permissions.deny | length' "$rl")" "$(jq '.permissions.deny | length' "$sl")" "$(jq '.permissions.ask | length' "$rl")" "$(jq '.permissions.ask | length' "$sl")" \
+  "$([ "$(jq -c '[.permissions.deny[], .permissions.ask[]] | map(select(test("dt-broadcastingstudio/main/") | not))' "$sl")" = "$(jq -c '[.permissions.deny[], .permissions.ask[]]' "$rl")" ] && echo yes || echo NO)" \
+  "$(/usr/bin/diff "$rl" "$sl" | grep -c '^<')" "$(/usr/bin/diff "$rl" "$sl" | grep -c '^>')"
+echo "  mirrored: $(jq -r '[.permissions.deny[], .permissions.ask[]] | map(select(test("dt-broadcastingstudio/main/")) | sub("Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/.*"; "…")) | group_by(.) | map("\(length) \(.[0])") | join(", ")' "$sl")"
 echo "== second runs, then a crash"
-Ln zbs-repo 2>&1 | grep -E '^(ALREADY|REFUSED)' | show; Ln zbs-folder 2>&1 | grep -E '^(ALREADY|REFUSED)' | show
+Ln zbs-repo 2>&1 | grep -E '^(ALREADY|REFUSED)' | show; Ln zbs-folder 2>&1 | grep -E '^(ALREADY|REFUSED)' | show; Ln zbs-folder-abs 2>&1 | grep -E '^(ALREADY|REFUSED)' | show
 R --reseat --relaunch 2>&1 | grep -E '^(OK|RESEAT)' | show
 "$TM" -L "$S" kill-session -t '=rz-s'; perl -e 'select(undef,undef,undef,1)'
 R 2>&1 | grep -E '^(RESUME|MOVE|UNRESOLVED)' | show

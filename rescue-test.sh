@@ -513,14 +513,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt zbs-move.sh folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt zbs-move.sh folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt zbs-move.sh folder-moves zshenv-lines.sh; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt zbs-move.sh folder-moves zshenv-lines.sh; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -606,6 +606,11 @@ rm -f "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/ch
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is unknown' && ok "and one it cannot read" || bad "no version: $rc $out"
 rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "$rv (Claude Code)" > "$T/ver"; out=$(STATE="$T/state" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1)
 echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "the version is read just before the line and printed, in the kept log too" || bad "version print: $out"
+echo "2.1.999 (Claude Code)" > "$T/ver"; rm -f "$T/launched"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L zeocreator-note 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is 2.1.999' && [ ! -e "$T/launched" ] && ok "zeocreator-note refuses a Claude nobody rehearsed too" || bad "zc version: $rc $out"
+echo "$rv (Claude Code)" > "$T/ver"; out=$(STATE="$T/state" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L zeocreator-note 2>&1)
+echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "and prints the version it runs on" || bad "zc version print: $out"
+grep -q 'zeroemployeeorg-zeocreator/memory/' "$HERE/notes/zeocreator-memory-20261108.txt" && grep -q "never in the old folder" "$HERE/notes/zeocreator-memory-20261108.txt" && grep -qF "$(printf %s /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')/memory/" "$HERE/notes/zeocreator-memory-20261108.txt" && ok "its note names the old memory folder as gone, and the real one by the key of its folder" || bad "zc note"
 SIDC=d7fc6540-05c6-43ec-94c5-520b66af4133; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zbs","mailbox":"zbs","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
 C() { ZEO_RESCUE_CHART="$T/zc.json" ZEO_RESCUE_PINS="$T/run/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_PROJECTS="$T/pc" ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L "$@" 2>&1; }
 mkdir -p "$T/pc/$kc"; : > "$T/pc/$kc/$SIDC.jsonl"; echo x > "$B"; echo zc >> "$T/live"; echo "zc|%9|900|1|claude" > "$T/panes"; echo "900 /x/claude --resume $SIDC" > "$T/ps.out"
@@ -634,6 +639,13 @@ echo "-- the zbs move: the seat's folder becomes the repository, then moves whol
 Z=$(cd "$T" && pwd -P)/z; ZG() { git -c user.email=t@t -c user.name=t -c init.defaultBranch=main "$@"; }
 printf '#!/bin/bash\ncat "%s/lsofz.out" 2>/dev/null\n' "$T" > "$T/bin/lsofz"; chmod +x "$T/bin/lsofz"
 ZPRUNE="-engine r41-38 verify-main-3b16cf4 verify-pr-43b283e wt-dryrun wt-ecamm wt-jev wt-mcp2 wt-series wt-split"
+zsettings() { # the seat's settings in the shape read on 8 Nov: the allow rule, the 16 deny and 4 ask rules to mirror, others around them
+  jq -n --arg p /Volumes/AIPEMedia1/code/zeroemployeeorg/ '{permissions: {allow: ["Bash(ls)", "Edit(\($p)**)"],
+    deny: (["Bash(rm -rf:*)"] + ([".git/**", "**/.git/**", ".git", "**/.git", "**/.githooks/**", "**/.husky/**", "*.git/hooks/**", "**/*.git/hooks/**"] | map("Edit(\($p)\(.))", "Write(\($p)\(.))")) + ["Read(**/*.pem)"]),
+    ask: ((["**/Makefile", "**/*.mk"] | map("Edit(\($p)\(.))", "Write(\($p)\(.))")) + ["Edit(~/code/x/**/Makefile)"])}}'; }
+zwant() { # what the folder step must leave: the allow rule moved, each of the 20 followed by its mirror under the prefix $1, nothing else
+  zsettings | jq --arg q "$1" '.permissions.allow |= map(sub("^Edit\\(/Volumes/AIPEMedia1/code/zeroemployeeorg/"; "Edit(/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/"))
+    | (.permissions.deny, .permissions.ask) |= [.[] | ., (select(test("^(Edit|Write)\\(/Volumes/AIPEMedia1/code/zeroemployeeorg/")) | sub("\\(/Volumes/AIPEMedia1/code/zeroemployeeorg/"; "(\($q)"))]'; }
 mkz() { # the shape read on 7 Nov: a store with its own clean checkout, the seat's worktree, wt-screensaver, 10 dead records
   rm -rf "$Z"; mkdir -p "$Z/dt" "$Z/org" "$Z/tmpz" "$Z/proj" "$Z/state"; : > "$T/lsofz.out"; : > "$T/screen"
   ZM_MAIN=$Z/dt/main ZM_SEAT=$Z/org/zeobroacastingstudio-zbs ZM_WT=$Z/tmpz/wt-screensaver
@@ -641,7 +653,7 @@ mkz() { # the shape read on 7 Nov: a store with its own clean checkout, the seat
   ZG -C "$ZM_MAIN" update-ref refs/remotes/origin/main HEAD; ZM_MH=$(git -C "$ZM_MAIN" rev-parse HEAD)
   ZG -C "$ZM_MAIN" worktree add -q --detach "$ZM_SEAT"; echo b > "$ZM_SEAT/b.txt"; ZG -C "$ZM_SEAT" add b.txt; ZG -C "$ZM_SEAT" commit -qm B; ZM_SH=$(git -C "$ZM_SEAT" rev-parse HEAD)
   mkdir -p "$ZM_SEAT/data" "$ZM_SEAT/.claude"; echo class > "$ZM_SEAT/data/CLASS-ITAM.md"; ln -s data/CLASS-ITAM.md "$ZM_SEAT/CLASS-LINK.md"; echo u > "$ZM_SEAT/untracked.txt"
-  printf '{\n  "permissions": {\n    "allow": [\n      "Bash(ls)",\n      "Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)"\n    ],\n    "deny": [\n      "Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**/.git/**)"\n    ]\n  }\n}\n' > "$ZM_SEAT/.claude/settings.local.json"
+  zsettings > "$ZM_SEAT/.claude/settings.local.json"
   ZG -C "$ZM_MAIN" worktree add -q -b zbs/set-screensaver "$ZM_WT"; echo w > "$ZM_WT/w-untracked.txt"
   for n in $ZPRUNE; do ZG -C "$ZM_MAIN" worktree add -q --detach "$Z/tmpz/$n" && rm -rf "$Z/tmpz/$n"; done
   for d in "$ZM_MAIN/.git" "$ZM_MAIN/.git/worktrees/zeobroacastingstudio-zbs"; do for f in ORIG_HEAD FETCH_HEAD COMMIT_EDITMSG; do [ -f "$d/$f" ] || echo x > "$d/$f"; done; mkdir -p "$d/refs"; done
@@ -687,6 +699,13 @@ mkdir "$Z/proj/$ZM_KEY/memory"; zrefuse "two memories are never merged" 'memory 
 mkdir "$Z/proj/$(enc2 "$ZM_MAIN")"; zrefuse "a project already under the new folder is refused" "holds more than an empty memory folder" folder; mkdir "$Z/proj/$(enc2 "$ZM_MAIN")/memory"; : > "$Z/proj/$(enc2 "$ZM_MAIN")/memory/x.md"; zrefuse "so is one whose memory folder holds anything" "holds more than an empty memory folder" folder; rm -rf "$Z/proj/$(enc2 "$ZM_MAIN")"
 cp "$ZM_SEAT/.claude/settings.local.json" "$T/sl"; perl -i -pe 's#"Bash\(ls\)"#"Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)"#' "$ZM_SEAT/.claude/settings.local.json"; zrefuse "the allow rule must be there exactly once" 'exactly once' folder; cp "$T/sl" "$ZM_SEAT/.claude/settings.local.json"
 perl -i -pe 's#"Edit\(/Volumes/AIPEMedia1/code/zeroemployeeorg/\*\*/\.git/\*\*\)"#"Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)"#' "$ZM_SEAT/.claude/settings.local.json"; zrefuse "and its text only once, or a deny of the same text would move too" "the rule.s text is not on exactly one line" folder; cp "$T/sl" "$ZM_SEAT/.claude/settings.local.json"
+zset() { jq "$1" "$T/sl" > "$ZM_SEAT/.claude/settings.local.json"; }
+zset '.permissions.ask |= map(select(. != "Write(/Volumes/AIPEMedia1/code/zeroemployeeorg/**/*.mk)"))'; zrefuse "each rule to mirror must be there" 'ask rules do not hold Write(/Volumes/AIPEMedia1/code/zeroemployeeorg/\*\*/\*\.mk) exactly once' folder
+zset '.permissions.deny[0] = "Edit(/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/.git)"'; zrefuse "a mirror already there is refused" 'already hold Edit(/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/.git)' folder
+zset '.permissions.ask |= (.[1:] + .[:1])'; zrefuse "a rule last in its list, with no comma after it, is refused" 'is not alone on one line, followed by a comma' folder
+zset '.permissions.allow += ["Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/.git)"]'; zrefuse "so is a rule also named in another list" 'Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/.git) is not alone' folder
+cp "$T/sl" "$ZM_SEAT/.claude/settings.local.json"
+cp "$Z/zbs-move.sh" "$T/zm"; perl -i -pe "s/^MIRROR_ASK=.*/MIRROR_ASK='**\/Makefile'/" "$Z/zbs-move.sh"; zrefuse "a list of rules to mirror that is not the 20 read is refused" 'cannot list the 20 rules to mirror' folder; cp "$T/zm" "$Z/zbs-move.sh"
 echo '  Working (3s • esc to interrupt)' > "$T/screen"; zrefuse "the folder step refuses while the seat has a turn in progress" '^BUSY' folder; : > "$T/screen"
 cp "$Z/state/zbs-move-20261107/before-wt.txt" "$T/bw"; echo changed >> "$Z/state/zbs-move-20261107/before-wt.txt"; ino0=$(stat -f %i "$ZM_SEAT"); out=$(ZM folder); rc=$?
 [ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED at the proof: it differs from before' && [ -d "$mo" ] && [ ! -e "$ZM_MAIN/.claude/settings.local.json.zeo" ] && grep -q 'zeroemployeeorg/\*\*)"' "$ZM_MAIN/.claude/settings.local.json" && ok "a git status that differs stops it before the memory and the settings" || bad "proof stop: $rc $out"
@@ -698,13 +717,19 @@ out=$(ZM folder); rc=$?
 [ "$(cat "$ZM_WT/.git")" = "gitdir: $ZM_MAIN/.git/worktrees/wt-screensaver" ] && [ "$(git -C "$ZM_WT" status --porcelain=v2 --branch --ignored)" = "$wb" ] && [ "$(git -C "$ZM_MAIN" status --porcelain=v2 --branch --ignored)" = "$sb" ] && ok "wt-screensaver is repaired again, and both read as before" || bad "wt after: $(cat "$ZM_WT/.git")"
 [ ! -e "$mo" ] && [ "$(cd "$Z/proj/$ZM_KEY/memory" && find . -type f | LC_ALL=C sort | xargs shasum)" = "$mf" ] && ok "the memory moved into the seat's project, unchanged, for the restart's rename" || bad "memory: $(ls "$Z/proj/$ZM_KEY")"
 sj=$ZM_MAIN/.claude/settings.local.json
-[ "$(jq -c .permissions "$sj")" = '{"allow":["Bash(ls)","Edit(/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/**)"],"deny":["Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**/.git/**)"]}' ] && ok "the one allow rule moved, and nothing else in the settings changed" || bad "settings: $(jq -c . "$sj")"
+[ "$(jq -S . "$sj")" = "$(zwant /Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/ | jq -S .)" ] && [ "$(jq '.permissions.deny | length' "$sj") $(jq '.permissions.ask | length' "$sj")" = "34 9" ] && ok "the one allow rule moved, the 20 rules are mirrored after their old ones, which stay, and nothing else changed" || bad "settings: $(jq -c . "$sj")"
+echo "$out" | grep -q '^SETTINGS: .*; 16 deny and 4 ask rules mirrored under /Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main, each after' && ok "and it says so" || bad "settings line: $out"
 [ "$(stat -f %Lp "$Z/state/zbs-move-20261107/settings.local.json.before")" = 600 ] && [ -f "$Z/state/zbs-move-20261107/folder.done" ] && ok "the old settings are kept, mode 600, and the step marks itself done" || bad "settings backup"
-grep -q '^ALREADY DONE' <<< "$(ZM folder)" && ok "a second folder step changes nothing" || bad "folder twice: $(ZM folder)"
+grep -q '^ALREADY DONE: .*, by the step folder\. Nothing' <<< "$(ZM folder)" && ok "a second folder step changes nothing, and says which ran" || bad "folder twice: $(ZM folder)"
+grep -q '^ALREADY DONE: .*, by the step folder\. Nothing' <<< "$(ZM folder-abs)" && ok "nor does folder-abs after it" || bad "abs after: $(ZM folder-abs)"
+out=$(ZM fold); [ $? -eq 2 ] && grep -q '^usage: zbs-move.sh repo|folder|folder-abs; nothing was run' <<< "$out" && ok "an unknown step runs nothing" || bad "usage: $out"
+mkz; ZM repo > /dev/null; out=$(ZM folder-abs); rc=$?; sj=$ZM_MAIN/.claude/settings.local.json
+[ $rc -eq 0 ] && echo "$out" | grep -q '^FOLDER DONE' && echo "$out" | grep -q '^SETTINGS: .*; 16 deny and 4 ask rules mirrored under //Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main, each after' && [ "$(jq -S . "$sj")" = "$(zwant //Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/ | jq -S .)" ] && ok "folder-abs does the same, with the 20 mirrored rules as absolute paths" || bad "abs: $rc $out $(jq -c . "$sj")"
+[ "$(/usr/bin/diff "$Z/state/zbs-move-20261107/settings.local.json.before" "$sj" | grep -c '^>')" = 21 ] && grep -q '^ALREADY DONE: .*, by the step folder-abs\. Nothing' <<< "$(ZM folder)" && ok "21 lines added and 1 taken away; a second run says which step ran" || bad "abs diff"
 echo '#!/bin/bash
 echo "STUB $* STATE=$STATE"' > "$T/run/zbs-move.sh"; chmod +x "$T/run/zbs-move.sh"; zh=$(/usr/bin/shasum -a 256 "$T/run/zbs-move.sh" | cut -d' ' -f1); perl -i -pe "s/^pin [0-9a-f]+ zbs-move.sh\$/pin $zh zbs-move.sh/" "$T/run/reseat-lines.sh"
 out=$(STATE="$T/st2" L zbs-repo 2>&1); echo "$out" | grep -q "^STUB repo STATE=$T/state" && echo "$out" | grep -q '^result kept in' && ok "zbs-repo runs the pinned step with the state folder" || bad "wire: $out"
-grep -q '^STUB folder' <<< "$(L zbs-folder 2>&1)" && ok "and so does zbs-folder" || bad "wire folder"; rm -f "$T/screen"; cp "$HERE/zbs-move.sh" "$T/run/zbs-move.sh"
+grep -q '^STUB folder STATE' <<< "$(L zbs-folder 2>&1)" && ok "and so does zbs-folder" || bad "wire folder"; grep -q '^STUB folder-abs STATE' <<< "$(L zbs-folder-abs 2>&1)" && ok "and zbs-folder-abs" || bad "wire folder-abs"; rm -f "$T/screen"; cp "$HERE/zbs-move.sh" "$T/run/zbs-move.sh"
 echo "-- the two old Codex trust entries"
 ua="$T/d/goneA" ub="$T/d/goneB"; uc="$T/u.toml"; ubk="$T/state/codex-config.before-untrust-20261106"
 mku() { printf 'model = "x"\n\n[projects."/keep1"]\ntrust_level = "trusted"\n\n[projects."%s"]\ntrust_level = "trusted"\n\n[projects."%s"]\ntrust_level = "trusted"\n\n[projects."/keep2"]\ntrust_level = "trusted"\n' "$ua" "$ub" > "$uc"; chmod 640 "$uc"; rm -f "$ubk"; }

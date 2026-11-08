@@ -5,7 +5,9 @@
 #                       folder with the seat's own HEAD and index, its worktree record goes, wt-screensaver is repaired, and git status in both
 #                       must read as before. Then the 24 Sep checkout, with no .git left in it, is set aside.
 #   zbs-move.sh folder  the seat's folder moves whole to its new path, wt-screensaver is repaired again and read again, the seat's memory goes into
-#                       its project, so the project's one rename at the restart takes it along, and the one Edit allow rule moves to the new path.
+#                       its project, so the project's one rename at the restart takes it along, and the one Edit allow rule moves to the new path,
+#                       and the 20 rules that guard .git, hooks and Makefiles are mirrored under it (order of 2026-11-08 03:09).
+#   zbs-move.sh folder-abs  the same, with the mirrored rules written as absolute paths ("//"), the form that takes effect.
 #
 # Each step reads everything first and refuses with "nothing was changed" unless the state is exactly the one read on 7 Nov. It changes only
 # what it names, moves and never copies, and stops at the first failure, saying what is where. A second run says ALREADY DONE.
@@ -27,6 +29,15 @@ WT_REC=wt-screensaver
 PRUNE="-engine r41-38 verify-main-3b16cf4 verify-pr-43b283e wt-dryrun wt-ecamm wt-jev wt-mcp2 wt-series wt-split"
 RULE_FROM='Edit(/Volumes/AIPEMedia1/code/zeroemployeeorg/**)'
 RULE_TO='Edit(/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/**)'
+# The Architect's order of 2026-11-08 03:09: each deny and ask rule that guards .git, hooks or Makefiles under the old prefix gets the same rule
+# under the new folder, after it; the old rules stay. These are the 16 deny and 4 ask rules of that form, each as Edit and as Write.
+# The step "folder" writes them as ordered, with one leading slash. Claude anchors such a rule at the seat's own folder, so neither those
+# nor the seat's old ones match anything (tested on 2.1.318 and 2.1.319). "folder-abs" writes the same rules with "//", the form Claude reads
+# as an absolute path: then the Edit rules take effect, and the seat is asked before it edits its own Makefile.
+MIRROR_FROM=/Volumes/AIPEMedia1/code/zeroemployeeorg/
+MIRROR_TO=/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main/
+MIRROR_DENY='.git/** **/.git/** .git **/.git **/.githooks/** **/.husky/** *.git/hooks/** **/*.git/hooks/**'
+MIRROR_ASK='**/Makefile **/*.mk'
 # The files git keeps for each checkout. The store's own go aside; the seat's take their place.
 PER_TREE="HEAD index ORIG_HEAD COMMIT_EDITMSG FETCH_HEAD"
 STORE_TOP="COMMIT_EDITMSG config description FETCH_HEAD HEAD hooks index info logs objects ORIG_HEAD packed-refs refs worktrees"
@@ -37,8 +48,8 @@ TMUX_BIN=${ZEO_RESCUE_TMUX:-/opt/homebrew/bin/tmux}
 LSOF=${ZEO_RESCUE_LSOF:-/usr/sbin/lsof}
 D=$STATE/zbs-move-20261107
 export GIT_OPTIONAL_LOCKS=0 # a read must not write an index the seat may be using
-step=${1:-}
-case "$step" in repo|folder) ;; *) echo "usage: zbs-move.sh repo|folder; nothing was run"; exit 2;; esac
+step=${1:-} form=${1:-}
+case "$step" in repo|folder) MT=$MIRROR_TO;; folder-abs) MT=/$MIRROR_TO step=folder;; *) echo "usage: zbs-move.sh repo|folder|folder-abs; nothing was run"; exit 2;; esac
 
 no() { echo "REFUSED, nothing was changed: $*"; exit 2; }
 fail() { echo "STOPPED at $1: $2. Nothing after it was done. Bring this to zeo-rescue."; exit 1; }
@@ -61,6 +72,11 @@ same() { # same WHAT DIR FILE: read again, and it must equal the before
   [ "$now" = "$(cat "$4")" ] || { printf '%s\n' "$now" > "$4.after"; fail "$1" "it differs from before in $3: compare $4 with $4.after"; }
 }
 manifest() { (cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 /usr/bin/shasum -a 256); }
+mirrors() { # list, old rule, new rule: one line each, tab-separated
+  local s t; set -f
+  for s in $MIRROR_DENY; do for t in Edit Write; do printf 'deny\t%s(%s%s)\t%s(%s%s)\n' $t "$MIRROR_FROM" "$s" $t "$MT" "$s"; done; done
+  for s in $MIRROR_ASK; do for t in Edit Write; do printf 'ask\t%s(%s%s)\t%s(%s%s)\n' $t "$MIRROR_FROM" "$s" $t "$MT" "$s"; done; done
+  set +f; }
 mkdir -p "$D" && chmod 700 "$D" || no "cannot make $D"
 
 case "$step" in
@@ -119,7 +135,7 @@ repo)
   echo "REPO DONE: $SEAT is the repository; the 24 Sep checkout is at $ASIDE with no .git. Tell zeo-rescue: done."; exit 0;;
 folder)
   P_OLD=$PROJECTS/$(key "$SEAT") P_NEW=$PROJECTS/$(key "$MAIN") M=$PROJECTS/$(key "$MEM_FROM_DIR")/memory S=$MAIN/.claude/settings.local.json
-  if [ -d "$MAIN/.git" ] && [ ! -e "$SEAT" ] && [ "$(ino "$MAIN")" = "$SEAT_INODE" ] && [ -f "$D/folder.done" ]; then echo "ALREADY DONE: the seat's folder is at $MAIN. Nothing was changed."; exit 0; fi
+  if [ -d "$MAIN/.git" ] && [ ! -e "$SEAT" ] && [ "$(ino "$MAIN")" = "$SEAT_INODE" ] && [ -f "$D/folder.done" ]; then echo "ALREADY DONE: the seat's folder is at $MAIN, by the step $(cat "$D/folder.done"). Nothing was changed."; exit 0; fi
   [ -d "$SEAT/.git" ] && [ -d "$ASIDE" ] && [ ! -e "$MAIN" ] || { echo "OUT OF ORDER, nothing was changed: the repo step comes first, and it is not done."; exit 2; }
   [ "$(ino "$SEAT")" = "$SEAT_INODE" ] || no "$SEAT is not the folder read on 7 Nov"
   [ "$(dev "$SEAT")" = "$(dev "$ASIDE")" ] || no "the new path is on another volume, so a move would be a copy"
@@ -133,6 +149,12 @@ folder)
   [ "$(jq --arg f "$RULE_FROM" '[.permissions.allow[] | select(. == $f)] | length' "$SEAT/.claude/settings.local.json" 2>/dev/null)" = 1 ] || no "the seat's settings do not hold the allow rule $RULE_FROM exactly once"
   [ "$(jq --arg t "$RULE_TO" '[.. | strings | select(. == $t)] | length' "$SEAT/.claude/settings.local.json")" = 0 ] || no "the seat's settings already name $RULE_TO"
   [ "$(LC_ALL=C grep -cF "\"$RULE_FROM\"" "$SEAT/.claude/settings.local.json")" = 1 ] || no "the rule's text is not on exactly one line"
+  mirrors > "$D/mirror.tsv" && [ "$(wc -l < "$D/mirror.tsv" | tr -d ' ')" = 20 ] || no "cannot list the 20 rules to mirror in $D/mirror.tsv"
+  while IFS=$'\t' read -r l o n; do
+    [ "$(jq --arg l "$l" --arg o "$o" '[.permissions[$l][] | select(. == $o)] | length' "$SEAT/.claude/settings.local.json")" = 1 ] || no "the seat's $l rules do not hold $o exactly once"
+    [ "$(LC_ALL=C grep -cF "\"$o\"" "$SEAT/.claude/settings.local.json")" = 1 ] && [ "$(awk -v s="\"$o\"," '{sub(/^[ \t]+/, "")} $0 == s {n++} END {print n+0}' "$SEAT/.claude/settings.local.json")" = 1 ] || no "$o is not alone on one line, followed by a comma"
+    [ "$(jq --arg n "$n" '[.. | strings | select(. == $n)] | length' "$SEAT/.claude/settings.local.json")" = 0 ] || no "the seat's settings already hold $n"
+  done < "$D/mirror.tsv"
   nolocks "$SEAT/.git"
   idle
   manifest "$M" > "$D/memory-before.txt" || no "cannot read the memory"
@@ -152,10 +174,14 @@ folder)
   echo "MEMORY: $(wc -l < "$D/memory-before.txt" | tr -d ' ') files moved from $M into the seat's project, unchanged; the restart's rename takes them to $P_NEW"
   (umask 077; cat "$S" > "$D/settings.local.json.before") || fail "the settings" "no backup"
   RF=$RULE_FROM RT=$RULE_TO perl -i -pe 's/\Q"$ENV{RF}"\E/"$ENV{RT}"/' "$S" || fail "the settings" "perl failed; the backup is $D/settings.local.json.before"
-  jq -e --arg f "$RULE_FROM" --arg t "$RULE_TO" --slurpfile b "$D/settings.local.json.before" \
-    '. == ($b[0] | .permissions.allow |= map(if . == $f then $t else . end))' "$S" >/dev/null || fail "the settings" "the file is not the old one with that rule moved; the backup is $D/settings.local.json.before"
-  [ "$(/usr/bin/diff "$D/settings.local.json.before" "$S" | grep -c '^[<>]')" = 2 ] || fail "the settings" "more than one line changed; the backup is $D/settings.local.json.before"
-  echo "SETTINGS: allow $RULE_FROM is now $RULE_TO; nothing else changed"
-  : > "$D/folder.done"
+  MF=$D/mirror.tsv perl -i -ne 'BEGIN { open F, "<", $ENV{MF} or die; while (<F>) { chomp; my (undef, $o, $n) = split /\t/; $M{$o} = $n } close F }
+    print; print "$1\"$M{$2}\",\n" if /^(\s*)"(.*)",\n\z/ && exists $M{$2}' "$S" || fail "the settings" "perl failed adding the mirrored rules; the backup is $D/settings.local.json.before"
+  m=$(jq -Rn '[inputs | split("\t")] | reduce .[] as $r ({deny: {}, ask: {}}; .[$r[0]][$r[1]] = $r[2])' < "$D/mirror.tsv")
+  jq -e --arg f "$RULE_FROM" --arg t "$RULE_TO" --argjson m "$m" --slurpfile b "$D/settings.local.json.before" \
+    '. == ($b[0] | .permissions.allow |= map(if . == $f then $t else . end) | .permissions.deny |= [.[] | ., ($m.deny[.] // empty)] | .permissions.ask |= [.[] | ., ($m.ask[.] // empty)])' "$S" >/dev/null \
+    || fail "the settings" "the file is not the old one with that rule moved and the 20 rules mirrored; the backup is $D/settings.local.json.before"
+  [ "$(/usr/bin/diff "$D/settings.local.json.before" "$S" | grep -c '^<')" = 1 ] && [ "$(/usr/bin/diff "$D/settings.local.json.before" "$S" | grep -c '^>')" = 21 ] || fail "the settings" "the lines changed are not the one allow rule and the 20 added; the backup is $D/settings.local.json.before"
+  echo "SETTINGS: allow $RULE_FROM is now $RULE_TO; 16 deny and 4 ask rules mirrored under ${MT%/}, each after its old one, which stays; nothing else changed"
+  echo "$form" > "$D/folder.done"
   echo "FOLDER DONE: the seat's folder, its git and its memory are ready for the restart. Tell zeo-rescue: done."; exit 0;;
 esac
