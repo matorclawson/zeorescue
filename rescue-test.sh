@@ -519,14 +519,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt zbs-move.sh folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt zbs-move.sh folder-moves zshenv-lines.sh; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -577,22 +577,23 @@ out=$(ZEO_RESCUE_PINS="$HERE/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves
 rm -f "$T/screen"
 
 echo "-- the Claude steps"
-: > "$T/live"; mkdir -p "$T/d/creator"; sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" -e "s#^CLAUDE_INODE=.*#CLAUDE_INODE=$(stat -f %i "$T/d/creator")#" -e "s#^CLAUDE_READY_MARK=.*#CLAUDE_READY_MARK=$T/ready#" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
+: > "$T/live"; mkdir -p "$T/d/creator"; sed -e "s/^WANT=.*/WANT=$pl/" -e '/ zshenv-lines\.sh$/d' -e "s#^CLAUDE_NEW=.*#CLAUDE_NEW=$T/d/creator#" -e "s#^CLAUDE_OLD=.*#CLAUDE_OLD=$T/d/oldc#" -e "s#^CLAUDE_READY_MARK=.*#CLAUDE_READY_MARK=$T/ready#" -e "s#^CLAUDE_FIRST_DONE=.*#CLAUDE_FIRST_DONE=$T/first.done#" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 echo "# none" > "$T/run/folder-moves"; repin
-grep -q '^NOT READY, nothing was run: folder-moves needs zbs' <<< "$(L claude-first 2>&1)" && ok "claude-first refuses until the Architect names the folder" || bad "claude ready: $(L claude-first 2>&1)"
-echo "zbs $T/d/creator" > "$T/run/folder-moves"; repin
+grep -q '^NOT READY, nothing was run: folder-moves needs ducktyper-ops' <<< "$(L claude-first 2>&1)" && ok "claude-first refuses until the Architect names the folder" || bad "claude ready: $(L claude-first 2>&1)"
+echo "ducktyper-ops $T/d/creator" > "$T/run/folder-moves"; repin
 printf '{"projects":{}}' > "$T/cj0.json"; out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj0.json" L claude-trust 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was run: the folder step has not finished' && [ "$(cat "$T/cj0.json")" = '{"projects":{}}' ] && ok "claude-trust waits for the folder step" || bad "ready mark: $rc $out"
 grep -q '^OUT OF ORDER, nothing was run: the folder step' <<< "$(L claude-first 2>&1)" && ok "so does claude-first" || bad "ready mark first: $(L claude-first 2>&1)"
-touch "$T/ready"; perl -i -pe 's/^CLAUDE_INODE=.*/CLAUDE_INODE=1/' "$T/run/reseat-lines.sh"; out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj0.json" L claude-trust 2>&1); rc=$?
-[ $rc -eq 2 ] && echo "$out" | grep -q "^NOT READY, nothing was run: $T/d/creator is not the seat's own folder (inode 1)" && [ "$(cat "$T/cj0.json")" = '{"projects":{}}' ] && ok "another folder at the new path, such as the 24 Sep checkout, is never trusted" || bad "inode: $rc $out"
-grep -q "^NOT READY, nothing was run: .* is not the seat's own folder" <<< "$(L claude-first 2>&1)" && ok "or started in" || bad "inode first: $(L claude-first 2>&1)"
-perl -i -pe "s/^CLAUDE_INODE=.*/CLAUDE_INODE=$(stat -f %i "$T/d/creator")/" "$T/run/reseat-lines.sh"
+echo inode=1 > "$T/ready"; out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj0.json" L claude-trust 2>&1); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q "^NOT READY, nothing was run: $T/d/creator is not the folder the folder step made (inode 1)" && [ "$(cat "$T/cj0.json")" = '{"projects":{}}' ] && ok "a folder at the new path that the folder step did not make is never trusted" || bad "inode: $rc $out"
+grep -q "^NOT READY, nothing was run: .* is not the folder the folder step made" <<< "$(L claude-first 2>&1)" && ok "or started in" || bad "inode first: $(L claude-first 2>&1)"
+: > "$T/ready"; grep -q "^NOT READY, nothing was run: .* is not the folder the folder step made (inode unknown)" <<< "$(L claude-first 2>&1)" && ok "and a mark that names no folder is no mark" || bad "inode none: $(L claude-first 2>&1)"
+echo "inode=$(stat -f %i "$T/d/creator")" > "$T/ready"
 printf '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' > "$T/cj.json"; chmod 640 "$T/cj.json"
 out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L claude-trust 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^ADDED' && [ "$(jq -r --arg d "$T/d/creator" '.projects[$d].hasTrustDialogAccepted' "$T/cj.json")" = true ] && [ "$(jq -r '.keep,.projects["/a"].hasTrustDialogAccepted' "$T/cj.json" | tr '\n' ' ')" = "1 true " ] && ok "claude-trust adds one entry and keeps the rest" || bad "claude trust: $rc $out"
 [ "$(stat -f %Lp "$T/cj.json")" = 640 ] && [ ! -e "$T/cj.json.lock" ] && ok "with the file's mode, and lets go of the lock" || bad "mode or lock"
-B="$T/state/claude-json.before-20261107"; [ "$(stat -f %Lp "$B")" = 600 ] && [ "$(jq -c . "$B")" = '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' ] && ok "the backup is the old file, mode 600, though the file is 640" || bad "backup: $(stat -f %Lp "$B")"
+B="$T/state/claude-json.before-ducktyper-ops"; [ "$(stat -f %Lp "$B")" = 600 ] && [ "$(jq -c . "$B")" = '{"keep":1,"projects":{"/a":{"hasTrustDialogAccepted":true}}}' ] && ok "the backup is the old file, mode 600, though the file is 640" || bad "backup: $(stat -f %Lp "$B")"
 chmod 644 "$B"; printf '{"projects":{}}' > "$T/cj4.json"; ZEO_RESCUE_CLAUDE_JSON="$T/cj4.json" L claude-trust >/dev/null 2>&1; [ "$(stat -f %Lp "$B")" = 600 ] && ok "a backup already there is brought to 600" || bad "old backup mode: $(stat -f %Lp "$B")"
 rm -f "$B"; mkdir -p "$T/bin3"; realjq=$(command -v jq)
 cat > "$T/bin3/jq" <<S
@@ -610,8 +611,7 @@ echo "2.1.999 (Claude Code)" > "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is 2.1.999' && [ ! -e "$T/launched" ] && ok "claude-first refuses a Claude nobody rehearsed" || bad "version: $rc $out"
 rm -f "$T/ver"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is unknown' && ok "and one it cannot read" || bad "no version: $rc $out"
-rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "$rv (Claude Code)" > "$T/ver"; out=$(STATE="$T/state" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L claude-first 2>&1)
-echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "the version is read just before the line and printed, in the kept log too" || bad "version print: $out"
+rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh")
 echo "2.1.999 (Claude Code)" > "$T/ver"; rm -f "$T/launched"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L zeocreator-note 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is 2.1.999' && [ ! -e "$T/launched" ] && ok "zeocreator-note refuses a Claude nobody rehearsed too" || bad "zc version: $rc $out"
 # zeocreator-note on a stub rescue.sh: the plan it prints is $T/zn/plan; with --apply it writes the note's words into the transcript if $T/zn/deliver exists.
@@ -646,13 +646,45 @@ cp "$ztr" "$T/zn/tr.keep"; printf '{"type":"user","message":{"content":"%s"}}\n'
 grep -q -- '--reseat --apply --relaunch --restart --harness claude --seat zeocreator --note-file notes/zeocreator-memory-20261108.txt' "$T/zn/calls" && ok "the restart itself carries --restart and the note" || bad "zn apply args: $(cat "$T/zn/calls")"
 : > "$T/zn/calls"; out=$(ZN); rc=$?; [ $rc -eq 0 ] && echo "$out" | grep -q '^ALREADY DONE: the note reached zeocreator' && [ ! -s "$T/zn/calls" ] && ok "a second run restarts nothing" || bad "zn twice: $rc $out"
 for f in rescue.sh folder-moves session-pins; do cp "$T/zn/$f.keep" "$T/run/$f"; done; pinf rescue.sh folder-moves session-pins
+# claude-first on a stub rescue.sh: --apply renames the project to the new folder's key, as rescue.sh does, and writes the note's words if $T/cf/deliver exists.
+rm -rf "$T/cf"; mkdir -p "$T/cf/proj"; for f in rescue.sh session-pins; do cp "$T/run/$f" "$T/cf/$f.keep"; done
+csid=ca076ba8-7fee-46f0-853b-8182adc3c975; cko=$T/cf/proj/$(enc2 "$T/d/oldc"); ckn=$T/cf/proj/$(enc2 "$T/d/creator"); cw=$(awk -F'"' '/^CLAUDE_PROOF=/ {print $2}' "$T/run/reseat-lines.sh")
+echo "ducktyper-ops $csid" > "$T/run/session-pins"
+cat > "$T/run/rescue.sh" <<S
+#!/bin/bash
+echo "\$*" >> "$T/cf/calls"
+case " \$* " in
+  *" --check "*) echo "OK ducktyper-ops (claude)"; echo "check: ok 1, wrong 0";;
+  *" --apply "*) [ ! -f "$T/cf/fail" ] || { echo "STOPPED: stub"; exit 1; }; [ ! -d "$cko" ] || mv "$cko" "$ckn"; echo "MOVED OK ducktyper-ops: stub"; [ ! -f "$T/cf/deliver" ] || printf '{"type":"user","message":{"content":"Correction. %s"}}\n' "$cw" >> "$ckn/$csid.jsonl";;
+  *) cat "$T/cf/plan";;
+esac
+S
+chmod +x "$T/run/rescue.sh"; pinf rescue.sh session-pins; rm -f "$T/first.done"
+CF() { ZEO_RESCUE_PROJECTS="$T/cf/proj" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_PROOF_TRIES=2 L claude-first 2>&1; }
+[ -n "$cw" ] && grep -qF "$cw" "$HERE/notes/claude-move-ducktyper-ops-20261108.txt" && ok "claude-first's proof words are in the seat's note" || bad "cf words: $cw"
+out=$(CF); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -q '^NOT READY, nothing was run: no transcript for ducktyper-ops under either folder' && [ ! -e "$T/cf/calls" ] && ok "claude-first needs the seat's transcript" || bad "cf transcript: $rc $out"
+mkdir -p "$cko"; echo '{"type":"user","message":{"content":"before"}}' > "$cko/$csid.jsonl"; cp "$cko/$csid.jsonl" "$T/cf/tr.keep"
+printf '{"type":"user","message":{"content":"%s"}}\n' "$cw" >> "$cko/$csid.jsonl"; out=$(CF); rc=$?; cp "$T/cf/tr.keep" "$cko/$csid.jsonl"
+[ $rc -eq 2 ] && echo "$out" | grep -q "^REFUSED, nothing was run: the note's words are already in" && [ ! -e "$T/cf/calls" ] && ok "it refuses when the note's words are already there" || bad "cf words before: $rc $out"
+printf 'RESEAT ducktyper-ops: claude %s\nWORK ducktyper-ops: a turn is in progress on its screen\n' "$csid" > "$T/cf/plan"; out=$(CF); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run' && ! grep -q -- '--apply' "$T/cf/calls" && ok "it refuses while the seat is working" || bad "cf busy: $rc $out"
+printf 'RESEAT ducktyper-ops: claude %s\n' "$csid" > "$T/cf/plan"; : > "$T/cf/fail"; out=$(CF); rc=$?; rm -f "$T/cf/fail"
+[ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED: the move or its check failed' && ! echo "$out" | grep -q '^NOT DELIVERED' && [ ! -e "$T/first.done" ] && ok "a move that fails stops there, says so and marks nothing" || bad "cf stopped: $rc $out"
+printf 'RESEAT ducktyper-ops: claude %s\n' "$csid" > "$T/cf/plan"; out=$(CF); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^NOT DELIVERED: ' && [ ! -e "$T/first.done" ] && ok "a move whose transcript never shows the note says NOT DELIVERED and marks nothing" || bad "cf undelivered: $rc $out"
+: > "$T/cf/calls"; : > "$T/cf/deliver"; out=$(CF); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && echo "$out" | grep -q "^NOTE DELIVERED ducktyper-ops: its words are in session $csid under $T/d/creator" && [ -s "$T/first.done" ] && ok "a run stopped after the rename runs again from the new folder's transcript, proves the note and marks itself done" || bad "cf deliver: $rc $out"
+grep -q -- '--reseat --apply --relaunch --harness claude --seat ducktyper-ops --note-file notes/claude-move-ducktyper-ops-20261108.txt' "$T/cf/calls" && ok "the move carries the seat's note" || bad "cf apply args: $(cat "$T/cf/calls")"
+: > "$T/cf/calls"; out=$(CF); rc=$?; [ $rc -eq 0 ] && echo "$out" | grep -q '^ALREADY DONE: ducktyper-ops moved' && [ ! -s "$T/cf/calls" ] && ok "a second claude-first restarts nothing" || bad "cf twice: $rc $out"
+for f in rescue.sh session-pins; do cp "$T/cf/$f.keep" "$T/run/$f"; done; pinf rescue.sh session-pins; rm -f "$T/first.done"
+n=$HERE/notes/claude-move-ducktyper-ops-20261108.txt; grep -qF "$(enc2 /Volumes/AIPEMedia1/code/zeroemployeeorg/ducktyper-ops)/memory/, which no longer exists" "$n" && grep -qF "$(enc2 /Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops)/memory/" "$n" && [ "$(grep -c '[`*]' "$n")" = 0 ] && ok "the seat's note names its old memory folder as gone and the new one by its key, with no backtick or star" || bad "cf note"
 grep -q 'zeroemployeeorg-zeocreator/memory/' "$HERE/notes/zeocreator-memory-20261108.txt" && grep -q "never in the old folder" "$HERE/notes/zeocreator-memory-20261108.txt" && grep -qF "$(printf %s /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')/memory/" "$HERE/notes/zeocreator-memory-20261108.txt" && ok "its note names the old memory folder as gone, and the real one by the key of its folder" || bad "zc note"
-SIDC=d7fc6540-05c6-43ec-94c5-520b66af4133; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zbs","mailbox":"zbs","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
+SIDC=ca076ba8-7fee-46f0-853b-8182adc3c975; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"ducktyper-ops","mailbox":"ducktyper-ops","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
 C() { ZEO_RESCUE_CHART="$T/zc.json" ZEO_RESCUE_PINS="$T/run/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_PROJECTS="$T/pc" ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L "$@" 2>&1; }
 mkdir -p "$T/pc/$kc"; : > "$T/pc/$kc/$SIDC.jsonl"; echo x > "$B"; echo zc >> "$T/live"; echo "zc|%9|900|1|claude" > "$T/panes"; echo "900 /x/claude --resume $SIDC" > "$T/ps.out"
 echo "$GOOD ZMAIL_INSTANCE=other" > "$T/psE.out"; out=$(C claude-clear); rc=$?
-[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was deleted: zbs is not right yet' && [ -e "$B" ] && ok "claude-clear keeps the backup while the seat is wrong" || bad "clear wrong: $rc $out"
-echo "$GOOD ZMAIL_INSTANCE=zbs" > "$T/psE.out"; out=$(C claude-clear); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was deleted: ducktyper-ops is not right yet' && [ -e "$B" ] && ok "claude-clear keeps the backup while the seat is wrong" || bad "clear wrong: $rc $out"
+echo "$GOOD ZMAIL_INSTANCE=ducktyper-ops" > "$T/psE.out"; out=$(C claude-clear); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^DELETED' && [ ! -e "$B" ] && ok "claude-clear deletes it once the seat checks right" || bad "clear: $rc $out"
 grep -q '^NOTHING TO DELETE' <<< "$(C claude-clear)" && ok "and a second run has nothing to do" || bad "clear twice"
 : > "$T/live"; : > "$T/panes"; : > "$T/ps.out"; : > "$T/psE.out"
@@ -661,8 +693,8 @@ printf '{"projects":{}}' > "$T/cj2.json"; mkdir "$T/cj2.json.lock"
 out=$(ZEO_RESCUE_CLAUDE_JSON="$T/cj2.json" L claude-trust 2>&1); rc=$?; rmdir "$T/cj2.json.lock"
 [ $rc -eq 1 ] && echo "$out" | grep -q "Claude's config lock stayed held" && [ "$(cat "$T/cj2.json")" = '{"projects":{}}' ] && ok "it waits for Claude's own lock and changes nothing if it stays held" || bad "lock: $rc $out"
 out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
-[ $rc -eq 2 ] && echo "$out" | grep -q 'take zbs out of folder-moves first' && ok "claude-back refuses while the seat's line stands" || bad "back: $rc $out"
-echo "# none" > "$T/run/folder-moves"; repin; SIDC=d7fc6540-05c6-43ec-94c5-520b66af4133; kn=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); ko=$(printf %s "$T/d/oldc" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$T/pj/$kn/memory"; : > "$T/pj/$kn/$SIDC.jsonl"
+[ $rc -eq 2 ] && echo "$out" | grep -q 'take ducktyper-ops out of folder-moves first' && ok "claude-back refuses while the seat's line stands" || bad "back: $rc $out"
+echo "# none" > "$T/run/folder-moves"; repin; SIDC=ca076ba8-7fee-46f0-853b-8182adc3c975; kn=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); ko=$(printf %s "$T/d/oldc" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); mkdir -p "$T/pj/$kn/memory"; : > "$T/pj/$kn/$SIDC.jsonl"
 rmdir "$T/d/oldc" 2>/dev/null; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q 'is gone, so the project would have no folder' && [ -f "$T/pj/$kn/$SIDC.jsonl" ] && ok "claude-back refuses while the old folder is gone" || bad "back gone: $rc $out"
 mkdir -p "$T/d/oldc"; out=$(ZEO_RESCUE_PROJECTS="$T/pj" L claude-back 2>&1); rc=$?
@@ -800,5 +832,51 @@ mku; upin
 perl -i -pe 's/^(\s+if \[ "\$\(sha "\$CODEX_CONFIG"\)" != "\$was" \]; then echo "REFUSED, nothing was changed: \$CODEX_CONFIG changed)/    echo "# a writer" >> "\$CODEX_CONFIG"\n$1/' "$T/run/reseat-lines.sh"
 out=$(U); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q 'changed during the edit' && grep -q '^# a writer$' "$uc" && grep -q 'goneA' "$uc" && [ ! -e "$ubk" ] && ok "a writer during the edit is refused, and its write stands" || bad "untrust writer: $rc $out"
+
+echo "-- an ops seat's folder steps: a new empty folder first, the old one removed after the restart (ops-move.sh, on a copy)"
+# Never the real script: a copy with every path rewritten into $T. The real one would act on the real folders.
+O=$(cd "$T" && pwd -P)/o osid=ca076ba8-7fee-46f0-853b-8182adc3c975; OO=$O/org/ducktyper-ops ON=$O/dt/ducktyper-ops
+rm -rf "$O"; mkdir -p "$OO" "$O/dt" "$O/state" "$O/proj/$(enc2 "$OO")"; echo '{}' > "$O/proj/$(enc2 "$OO")/$osid.jsonl"
+echo "ducktyper-ops $ON" > "$O/moves"; echo "ducktyper-ops $osid" > "$O/pins"
+sed -e "s#^    OLD=.*#    OLD=$OO#" -e "s#^    NEW=.*#    NEW=$ON#" -e "s#^    OLD_INODE=.*#    OLD_INODE=$(stat -f %i "$OO");;#" "$HERE/ops-move.sh" > "$O/ops-move.sh"
+printf '#!/bin/bash\ncat "%s/opsp" 2>/dev/null\n' "$T" > "$T/bin/tmuxo"; printf '#!/bin/bash\ncat "%s/opsps" 2>/dev/null\n' "$T" > "$T/bin/pso"; chmod +x "$T/bin/tmuxo" "$T/bin/pso"
+OM() { STATE="$O/state" ZEO_RESCUE_PROJECTS="$O/proj" ZEO_RESCUE_MOVES="$O/moves" ZEO_RESCUE_PINS="$O/pins" ZEO_RESCUE_TMUX="$T/bin/tmuxo" ZEO_RESCUE_LSOF="$T/bin/lsofz" ZEO_RESCUE_PS="$T/bin/pso" bash "$O/ops-move.sh" "$@" 2>&1; }
+grep -E '^    (OLD|NEW)=/Volumes' "$O/ops-move.sh" >/dev/null && bad "the copy still names a real folder" || ok "the copy names no real folder"
+out=$(OM rasa-ops folder); [ $? -eq 2 ] && grep -q '^usage: ops-move.sh ducktyper-ops folder|old; nothing was run' <<< "$out" && ok "a seat it was not written for runs nothing" || bad "ops usage seat: $out"
+out=$(OM ducktyper-ops fold); [ $? -eq 2 ] && grep -q '^usage:' <<< "$out" && ok "nor does an unknown step" || bad "ops usage step: $out"
+orefuse() { # orefuse WHAT PATTERN: the folder step refuses, and makes nothing
+  local out rc; out=$(OM ducktyper-ops folder); rc=$?
+  [ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: .*$2" <<< "$out" && [ ! -e "$ON" ] && [ ! -e "$O/state/ops-move-ducktyper-ops/folder.done" ] && ok "$1" || bad "$1: $rc $out"; }
+echo "ducktyper-ops $O/dt/other" > "$O/moves"; orefuse "a folder-moves line naming another folder is refused" 'folder-moves needs exactly one line'
+printf 'ducktyper-ops %s\nducktyper-ops %s\n' "$ON" "$ON" > "$O/moves"; orefuse "so are two lines" 'folder-moves needs exactly one line'; echo "ducktyper-ops $ON" > "$O/moves"
+echo "ducktyper-ops 11111111-1111-4111-8111-111111111111" > "$O/pins"; orefuse "a session pin naming another session is refused" 'session-pins needs'; echo "ducktyper-ops $osid" > "$O/pins"
+: > "$OO/new-file"; orefuse "an old folder that is no longer empty is refused" 'is not the empty folder read on 8 Nov'; rm "$OO/new-file"
+cp "$O/ops-move.sh" "$T/om"; perl -i -pe 's/^    OLD_INODE=.*/    OLD_INODE=1;;/' "$O/ops-move.sh"; orefuse "so is another folder at the old path" 'is not the empty folder read on 8 Nov'; cp "$T/om" "$O/ops-move.sh"
+ZG init -q "$O/dt"; orefuse "a new folder inside a repository is refused" 'is in git, so the new folder would be inside a repository'; rm -rf "$O/dt/.git"
+mkdir "$ON"; out=$(OM ducktyper-ops folder); [ $? -eq 2 ] && grep -q "^REFUSED, nothing was changed: $ON already exists" <<< "$out" && [ ! -e "$O/state/ops-move-ducktyper-ops/folder.done" ] && ok "a new folder already there is refused" || bad "ops new there: $out"; rmdir "$ON"
+mkdir "$O/proj/$(enc2 "$ON")"; orefuse "so is a project already under the new folder's key" "already exists, and the restart's rename needs the name free"; rmdir "$O/proj/$(enc2 "$ON")"
+mv "$O/proj/$(enc2 "$OO")" "$T/oproj"; orefuse "so is a seat whose transcript is not where its folder says" "the seat's transcript is not at"; mv "$T/oproj" "$O/proj/$(enc2 "$OO")"
+out=$(OM ducktyper-ops folder); rc=$?
+[ $rc -eq 0 ] && grep -q "^MADE: $ON, empty, mode 755" <<< "$out" && grep -q '^FOLDER DONE' <<< "$out" && [ -d "$ON" ] && [ -z "$(ls -A "$ON")" ] && [ "$(stat -f %Lp "$ON")" = 755 ] && [ -d "$OO" ] && ok "the folder step makes the new folder, empty, and leaves the old one and the seat alone" || bad "ops folder: $rc $out"
+[ "$(sed -n 's/^inode=//p' "$O/state/ops-move-ducktyper-ops/folder.done")" = "$(stat -f %i "$ON")" ] && [ "$(stat -f %Lp "$O/state/ops-move-ducktyper-ops")" = 700 ] && ok "its mark names the folder it made, in a state folder of mode 700" || bad "ops mark"
+grep -q '^ALREADY DONE: .* made by this step' <<< "$(OM ducktyper-ops folder)" && ok "a second folder step changes nothing" || bad "ops folder twice"
+out=$(OM ducktyper-ops old); [ $? -eq 2 ] && grep -q '^OUT OF ORDER, nothing was changed: the restart in .* has not been proved' <<< "$out" && [ -d "$OO" ] && ok "the old folder stays until the restart is proved" || bad "ops old order: $out"
+date > "$O/state/ops-move-ducktyper-ops/first.done"; echo 4242 > "$T/opsp"; echo "/x/claude --resume $osid --permission-mode auto" > "$T/opsps"; printf 'p4242\nfcwd\nn%s\n' "$ON" > "$T/lsofz.out"
+orefuse2() { local out rc; out=$(OM ducktyper-ops old); rc=$?; [ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: .*$2" <<< "$out" && [ -d "$OO" ] && ok "$1" || bad "$1: $rc $out"; }
+orefuse2 "the old folder stays while the project is still under it" "the seat's project is not under"
+mv "$O/proj/$(enc2 "$OO")" "$O/proj/$(enc2 "$ON")"
+printf 'p4242\nfcwd\nn%s\np5555\nfcwd\nn%s\n' "$ON" "$OO" > "$T/lsofz.out"; orefuse2 "or while another process works in it" 'a process still works in'
+printf 'p4242\nfcwd\nn%s\n' "$OO" > "$T/lsofz.out"; orefuse2 "or while the seat itself still works there" 'is not working in'; printf 'p4242\nfcwd\nn%s\n' "$ON" > "$T/lsofz.out"
+echo "/x/claude --resume 11111111-1111-4111-8111-111111111111" > "$T/opsps"; orefuse2 "or when the seat's pane runs another session" 'does not resume'; echo "/x/claude --resume $osid --permission-mode auto" > "$T/opsps"
+: > "$T/opsp"; orefuse2 "or when the seat's pane cannot be read" "cannot read the seat's pane"; echo 4242 > "$T/opsp"
+: > "$OO/late"; orefuse2 "or when something was put in it" 'is not the empty folder read on 8 Nov'; rm "$OO/late"
+printf 'p4243\nfcwd\nn%s\np4242\nfcwd\nn%s\n' "$ON" "$ON" > "$T/lsofz.out"; out=$(OM ducktyper-ops old); rc=$?
+[ $rc -eq 0 ] && grep -q "^REMOVED: $OO, which was empty" <<< "$out" && [ ! -e "$OO" ] && [ -d "$ON" ] && [ -s "$O/state/ops-move-ducktyper-ops/old.done" ] && ok "with the seat in the new folder, a child of it there too, and nothing in the old one, the old empty folder goes" || bad "ops old: $rc $out"
+grep -q '^ALREADY DONE: .* was removed' <<< "$(OM ducktyper-ops old)" && ok "a second old step changes nothing" || bad "ops old twice"
+: > "$T/lsofz.out"; : > "$T/opsp"; : > "$T/opsps"
+sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"; fill
+printf '#!/bin/bash\necho "STUB $* STATE=$STATE"\n' > "$T/run/ops-move.sh"; chmod +x "$T/run/ops-move.sh"; pinf ops-move.sh
+grep -q '^STUB ducktyper-ops folder STATE' <<< "$(L ops-folder 2>&1)" && grep -q '^STUB ducktyper-ops old STATE' <<< "$(L ops-old 2>&1)" && ok "ops-folder and ops-old run ops-move.sh for the seat moving" || bad "ops wire: $(L ops-folder 2>&1)"
+cp "$HERE/ops-move.sh" "$T/run/ops-move.sh"
 
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }
