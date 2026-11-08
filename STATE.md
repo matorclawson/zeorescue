@@ -1,0 +1,264 @@
+# zeo-rescue state
+
+This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
+
+Last updated: 2026-11-06 ~03:49 GMT, by `zeo-rescue`, line 3 ran clean, `check: ok 50, wrong 0`.
+
+## Do next, in this order
+
+**1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
+
+**2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**03:49 GMT, 6 Nov: line 3 ran and ended clean. `check: ok 50, wrong 0`, still true at 03:48.** Log: `reseat-lines-all-20261106-031750.log`. 48 seats resumed; no `STOPPED`, `FAILED` or `RECOVERY` line. The reseat itself is done. Do not rerun it.
+
+*Read from the seats, not only from `make check`:*
+
+- The daemon is gone: no app-server process. 35 Codex seats, all `--no-daemon`, no thread with two processes, plus 15 Claude seats.
+- All 35 Codex seats have a snapshot with their own identity: 31 with marker `master` and git on, 4 `inactive` with `file`.
+- 34 Codex rollouts since 03:17:50: at least 721 tool calls, 0 error events. So the 0.164 CLI resumed every thread, including those the 0.167 daemon had written.
+- Network git works: 29 real pushes from 14 git-on seats, counted from git's own `To github.com` output. Text quoting older refusals was excluded. The only real refusals are 2, both on `inactive` seats. "failed to push" text on `zeo-rt`, `zeo-rt-pr`, `zeo-rt-ledger` and `ducktyper` comes from the repos' own preflight (`PUSH BLOCKED`), not from transport.
+
+*Not checked:* real tool calls on the 15 Claude seats beyond `make check`, and whether every seat's work is healthy. Processes and a passing check do not mean the org is recovered.
+
+*New, for the Architect, cause unknown:* `dt-brandedimage-maintainer` is `inactive`, and its snapshot has `GIT_ALLOW_PROTOCOL=file`. Its `git fetch origin` was refused, yet two plain `git push origin` calls landed on GitHub (branches `cleanup/dt-brandedimage-maintainer/...` on the fork). Its commands set nothing and changed nothing, so this does not look like a workaround. But "inactive means git off" did not hold for those pushes. zeo-rescue changed nothing and did not find the mechanism.
+
+*Also seen:* `dt-comic-slides-editor` (`workspace-write`) cannot resolve `messenger.zeo.ac` from its tools, so its report did not go by mail. It saved a recovery note instead. Windows 1 and 2 of `zeoruntime-maintainer` (the calendar and org-chart schedules) were not touched by the reseat.
+
+*Still open from before:* the cause of the teardown, ENG-UK, SOW-18, the collector install (operator's), this seat's mailbox, and the integration branch (unused, unpushed, needs the anchor fix at 202 and 206).
+
+
+The Architect's clearance is on their screen at 03:12, Do 240: the same line as line 3 below, with `git switch` to this branch first. Their checkpoint is written. Expected end: `check: ok 50, wrong 0`.
+
+*Proved by the seat's own rollout since the resume:* `zmsg whoami` as its own seat, and real tool calls, including an `ls-remote` over the network that returned a sha, with no "not allowed" in any output. *Not proved:* a push, and a resume of a thread last written by 0.167. The Architect tests a push after line 3.
+
+*Fresh read at 03:12:* `work: 0 of 48`, `ok 2, to reseat 48`, `check: ok 2, wrong 48`. A work read of 0 is weak evidence on Codex panes, and the proof seat is working: it answered its cleanup mail.
+
+*Settled:* the move to `main` at 03:08:17 was `git switch main`, `git fetch`, `git pull`, typed in a terminal on this account (`~/.zsh_history`), so nothing automatic moved it. It must not happen during line 3: that would take `seat-exec.sh` away from every seat still to start. After line 3, write its `make check` result here.
+
+
+*The daemon updated itself to 0.167.0 at 02:07Z.* The pids are now 16463 and 44131, and the expected output below is corrected to match. Those pids can change again if it updates again. The stop finds the daemon by its path, not by version or pid, so nothing pinned changes. The proof seat's rollout was last written by 0.164.0, so **line 2 does not prove a resume of a thread last written by 0.167.** Only line 3 meets that.
+
+*This checkout moved.* At 03:08:17 the checkout went to `main` (settled in the block above). Line 2 then ended in `HASH MISMATCH`, because `reseat-lines.sh` was not there. Nothing ran and nothing was lost. zeo-rescue switched back to this branch at about 03:11: pins verify, tree clean, tip `cd4f64d` before this note. The line the Architect filed at 03:09 on Do 233 starts with `git switch` to this branch, so it survives the same move.
+
+
+*Correction.* zeo-rescue's report and the 22:50 block below were wrong. A real Codex resume **did** run, at 21:54 (`reseat-lines-proof-20261105-215422.log`). The seat came up right: snapshot `01a16ed4-...1793915665310966000.sh` has git on, `master` and its own identity at lines 13885, 13928 and 13929. The proof then false-stopped on the loader function's `export GIT_ALLOW_PROTOCOL=file` at line 13585, and `unseat` killed the session. That is why it is gone; its sleep did not run out. zeo-rescue said otherwise without reading the log, and recommended a rerun that would have stopped the same way. Line 3 would have stranded the org. The seat started its turn at 21:54:27 and made no tool call, so it left nothing half-done. The Architect found this.
+
+*The fix, `dfa5121`.* Five greps gain `^export `, so they read only top-level exports. Line 217 is the Architect's finding. **Lines 196, 210, 214 and 216 go beyond it:** they read the same snapshot with the same flaw, and could pass on text inside a function. Each is one token. Say if you want them out. `rescue-test.sh` gains five checks on snapshots that contain the loader.
+
+*Evidence.* The real 21:54 snapshot through the real `prove_codex`: `STOPPED` before the fix, `FIRST SEAT OK ...: own identity, marker master, git on` after. A real snapshot of a seat started wrong (`dt-clipping-maintainer`) still stops. The anchored pattern says git on for 26 of 26 pre-fault `master` snapshots and off for all 34 seats started wrong. `make test`: 124 checks pass. Removing the anchor from the git line fails 3 of them.
+
+| File | sha256 |
+|---|---|
+| `rescue.sh` (changed) | `f4a3639a1d210624eb0a6d241e562ca04d1688b55f49d4fd1bc87b60a09cbe0f` |
+| `reseat-lines.sh` (changed; each line pins it) | `e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12` |
+
+The other pins are unchanged. The three lines and the hash table in section 2 below carry these values. `./reseat-lines.sh verify` passes.
+
+*Line 2 now.* The seat is dead, so it reads `RESUME`, not `RESEAT`, and a rerun cuts nothing. Expect, ending:
+
+```
+work: 0 of 0 seats show running work
+DAEMON LEFT: 34 Codex seats are still attached to pids 16463 44131
+RESUMED dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
+FIRST SEAT OK dreamhuggers-expenses-maintainer: own identity, marker master, git on
+rescue: live 0, ok 0, running 0, to resume 1, to reseat 0, resumed 1, unresolved 0, failed 0
+OK dreamhuggers-expenses-maintainer (codex)
+check: ok 1, wrong 0
+```
+
+Line 3's expected output below is unchanged. *Still unproved:* a Codex seat through to a passing `make check`, and any real tool call in a seat with git on.
+
+*Integration branch.* Not changed in code and not pushed. It has the same flaw at its lines 202 and 206, and needs this fix before it is used. Its own line 206 is the Architect's second finding: it requires `file` to appear, which the loader function always satisfies.
+
+**22:50 GMT: the council's return is integrated on a branch, and not in use.** Branch `zeo-rescue/council-integration-20261105`, tip `0daced5`, local only; start at `council/INTEGRATION.md` there. Baseline `af45115`. The Architect has not read it, so its pins are deliberately stale and its runner refuses. **This checkout stays as it is, and the lines cleared at `10f408f` still verify.** Nothing is installed, and no seat was started or stopped. As delivered the candidate left all 49 seats unresolved and neither rescuer could start on bash 3.2; both are fixed there. The next decision is the operator's or the Architect's: held; see the 23:15 block. (Corrected at 23:15: the session went at 21:54, when the proof false-stopped. See above.) Taking the integration into use needs the Architect's read, then new pins and new operator lines.
+
+**15:40 GMT: with the external council, by the operator's decision.** The Architect is busy, so the operator is sending this to the external council instead of waiting. The packet is `council/README.md`, on the public branch `zeo-rescue/council-review-20261105`. The next step is still undecided: line 2 is not rerun and line 3 is not run until the operator says so. Fixes come back as a branch or patch, are not merged or run on arrival, and a change to a pinned file still means new pins and the Architect's read. New gap, in the packet: the `WORK` busy check is unproven on Codex panes, so `work: 0` on a Codex seat is weak evidence.
+
+**HELD at ending B, for the Architect's decision (15:35 GMT). Do not run line 3.** The operator ran line 2 at 15:25:59. It ended B: `FAILED dreamhuggers-expenses-maintainer: pid 28371 still holds its rollout`, `resumed 0, failed 1`. Log: `~/.local/state/zeo-rescue/reseat-lines-proof-20261105-152559.log`. The seat was idle (`work: 0 of 1`), so nothing was cut. It is down on a sleep with no mark, and no second writer ran.
+
+Measured afterwards, read only:
+
+- The daemon let go about 60 seconds after the client left. Its log at 15:27:00: `thread 01a16ed4-... has no subscribers and is idle; shutting down`, then `Agent loop exited`, with `had_active_turn=false`. The guard waits 30 seconds, so it refused half a minute too soon.
+- At 15:32:48 `lsof` found no holder, pid 28371 held 37 rollouts (was 38), and the rollout's mtime was still 12:42. No harness holds the thread. So the F1 worry about a thread kept in memory after its file closes did not happen on this seat: its agent loop exited.
+- This is one idle seat. A seat with a turn running may not shut down this way; line 3 does not depend on it, because the daemon stops there.
+
+Recommendation to the Architect: rerun line 2 unchanged. Nothing pinned changes, the hash stands, and it cuts nothing because the seat is already down. Expect ending A. That gets the real Codex proof before line 3, with 34 seats still up. After about 16:26 the sleep runs out and the session closes; the same line then reads `to resume 1, to reseat 0, resumed 1`, also clean. The other choice is to go straight to line 3, where the first real Codex test comes with every Codex seat down. Only if a seat must be refused less often does the 30-second wait need changing, and that is a pinned file and a new read.
+
+### For the Architect: your findings, and what changed
+
+Their review is the 13:57 reply to `msg-zeoarchitect-sow18-operator-lines`. This seat has no mailbox and may not use `zeoarchitect`'s, so it was read in the Architect's own transcript, line 307025, not from the mail.
+
+- **F1, stated plainly.** The 13:55 line 1 was unsafe as filed: `rescue.sh` tested only process arguments, and the app-server (pid 28371) holds 38 rollouts open, including this seat's: `lsof` names 28371. Now a Codex seat starts only when `lsof` finds nothing holding its rollout, tried for 30 seconds, after the daemon stop. That is what makes the proof safe. **Unknown until it runs:** whether the daemon lets go of a thread when its client leaves. So line 2 has two safe outcomes, below. **Remaining risk:** the test sees a file held open now. If the daemon closes the file but keeps the thread in memory and reopens it later, the guard would not see that. So run line 3 soon after line 2; the daemon stops there. Line 2 also cuts any turn in flight on that seat.
+- **F2.** Line 3 still stops every harness before any seat starts, because that is what prevents two writers. If a proof fails, the wrong seat is stopped again and loses `@zeo_rescue`; it used to stay up, and the next run skipped it as done. The operator sees `STOPPED:` and `RECOVERY:`, below. What recovers it: the same line again once the cause is fixed.
+- **F3.** Each line is a user@host check printing WRONG PLACE, and a pin on `reseat-lines.sh`, whose own pins print HASH MISMATCH on any change to the six files below. All three strings were run in zsh with the step changed to `verify`. The host string is `Mac-mini`, measured with `hostname -s`; `matormini` is the chart's name and would always refuse. No line contains an asterisk.
+- **F4.** `WORK` lines list what a restart cuts, in `make reseat-plan` and again just before a run stops anything, so the run's log keeps it: a turn on the screen, a tool shell, and tools under the daemon, where Codex tools run. It lists; it does not stop the run. A seat can be mid-turn with nothing to see. At 14:17: `work: 1 of 49`, `zeoconnect-ops` running a test script. It changes by the minute, so read it fresh: `make reseat-plan ARGS='--before 202611050511'`.
+
+**Three things you have not seen.**
+
+1. **New line, for your ruling.** The 13:55 expected output was wrong. A bulk reseat also resumes dead seats, so `zeoarchitect` would have come up in line 2 with the generic note, without the one that says which mail is not its own. Now it goes first, alone, with its own note, and `all` refuses with OUT OF ORDER until it is up. It is also a real Claude proof that cuts no live work.
+2. **Your checkpoint.** You agreed to line 3 restarting you, and said you write a checkpoint first. You are first in chart order, so it restarts you in its first minutes, and any watcher in your shell goes with it. The operator should hear from you that the checkpoint is written before line 3.
+3. **Version.** The daemon is 0.166.0 and `codex` on the path is 0.164.0, so a seat resumes threads last written by a newer version. The flag is real (`codex resume --help`), but the real resume has never run. Line 2 is the first test of it.
+
+**Evidence.** `make test`: 119 checks, both suites pass, including a real process holding a real file refused by real `lsof`, and a failed seat taken back by a real rerun. Fake harnesses still: no real seat has run this path. Your rulings 1, 2 and 4 from the 13:55 message are unchanged; the proof seat is still `dreamhuggers-expenses-maintainer`. The zbs item is closed: it passed the trust prompt about 14:00.
+
+### The lines
+
+Hashes are SHA-256. The runner at `7137a3f`:
+
+| File | sha256 |
+|---|---|
+| `reseat-lines.sh` (pinned by each line) | `e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12` |
+| `rescue.sh` (pinned by the runner) | `f4a3639a1d210624eb0a6d241e562ca04d1688b55f49d4fd1bc87b60a09cbe0f` |
+| `seat-exec.sh` (pinned by the runner) | `004d9255cd6475a3d252855ed00a46bdb5c3ee5fd8d79c64f7d03d2f1a48e159` |
+| `Makefile` (pinned by the runner) | `141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871` |
+| `session-pins` (pinned by the runner) | `6d2ea61a03a67aa954709939aa6cd5e4e71d1286e72116114eb5c37b5967fda2` |
+| `notes/reseat-20261105.txt` (pinned by the runner) | `ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029` |
+| `notes/zeoarchitect-resume.txt` (pinned by the runner) | `6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b` |
+
+**Line 1: resume `zeoarchitect`.** A dead seat, with its own note. A minute or two.
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12" ]; then ./reseat-lines.sh zeoarchitect; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect, ending:
+
+```
+FIRST SEAT OK zeoarchitect: own identity, marker master, git on
+rescue: live 0, ok 0, running 0, to resume 1, to reseat 0, resumed 1, unresolved 0, failed 0
+OK zeoarchitect (claude)
+check: ok 1, wrong 0
+result kept in ...; exit 0. Tell zeo-rescue: done.
+```
+
+Any `STOPPED:` or `WRONG`: stop there. Only `zeoarchitect` is affected, and it goes back to dead, so this line can be run again.
+
+**Line 2: one Codex seat, beside the daemon.** About two minutes.
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12" ]; then ./reseat-lines.sh proof; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect one of three endings.
+
+A, the daemon let go. The proof holds, and line 3 can follow:
+
+```
+DAEMON LEFT: 34 Codex seats are still attached to pids 16463 44131
+RESUMED dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
+FIRST SEAT OK dreamhuggers-expenses-maintainer: own identity, marker master, git on
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 1, unresolved 0, failed 0
+OK dreamhuggers-expenses-maintainer (codex)
+check: ok 1, wrong 0
+```
+
+B, the daemon kept it. Safe: the guard worked, and no second writer started. That one seat stays down on a sleep until line 3, so the Codex path is still unproved, and the first real test falls inside line 3 with every Codex seat down. **The Architect decides whether line 3 still goes.**
+
+```
+FAILED dreamhuggers-expenses-maintainer: pid 44131 still holds its rollout, so it was not started: that would be two writers
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 0, unresolved 0, failed 1
+```
+
+C, the proof failed. Do not run line 3. One seat is down and the cause is in the launch; zeo-rescue finds it.
+
+```
+STOPPED: dreamhuggers-expenses-maintainer ...; no other seat was started
+RECOVERY: 1 seats are down, counting the one that failed. ...
+```
+
+**Line 3: every other seat.** About 18 minutes. All harnesses stop, then the daemon, then seats start 20 seconds apart. In-flight turns are cut.
+
+```
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "e2bd46988ffc34d4caf4d7b8ba4a7b128a363553f97d87948391b334914d0b12" ]; then ./reseat-lines.sh all; else echo "HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
+```
+
+Expect `WORK` lines and a `work:` count, then, ending:
+
+```
+DAEMON STOP: exact pids 16463 44131
+FIRST SEAT OK architect: own identity, marker master, git on
+FIRST SEAT OK dt-animated-comics-maintainer: own identity, marker master, git on
+rescue: live 0, ok 2, running 0, to resume 0, to reseat 48, resumed 48, unresolved 0, failed 0
+check: ok 50, wrong 0
+```
+
+`DAEMON KILLED` lines may appear, and the pids can change again if the daemon updates itself. After ending B the count reads `ok 1, to reseat 49, resumed 49`. Any other `WRONG` is real.
+
+**If a proof fails in line 3.** The output shows `STOPPED:`, then one of these (one more seat after ending B):
+
+- `RECOVERY: 48 seats are down`: the Claude proof failed on the Architect, so the Architect is down too. The operator reports to this seat.
+- `RECOVERY: 47 seats are down`: the Codex proof failed. The Architect is up; every other seat is down.
+
+Each thread is intact and nothing is lost, but the org is down until the cause is fixed. Start no seat by hand. Run the same line again after the fix: seats on a sleep are planned again, and after an hour their sleeps run out and they come back as `RESUME`. Any change to a pinned file means new pins and a new read by the Architect.
+
+**After it:** `make check` must end `check: ok 50, wrong 0`. Git and the deck render (`dt-comic-slides` is holding it for the identity problem) are waiting on this. Commit `7137a3f` is local: PR #1 needs a push, and the Architect still has to re-read the routing.
+
+**3. The cause of the teardown** is still unknown. The operator cannot share the log, and does not need to: they run `make teardown-log` once (sudo), and you read `~/.local/state/zeo-rescue/teardown-*.log` yourself. Grep around 05:10:48 for `loginwindow`, `launchd`, `sessionlogoutd`, `shutdown`, `logout`, `jetsam` and `sshd`. The first SSH login from a tailnet address (it is in the first rescue's transcript) was at 05:10; that is timing, not a cause. Do it soon: `--info` does not stay in the log for long.
+
+**4. ENG-UK** (`pomar-cc`, `pomar`, `zeo-rt-seats`) has not been checked.
+
+**5. Then SOW-18** (below). When it is done and the org is healthy, stop. That is the design.
+
+## What happened
+
+- **05:10:48**: the `rodbot` login session was torn down, with about 219 processes and the `zeo2` tmux server. Not a reboot, and no drive was ejected.
+- **05:53 to 05:58**: 14 Claude seats resumed by hand with a one-shot unreleased `zmsg-claude-wake`, which goes against Messenger's "never run unmerged code"; disclosed to the Architect. All with no `@zeo_seat`, so git is off in all of them. `zbs` stopped at the trust prompt.
+- **05:56**: one Codex proof seat, `dt-hud-editor`, started the shared app-server daemon.
+- **06:04**: the Architect replied: do not hand the operator `make rescue`, it reproduces the 25 Oct fault (`ans_8f61922d`). The first rescue's last check was at 06:03. It missed the mail and gave the operator the command.
+- **12:13**: the operator ran it. All 34 seats joined the daemon: `ZMAIL_INSTANCE=dt-hud-editor`, `ZEO_TMUX_SEAT=inactive`, `GIT_ALLOW_PROTOCOL=file`.
+- **12:41**: the Architect told every seat. Seats stopped outward work.
+- **13:40**: the fault was found by the rescue seat and reported. Of 1476 tool calls after 12:13, 408 touched mail; no statement that writes mail lacked the seat's own prefix (3 textual hits, all in message bodies). That is a grep, not a proof: a script spawning `zmsg` indirectly could escape it. Network git failed for those seats for about 90 minutes.
+- **14:00**: the operator made `zeo-rescue` a seat with this repo.
+- **14:03 to 14:20**: the first session of this seat found the Architect's 13:57 rejection of the lines (F1 to F4), which had gone to the `zeoarchitect` mailbox, in the Architect's transcript. It fixed all four (`7137a3f`), found that a bulk reseat would have started `zeoarchitect` with the wrong note, and filed the lines here. No seat was touched, and nothing was pushed. The Architect's word: nothing runs until they have read this file and the operator has seen it.
+
+## Seat markers (read from each seat's record, `--before 202611050511`)
+
+| Marker | Seats |
+|---|---|
+| `master`, recorded | 25 Codex seats |
+| `master`, no record, default | all 14 Claude seats and 6 Codex seats. The Architect ordered `master`. |
+| none, recorded inactive | `dt-hud-editor`, `dt-brandedimage-maintainer` |
+| none, no record, workspace-write | `dt-comic-slides-editor`, `dt-animated-comics-editor` |
+
+The last two rows differ from the Architect's order to mark every seat. They ran without git before the crash, and giving it to them would be a widening nobody decided. The Architect has been told, and the ruling is theirs. `dt-hud-editor` also cannot be the proof seat: its id is the fault's own, so "it has its own identity" would prove nothing.
+
+## Open items and who holds them
+
+**The `zeo-rescue` seat itself**
+- Mailbox: agreed by the Architect (`ans_8f61922d`). The nodes-file line goes on the operator's page after the seats are back, not before. The store-host record and the nodes file are the operator's.
+- Org chart row: the Runtime's, through the Architect. Mark it so `make rescue` never treats it as a seat to resume; `rescue.sh` skips the id anyway.
+- This repo's routing: the Architect ruled that the tool, then at `tools/zeo-rescue`, goes by PR to main with the full gate, both readers and their signature, and the SOW by ledger carry. That ruling predates this repo. PR: https://github.com/matorclawson/zeorescue/pull/1, unmerged; they need to re-read it. Until it merges, this checkout must stay on branch `zeo-rescue/seat-bootstrap-20261105`: `main` holds only a README.
+
+**SOW-18** (`zeoarchitect-SOW-18`, on branch `zeoarchitect/sow-18-seat-recovery` of `matorclawson/org-zeroemployeeorg`, clone at `/Volumes/ZeoWork/zeoarchitect/records`). Not yet carried to the org. It is this seat's to finish: the operator's plan is that rescue sleeps once the wake refactor is done and everything is awake again.
+
+The Messenger owner answered **AGREE with amendments** (`ans_f0594ddf`):
+- **A1.** Their `wt-doorbellcause-20261104` (8aab021d, adebc133) gates first, then SOW-18 rebases on it. Do not move `doorbell.go` or `outage.go` before those merge. `outage.go` moves into the shared package unchanged in behaviour.
+- **A2.** `zmsg doorbell --should-ring` stays the one test of whether a Claude seat is served. `zmsg-claude-wake` calls it and does not re-derive it. That also covers the live-but-deaf case.
+- **A3.** Removing the Claude doorbell from codex-wake ships in the same release as claude-wake's ringing, or the Mac mini loses its only Claude doorbell. The PR says how the swap is staged. No waker restart on the mini except on the Architect's word.
+- **A4.** Seat id = mailbox id, never renamed. The tmux-label map goes in `deploy/seats.json` as a new optional key; the validator refuses empty and duplicate labels. The owner reviews that change.
+
+Code so far: `zeomessenger/wip/claude-wake-20261105` @845a656 on `matorclawson/zeomessenger`, worktree `/Volumes/ZeoWork/zeoarchitect/wt/zeomessenger-claude-revive`. Tests pass under `-race`; `make verify` has not run. Its launcher has the same fault: it uses `zsh -ic` with no marker. It must take `rescue.sh`'s launch path before it is ever run again. The daemons are unreleased, and never installed.
+
+**Identity, ruled by the Architect (`ans_8f61922d`), carried by others**
+- `aipengineer-site-maintainer`: the operator reversed the old ruling. zeomessenger gives it a mailbox, the Runtime a chart row, no node until it is seated.
+- `zeoerp` / `zeoerp-maintainer`: one seat, id `zeoerp-maintainer`, `zeoerp` kept as a mapped label. zeomessenger owns the merge, and no history is dropped.
+
+## Operator rulings to keep
+
+- Names: `zmsg-harness-wake`, `zmsg-codex-wake`, `zmsg-claude-wake`. "Revive" is retired.
+- One-way graph: harness-wake writes spool doorbells, no daemon calls another, and codex-wake loses `runtime: claude`.
+- Ids: unique; seat and mailbox are 1-1; session names and the rest are mapped labels; no seat, mailbox or history is dropped.
+- Rescue is on-demand, and lives in this repo. If the system collapses, the operator runs `claude` here.
+
+## Known limits
+
+- The newest transcript in a directory is assumed to be the seat's. A second session run there defeats that; `session-pins` is the remedy, and `make plan` shows what was chosen.
+- `make check` proves a Claude seat's identity from its process environment, and a Codex seat's from its newest snapshot and `--no-daemon`. It does not prove git works end to end.
+- The org chart's collector stopped at 05:10 with the Runtime seat. Rescue uses the last good copy, and says so. `zmsg-claude-wake` refuses a chart over 2 hours old.
+
+## Where things are
+
+- First rescue's transcript: `~/.claude/projects/-Volumes-AIPEMedia1-code-zeroemployeeorg-zeoarchitect/c41e8c97-fd7a-47cb-8571-ee92a54b260b.jsonl`. It is long; use grep. It holds only history that this file does not need.
+- Run logs and prompts: `~/.local/state/zeo-rescue/`.
+- The Architect's earlier restore: `/Volumes/ZeoWork/tmp/claude-architect/restore-20261105/` (v4, which never touches a live session). Their memory of it: `~/.claude/projects/-Users-rodbot-code-zeroemployeeorg-org/memory/seat-restore-after-reboot.md`.

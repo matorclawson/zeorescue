@@ -1,0 +1,14 @@
+# Codex log lines for the proof thread (thread 01a16ed4-0b39-7932-a8d2-58482012b62d), from ~/.codex/logs_2.sqlite, truncated.
+# The client was stopped by the line 2 run, which began at 15:25:59Z. All times UTC.
+2026-11-05 15:27:00Z DEBUG codex_app_server::thread_state clearing thread listener during thread-state teardown thread_id=01a16ed4-0b39-7932-a8d2-58482012b62d listener_generation=1 had_listener=true had_activ
+2026-11-05 15:27:00Z DEBUG codex_core::session::handlers session_loop{thread_id=01a16ed4-0b39-7932-a8d2-58482012b62d}: Submission thread_id=01a16ed4-0b39-7932-a8d2-58482012b62d submission_id=01a1ac52-0b12-77
+2026-11-05 15:27:00Z INFO codex_core::session::handlers session_loop{thread_id=01a16ed4-0b39-7932-a8d2-58482012b62d}:submission_dispatch{otel.name="op.dispatch.shutdown" submission.id="01a1ac52-0b12-7721-be
+2026-11-05 15:27:00Z DEBUG codex_core::session::handlers session_loop{thread_id=01a16ed4-0b39-7932-a8d2-58482012b62d}: Agent loop exited
+
+
+# Read-only measurements at 15:32:48Z
+lsof -t on the thread rollout: no holder
+rollouts open in the app-server, pid 28371: 37 (38 before the run)
+rollout mtime: 12:42 local, unchanged by the shutdown
+harness processes naming this thread: none
+Codex clients still attached to the daemon: 34

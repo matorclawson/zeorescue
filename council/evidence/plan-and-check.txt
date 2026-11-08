@@ -1,0 +1,60 @@
+# make check and make reseat-plan, read-only. WORK lines are cut to the seat name.
+# taken 2026-11-05 15:39Z
+OK zeoarchitect (claude)
+check: ok 1, wrong 49
+RESEAT architect: claude 1e21f164-7f8c-4805-a8ba-6aa570dfaabc (--permission-mode auto; marker master, no record, default) in architect
+RESEAT dt-animated-comics-maintainer: codex 01a15758-8bc9-7d22-a419-267f254eb8b1 (-a never -s danger-full-access; marker master, recorded) in dt-animated-comics-maintainer
+RESEAT dt-comic-slides-maintainer: codex 01a15758-8ae2-76c1-91f7-f2982d045e8b (-a never -s danger-full-access; marker master, recorded) in dt-comic-slides-maintainer
+RESEAT dt-hud-maintainer: codex 01a15758-8bc9-77f1-9cac-50767f2bfbc0 (-a never -s danger-full-access; marker master, no record, default) in dt-hud-maintainer
+RESEAT dt-library: codex 01a14c69-b33a-7741-9b7d-fe9cf09f47ad (-a never -s danger-full-access; marker master, recorded) in dt-library-maintainer
+RESEAT dt-proofreader: codex 01a14c69-b369-7863-80b5-703f70215bc2 (-a never -s danger-full-access; marker master, recorded) in dt-proofreader-maintainer
+RESEAT ducktyper: codex 01a101c7-a342-7001-9465-c67760e0c933 (-a never -s danger-full-access; marker master, recorded) in dt-animationstudio-maintainer
+RESEAT ducktyper-ops: claude ca076ba8-7fee-46f0-853b-8182adc3c975 (--permission-mode auto; marker master, no record, default) in dt-animationstudio-ops
+RESEAT pomar-guest: codex 01a14a9c-58ca-7b72-85e5-846a8f5fd8c8 (-a never -s danger-full-access; marker master, no record, default) in pomar-guest-maintainer
+RESEAT profrod: codex 01a101cd-101f-7132-8b8f-62ccef59d5ab (-a never -s danger-full-access; marker master, recorded) in profrod-site-maintainer
+RESEAT profrod-ops: claude f0de435a-e940-46ad-af1b-0053003e8fd7 (--permission-mode auto; marker master, no record, default) in profrod-site-ops
+RESEAT profrod-site-design: codex 01a15760-eb2e-79c1-bdd4-91e128549128 (-a never -s danger-full-access; marker master, recorded) in profrod-site-designer
+RESEAT rasa: codex 01a1023d-556f-7e92-ab59-5b1fb5cd23ca (-a never -s danger-full-access; marker master, recorded) in rasa-community-maintainer
+RESEAT rasa-bench: codex 01a121da-f744-7513-b32f-cb23acd4a9c5 (-a never -s danger-full-access; marker master, recorded) in rasa-community-benchmarks-maintainer
+RESEAT rasa-ops: claude ef7575e5-d57f-44c1-a5ad-67644de409fc (--permission-mode auto; marker master, no record, default) in rasa-community-ops
+RESEAT zbs: claude d7fc6540-05c6-43ec-94c5-520b66af4133 (--permission-mode auto; marker master, no record, default) in dt-broadcastingstudio-maintainer
+RESEAT zeo-ledger: claude d787af4e-c06a-4bc6-ac62-8ce79b161a47 (--permission-mode auto; marker master, no record, default) in org-ledger
+RESEAT zeo-rt: codex 01a0ffc3-1300-7a00-b419-3ce1c331b012 (-a never -s danger-full-access; marker master, recorded) in zeoruntime-maintainer
+RESEAT zeo-rt-ledger: codex 01a146fc-9855-7d40-9f62-172697159a5a (-a never -s danger-full-access; marker master, recorded) in zeoruntime-ledger-maintainer
+RESEAT zeo-rt-pr: codex 01a14a9c-58b9-7083-b791-edf1ea90c644 (-a never -s danger-full-access; marker master, recorded) in zeoruntime-contributor
+RESEAT zeo-rt-review: codex 01a149c0-0960-7570-a822-a7129f1c8b9c (-a never -s danger-full-access; marker master, recorded) in zeoruntime-reviewer
+RESEAT zeo-rt-sched: codex 01a14a9c-58b8-7bc0-8b07-6ceb8eb9a3bc (-a never -s danger-full-access; marker master, no record, default) in zeoruntime-scheduler-maintainer
+RESEAT zeoagenda-maintainer: codex 01a15f5b-bb73-74d2-9dba-582bb7d5cabe (-a never -s danger-full-access; marker master, recorded) in zeoagenda-maintainer
+RESEAT zeoapp: codex 01a101c3-4a96-7933-b7b7-7914d9da286d (-a never -s danger-full-access; marker master, recorded) in zeoapp-maintainer
+OK zeoarchitect: started by rescue
+RESEAT zeoconnect: claude b4825478-8383-44f5-8be8-25005fdac7fa (--permission-mode auto; marker master, no record, default) in zeoconnect-maintainer
+RESEAT zeoconnect-integrations: codex 01a146fc-9846-7b03-b663-2be684c7fc8a (-a never -s danger-full-access; marker master, no record, default) in zeoconnect-integrations-maintainer
+RESEAT zeoconnect-ops: claude 24762ded-3983-4e3d-ac57-635859e64b48 (--permission-mode auto; marker master, no record, default) in zeoconnect-ops
+RESEAT zeoconnect-tools: codex 01a149cf-2e14-77a0-bc43-703f04438f9b (-a never -s danger-full-access; marker master, no record, default) in zeoconnect-tools-maintainer
+RESEAT zeoconnect-ui: codex 01a146fc-982b-7331-8115-977a42b9a197 (-a never -s danger-full-access; marker master, recorded) in zeoconnect-ui-maintainer
+RESEAT zeocontrolling: claude 17f08d7c-267a-4c9c-adca-d151478611b1 (--permission-mode auto; marker master, no record, default) in zeocontrolling-maintainer
+RESEAT zeocore: claude 970b383e-c4be-43d7-9898-6fe0d7ac3237 (--permission-mode auto; marker master, no record, default) in zeocore-maintainer
+RESEAT zeocouncil: claude a37e1942-abd6-40e1-bd68-b61a155e62de (--permission-mode auto; marker master, no record, default) in zeocouncil-maintainer
+RESEAT zeocreator: claude 84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c (--permission-mode auto; marker master, no record, default) in dt-creator-maintainer
+RESEAT zeofetch: codex 01a14c69-b33a-7661-a976-ad7327e39167 (-a never -s danger-full-access; marker master, recorded) in dt-fetch-maintainer
+RESEAT zeointegrations: codex 01a149cf-0362-71e0-a3b6-0bb805c9c077 (-a never -s danger-full-access; marker master, recorded) in zeointegrations-maintainer
+RESEAT zeomessenger: claude 573ea388-9dac-4afd-86b0-03f224f43aa1 (--permission-mode auto; marker master, no record, default) in zeomessenger-maintainer
+RESEAT zeonewsroom: claude 14ee484a-d837-4d95-ac1b-6afd826d053e (--permission-mode auto; marker master, no record, default) in dt-newsroom-maintainer
+RESEAT zeoreviewer: codex 01a14ce3-82cc-7c20-9cae-0d7c9f6514af (-a never -s danger-full-access; marker master, recorded) in org-reviewer
+RESEAT zeroemployee: codex 01a13145-4441-7592-b460-9c749fac6750 (-a never -s danger-full-access; marker master, recorded) in zeo-site-maintainer
+RESEAT dreamhuggers-expenses-maintainer: codex 01a16ed4-0b39-7932-a8d2-58482012b62d (-a never -s danger-full-access; marker master, recorded) in dreamhuggers-expenses-maintainer
+RESEAT dt-clipping-maintainer: codex 01a16ed4-12bd-7fd1-9e79-ada9f1a49461 (-a never -s danger-full-access; marker master, recorded) in dt-clipping-maintainer
+RESEAT dt-media-vault-maintainer: codex 01a16ed3-f669-7390-8326-ad34307edd70 (-a never -s danger-full-access; marker master, recorded) in dt-media-vault-maintainer
+RESEAT dt-x-capture-maintainer: codex 01a16bcb-8a35-7e91-a238-48549b340cc9 (-a never -s danger-full-access; marker master, no record, default) in dt-x-capture-maintainer
+RESEAT sovereign-agent-maintainer: codex 01a16ed4-00ec-7d02-a978-91f70e348f6f (-a never -s danger-full-access; marker master, recorded) in sovereign-agent-maintainer
+RESEAT zeoerp: codex 01a17109-fd30-74c0-b04d-a0daa75e5a27 (-a never -s danger-full-access; marker master, recorded) in zeoerp
+RESEAT dt-brandedimage-maintainer: codex 01a18e5d-9ea5-7631-8716-08c91cd8d65c (-a never -s danger-full-access; no marker, recorded inactive) in dt-brandedimage-maintainer
+RESEAT dt-comic-slides-editor: codex 01a18e71-1c6b-7ae2-a48a-fad499bdf9f0 (-a never -s workspace-write; no marker, no record, workspace-write) in dt-comic-slides-editor
+RESEAT dt-animated-comics-editor: codex 01a18e71-77b5-7863-9eb2-8d43632d5f22 (-a never -s workspace-write; no marker, no record, workspace-write) in dt-animated-comics-editor
+RESEAT dt-hud-editor: codex 01a18e71-a79a-79e3-a04a-29d6bfec15c7 (-a never -s workspace-write; no marker, recorded inactive) in dt-hud-editor
+WORK architect: (cut)
+WORK zeocontrolling: (cut)
+WORK zeocontrolling: (cut)
+WORK zeocouncil: (cut)
+work: 3 of 49 seats show running work
+rescue: live 0, ok 1, running 0, to resume 0, to reseat 49, resumed 0, unresolved 0, failed 0
