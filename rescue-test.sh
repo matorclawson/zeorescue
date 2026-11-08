@@ -20,6 +20,7 @@ case "\$3" in
   show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) cat "$T/screen" 2>/dev/null ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
+    case "\$*" in *" -- sleep 3600") [ ! -f "$T/onstop" ] || bash "$T/onstop";; esac
     case "\$*" in *" --resume "*) sid=\$(printf "%s\n" "\$*" | sed -E "s/.* --resume ([^ ]+).*/\\1/"); if [ -f "$T/claudeadd" ]; then for f in "$T"/projects/*/\$sid.jsonl; do cat "$T/claudeadd" >> "\$f"; done; fi; printf "9 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; [ ! -f "$T/secondclaude" ] || printf "77 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; if [ -f "$T/forksession" ]; then for f in "$T"/projects/*/\$sid.jsonl; do : > "\${f%/*}/99999999-9999-4999-8999-999999999999.jsonl"; done; fi;; esac;
     case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi; [ ! -f "$T/heldafter" ] || cp "$T/heldafter" "$T/lsof.held"; [ ! -f "$T/latehold" ] || touch "$T/heldlate"; [ ! -f "$T/rolladd" ] || cat "$T/rolladd" >> "$T/sess/full.jsonl" ;; esac ;;
 esac
@@ -323,7 +324,7 @@ rm -f "$T/ps.seen" "$T/screen" "$T/ps.tree" "$T/snapwrite"
 echo "-- check"
 cat > "$T/bin/ps" <<S
 #!/bin/bash
-case "\$1" in -Ewwp) cat "$T/psE.out";; *) cat "$T/ps.out";; esac
+case "\$1" in -Ewwp) cat "$T/psE.out";; -axo) if [ "\$2" = "pid=,ppid=" ] && [ -f "$T/pstree" ]; then cat "$T/pstree"; else cat "$T/ps.out"; fi;; *) cat "$T/ps.out";; esac
 exit 0
 S
 reset_live; echo cx-maintainer >> "$T/live"; echo cl-maintainer >> "$T/live"
@@ -493,9 +494,77 @@ grep -q '^OK cl (claude)' <<< "$(R --check --seat cl 2>&1)" && ok "and passes --
 rm -rf "$CO"; mkdir -p "$CN"
 : > "$T/moves"; : > "$T/ps.out"; : > "$T/panes"; printf '' > "$T/psE.out"; rm -f "$T/claudeadd"; rm -rf "$CN"; cp -R "$T/cproj" "$CO"; export ZEO_RESCUE_PINS="$T/no-pins"; reset_live
 
+echo "-- a seat's own clone is carried to <repo>/main while it is stopped (a carry line in folder-moves)"
+# git reports real paths, so this part works under the real path of the temp folder
+K=$(cd "$T" && pwd -P)/k KS=88888888-8888-4888-8888-888888888888 KX=44444444-4444-4444-8444-444444444444
+KF=$K/org/ka KT=$K/org/ka/main KW=$K/ext/ka-wt KB=$K/org/kb
+kgit() { git -c user.email=t@t -c user.name=t -c init.defaultBranch=main "$@"; }
+mkdir -p "$K/org" "$K/ext" "$K/other"; kgit init -q "$KF"; echo a > "$KF/a"; kgit -C "$KF" add a; kgit -C "$KF" commit -qm a
+kgit -C "$KF" worktree add -q "$KW" -b side 2>/dev/null; kgit -C "$KF" worktree add -q "$K/ext/gone" -b gone 2>/dev/null; rm -rf "$K/ext/gone"; echo u > "$KF/untracked"
+kgit init -q "$KB"; kgit -C "$KB" commit -q --allow-empty -m b
+cp -Rp "$K" "$T/k.orig"; KHEAD=$(git -C "$KF" rev-parse HEAD)
+KP=$T/projects/$(enc "$KF") KPN=$T/projects/$(enc "$KT")
+printf '{"seats":[%s,%s,%s]}' "$(row ka ka claude h ka-s "$KF")" "$(row kx kx codex h kx-s "$KB")" "$(row kd kd claude h kd-s "$KB")" > "$T/kchart.json"
+printf 'ka %s\nkx %s\nkd %s\n' "$KS" "$KX" "$KS" > "$T/kpins"
+KR() { ZEO_RESCUE_PINS="$T/kpins" ZEO_RESCUE_MOVES="$T/kmoves" ZEO_RESCUE_CLAUDE_JSON="$T/kj.json" ZEO_RESCUE_CODEX_CONFIG="$T/kc.toml" "$HERE/rescue.sh" --host h --stagger 0 --chart "$T/kchart.json" "$@" 2>&1; }
+kmove() { printf 'ka %s %s\n' "$1" "${2:-carry}" > "$T/kmoves"; }
+ktrust() { printf '{"projects":{"%s":{"hasTrustDialogAccepted":true}}}' "$1" > "$T/kj.json"; }
+kreset() { # the seat is up in its clone, idle, a child of it in a subfolder; on the stop its process goes, as a real stop does
+  reset_live; rm -rf "$K" "$KP" "$KPN"; cp -Rp "$T/k.orig" "$K"; mkdir -p "$KP/memory"; echo m > "$KP/memory/MEMORY.md"; echo '{"permissionMode":"auto"}' > "$KP/$KS.jsonl"
+  echo ka-s >> "$T/live"; echo 'ka-s|%5|9|1|claude' > "$T/panes"; echo "9 /x/claude --resume $KS" > "$T/ps.out"; printf '9 1\n501 9\n' > "$T/pstree"
+  printf 'p9\nn%s\np501\nn%s/sub\np600\nn%s\n' "$KF" "$KF" "$K/org" > "$T/lsof.out"; kmove "$KT"; ktrust "$KT"; : > "$T/kc.toml"
+  printf ': > "%s"; : > "%s"; rm -f "%s"\n' "$T/ps.out" "$T/lsof.out" "$T/onstop" > "$T/onstop"
+  printf '{"cwd":"%s"}\n' "$KT" > "$T/claudeadd"; printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=matorclawson ZMAIL_INSTANCE=ka GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"
+}
+KP1() { KR --reseat --relaunch --seat ka; }
+kreset
+out=$(KP1); grep -q "^RESEAT ka: claude $KS " <<< "$out" && grep -qxF "MOVE ka: from $KF to $KT, carrying the clone while the seat is stopped" <<< "$out" && ok "a ready carry is planned, and says so" || bad "carry plan: $out"
+[ ! -e "$T/launched" ] || [ ! -s "$T/launched" ] && [ ! -e "$KT" ] && ok "the plan moves nothing" || bad "plan moved"
+grep -qxF "WRONG ka (claude): not yet carried to $KT; the carry is ready" <<< "$(KR --check --seat ka)" && ok "--check names a carry still to run" || bad "carry check: $(KR --check --seat ka)"
+echo '{"projects":{}}' > "$T/kj.json"; grep -q "^UNRESOLVED ka: $KT has no trusted entry in" <<< "$(KP1)" && ok "a carry with no trust entry for the new folder is refused" || bad "carry trust: $(KP1)"
+kreset; kmove "$KT" kerry; grep -q "^UNRESOLVED ka: its line in .* ends in 'kerry', and only carry is known" <<< "$(KP1)" && ok "an unknown third word is refused" || bad "kerry: $(KP1)"
+kreset; mv "$KF/.git" "$KF/.git.x"; grep -q "^UNRESOLVED ka: $KF is not the top of a git clone" <<< "$(KP1)" && ok "a folder that is not a clone is not carried" || bad "not git: $(KP1)"; mv "$KF/.git.x" "$KF/.git"
+kreset; printf 'ka %s\n' "$KS" > "$T/kpins2"; printf 'ka %s carry\n' "$KW/main" > "$T/kmoves"; printf '{"seats":[%s]}' "$(row ka ka claude h ka-s "$KW")" > "$T/kchart2.json"; ktrust "$KW/main"
+grep -q "^UNRESOLVED ka: $KW is not an ordinary clone with its own .git" <<< "$(KR --reseat --relaunch --seat ka --chart "$T/kchart2.json")" && ok "a linked worktree is not carried" || bad "worktree carry: $(KR --reseat --relaunch --seat ka --chart "$T/kchart2.json")"
+kreset; kmove "$KF/x/main"; ktrust "$KF/x/main"; grep -q "^UNRESOLVED ka: $KF/x/main is more than one level inside $KF" <<< "$(KP1)" && ok "only one level down" || bad "deep: $(KP1)"
+kreset; kmove "$KB/sub/main"; ktrust "$KB/sub/main"; grep -q "^UNRESOLVED ka: $KB is in git, so $KB/sub/main would be inside a repository" <<< "$(KP1)" && ok "never into another repository" || bad "into repo: $(KP1)"
+kreset; kmove "$K/none/a/main"; ktrust "$K/none/a/main"; grep -q "^UNRESOLVED ka: neither $K/none/a nor its parent is a folder" <<< "$(KP1)" && ok "at most one new folder is made" || bad "two levels: $(KP1)"
+kreset; kmove /dev/zeo-rescue-test/main; ktrust /dev/zeo-rescue-test/main; grep -q "^UNRESOLVED ka: /dev/zeo-rescue-test/main is on another volume, so the move would be a copy" <<< "$(KP1)" && ok "never across volumes" || bad "volume: $(KP1)"
+kreset; kgit -C "$KF" worktree add -q "$KF/inner" -b inner 2>/dev/null; grep -q "^UNRESOLVED ka: its linked worktree $KF/inner is inside it" <<< "$(KP1)" && ok "a worktree inside the clone is refused" || bad "inner: $(KP1)"
+kreset; git -C "$KF" config zeo.path "$KF/x"; grep -q "^UNRESOLVED ka: its git config names its own path" <<< "$(KP1)" && ok "a git config that names its own path is refused" || bad "config: $(KP1)"
+kreset; mkdir -p "$KPN"; grep -q "^UNRESOLVED ka: $KPN already exists, and two projects are not merged here" <<< "$(KP1)" && ok "a project under the new key is refused" || bad "new key: $(KP1)"
+kreset; mkdir "$KT"; grep -q "^UNRESOLVED ka: $KT is there, but it is not a carried clone with its own .git" <<< "$(KP1)" && ok "a new path that is there but is not the clone is refused" || bad "there: $(KP1)"
+kreset; printf 'p700\nn%s/sub\n' "$KF" >> "$T/lsof.out"; grep -q "^UNRESOLVED ka: pid 700 works in $KF and is not the seat's own" <<< "$(KP1)" && ok "another process working in the clone stops the plan" || bad "holder: $(KP1)"
+kreset; : > "$T/live"; grep -q "^UNRESOLVED ka: it is down, and a carry moves only a seat this run stops itself" <<< "$(KR --seat ka)" && ok "a seat that is down is not carried" || bad "down: $(KR --seat ka)"
+kreset; printf 'kx %s carry\n' "$KB/main" > "$T/kmoves"; echo kx-s >> "$T/live"; echo 'kx-s|%6|9|1|codex' > "$T/panes"; echo "9 /x/codex resume -a never -s danger-full-access -C $KB --no-daemon $KX" > "$T/ps.out"
+grep -q "^UNRESOLVED kx: $KB/main has no trusted entry in $T/kc.toml" <<< "$(KR --reseat --relaunch --seat kx)" && ok "a Codex carry needs its trust entry too, though the folder is not there yet" || bad "codex trust: $(KR --reseat --relaunch --seat kx)"
+printf '[projects."%s"]\ntrust_level = "trusted"\n' "$KB/main" > "$T/kc.toml"
+out=$(KR --reseat --relaunch --seat kx); grep -q "^RESEAT kx: codex $KX" <<< "$out" && grep -qxF "MOVE kx: from $KB to $KB/main, carrying the clone while the seat is stopped" <<< "$out" && ok "and with it, the Codex carry is planned" || bad "codex carry: $out"
+kreset; rm -f "$T/launched"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?
+[ $rc -eq 0 ] && grep -qxF "CARRIED ka: $KF to $KT, the same folder (inode $(stat -f %i "$T/k.orig/org/ka" >/dev/null; sed -n 's/.*(inode \([0-9]*\)).*/\1/p' <<< "$out" | head -1)) at $KHEAD; 1 linked worktrees elsewhere repaired" <<< "$out" && grep -q "^MOVED OK ka: session $KS, one transcript, one process, in $KT" <<< "$out" && ok "the carry runs: the clone moves, its worktree is repaired, the move is proved" || bad "carry apply: $rc $out"
+ki=$(sed -n 's/.*(inode \([0-9]*\)).*/\1/p' <<< "$out" | head -1)
+[ -n "$ki" ] && [ "$(stat -f %i "$KT")" = "$ki" ] && [ "$(git -C "$KT" rev-parse HEAD)" = "$KHEAD" ] && [ -f "$KT/untracked" ] && [ "$(ls -A "$KF")" = main ] && [ "$(stat -f %Lp "$KF")" = 755 ] && ok "the same folder, HEAD and untracked file are at main, and the old path holds only main" || bad "carried: $(ls -A "$KF") $(stat -f %i "$KT") $ki"
+[ "$(git -C "$KW" rev-parse --path-format=absolute --git-common-dir)" = "$KT/.git" ] && git -C "$KW" status --porcelain >/dev/null && [ "$(git -C "$KT" worktree list --porcelain | grep -c '^prunable')" = 1 ] && ok "the linked worktree reaches the clone at its new place; the prunable one is left as it was" || bad "repair: $(git -C "$KW" rev-parse --git-common-dir 2>&1)"
+[ -f "$KPN/$KS.jsonl" ] && [ -f "$KPN/memory/MEMORY.md" ] && [ ! -e "$KP" ] && ok "its project went with it, memory too" || bad "carry project: $(ls "$T/projects")"
+grep -qF -- "-c $K/org -- sleep 3600" "$T/launched" && grep -qF -- "-c $KT -- $HERE/seat-exec.sh ka claude" "$T/launched" && ok "it is stopped outside the clone and started in main" || bad "carry launch: $(cat "$T/launched")"
+grep -q "^OK ka (claude)" <<< "$(KR --check --seat ka)" && ok "after the carry it checks right" || bad "carry check after: $(KR --check --seat ka)"
+grep -q '^OK ka: started by rescue, right already' <<< "$(KR --reseat --relaunch --seat ka)" && ok "a second run leaves it alone" || bad "carry twice: $(KR --reseat --relaunch --seat ka)"
+kreset; printf ': > "%s"; printf "p800\\nn%s\\n" > "%s"; rm -f "%s"\n' "$T/ps.out" "$KF" "$T/lsof.out" "$T/onstop" > "$T/onstop"; ki0=$(stat -f %i "$KF"); rm -f "$T/launched"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?
+[ $rc -eq 1 ] && grep -q "^FAILED ka: pid 800 still works in $KF after the stop; nothing was moved; it was not started" <<< "$out" && [ "$(stat -f %i "$KF")" = "$ki0" ] && [ ! -e "$KT" ] && [ -f "$KP/$KS.jsonl" ] && ok "a process still in the clone after the stop: nothing moves" || bad "carry holder: $rc $out"
+kreset; printf ': > "%s"; : > "%s"; mv "%s" "%s.x"; cp -Rp "%s.x" "%s"; rm -f "%s"\n' "$T/ps.out" "$T/lsof.out" "$KF" "$KF" "$KF" "$KF" "$T/onstop" > "$T/onstop"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?
+[ $rc -eq 1 ] && grep -q "^FAILED ka: $KF is not the folder the plan read" <<< "$out" && [ ! -e "$KT" ] && ok "a folder swapped after the plan is not carried" || bad "carry swap: $rc $out"; rm -rf "$KF.x"
+kreset; printf ': > "%s"; : > "%s"; mkdir "%s"; rm -f "%s"\n' "$T/ps.out" "$T/lsof.out" "$KF.carry-ka" "$T/onstop" > "$T/onstop"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?
+[ $rc -eq 1 ] && grep -q "^FAILED ka: $KF.carry-ka is in the way; nothing was moved" <<< "$out" && [ ! -e "$KT" ] && [ -d "$KF/.git" ] && ok "a name in the way stops the carry before anything moves" || bad "carry tmp: $rc $out"; rm -rf "$KF.carry-ka"
+kreset; printf ': > "%s"; : > "%s"; chmod 444 "%s/.git"; chmod 555 "%s"; rm -f "%s"\n' "$T/ps.out" "$T/lsof.out" "$KW" "$KW" "$T/onstop" > "$T/onstop"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?; chmod 755 "$KW"; chmod 644 "$KW/.git"
+[ $rc -eq 1 ] && grep -qF "but these still do not reach it: $KW" <<< "$out" && grep -q "^MOVED OK ka" <<< "$out" && grep -q "^FAILED: ka: the seat runs in its carried clone, but a linked worktree of it does not reach it" <<< "$out" && ok "a worktree that cannot be repaired fails the run out loud, and the seat still runs" || bad "carry repair: $rc $out"
+kreset; kmove "$K/other/ka/main"; ktrust "$K/other/ka/main"; KPO=$T/projects/$(enc "$K/other/ka/main"); rm -rf "$KPO"; printf '{"cwd":"%s"}\n' "$K/other/ka/main" > "$T/claudeadd"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?
+[ $rc -eq 0 ] && [ ! -e "$KF" ] && [ -d "$K/other/ka/main/.git" ] && [ "$(git -C "$KW" rev-parse --path-format=absolute --git-common-dir)" = "$K/other/ka/main/.git" ] && [ -f "$KPO/$KS.jsonl" ] && ok "a clone carried into another folder leaves nothing at its old path" || bad "carry elsewhere: $rc $out"
+rm -rf "$KPO" "$K/other/ka"
+kreset; reset_live; rm -f "$T/onstop" "$T/pstree" "$T/claudeadd"; : > "$T/ps.out"; : > "$T/lsof.out"; : > "$T/panes"; printf '' > "$T/psE.out"
+
 echo "-- a check reads all its input: under pipefail a reader that leaves early turns a match into a miss"
 pad() { printf '%s\n' "$1"; head -c 1000000 /dev/zero | tr '\0' x; echo; }
-hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh")
+hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh" "$HERE/structure-move.sh")
 [ -z "$hits" ] && ok "no script pipes into grep -q" || bad "pipes into grep -q: $hits"
 reset_live; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"
 echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/cx --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
@@ -519,14 +588,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -677,6 +746,76 @@ printf 'RESEAT ducktyper-ops: claude %s\n' "$csid" > "$T/cf/plan"; out=$(CF); rc
 grep -q -- '--reseat --apply --relaunch --harness claude --seat ducktyper-ops --note-file notes/claude-move-ducktyper-ops-20261108.txt' "$T/cf/calls" && ok "the move carries the seat's note" || bad "cf apply args: $(cat "$T/cf/calls")"
 : > "$T/cf/calls"; out=$(CF); rc=$?; [ $rc -eq 0 ] && echo "$out" | grep -q '^ALREADY DONE: ducktyper-ops moved' && [ ! -s "$T/cf/calls" ] && ok "a second claude-first restarts nothing" || bad "cf twice: $rc $out"
 for f in rescue.sh session-pins; do cp "$T/cf/$f.keep" "$T/run/$f"; done; pinf rescue.sh session-pins; rm -f "$T/first.done"
+# structure-move.sh, through the runner, on a stub rescue.sh: --apply carries the folder and renames the project as rescue.sh does, and writes the note's words if $T/sm/deliver exists.
+rm -rf "$T/sm"; mkdir -p "$T/sm/proj" "$T/sm/w/org"; cp "$T/run/rescue.sh" "$T/sm/rescue.sh.keep"
+SMF=$T/sm/w/org/sa SMT=$T/sm/w/org/sa/main ssid=12121212-1212-4212-8212-121212121212; mkdir -p "$SMF"; echo x > "$SMF/f"
+smo=$T/sm/proj/$(enc2 "$SMF"); smn=$T/sm/proj/$(enc2 "$SMT"); sw=$(awk -F'"' '/^PROOF=/ {print $2}' "$HERE/structure-move.sh")
+smrow() { printf '%s claude sa-s %s %s %s %s\n' "${1:-sa}" "$ssid" "$SMF" "$SMT" "${2:-$(stat -f %i "$SMF")}" > "$T/sm/table"; }
+smrow; echo "sa $SMT carry" > "$T/sm/moves"; echo "sa $ssid" > "$T/sm/pins"; echo '{"projects":{}}' > "$T/sm/cj.json"
+cat > "$T/run/rescue.sh" <<S
+#!/bin/bash
+echo "\$*" >> "$T/sm/calls"
+case " \$* " in
+  *" --check "*) if [ -f "$T/sm/wrong" ]; then echo "WRONG sa (claude): stub"; exit 1; fi; echo "OK sa (claude)"; echo "check: ok 1, wrong 0";;
+  *" --apply "*) [ ! -f "$T/sm/fail" ] || { echo "STOPPED: stub"; exit 1; }
+    if [ ! -e "$SMT" ]; then mv "$SMF" "$SMF.c" && mkdir "$SMF" && mv "$SMF.c" "$SMT"; fi; [ ! -d "$smo" ] || mv "$smo" "$smn"; echo "MOVED OK sa: stub"
+    [ ! -f "$T/sm/deliver" ] || printf '{"type":"user","message":{"content":"Correction. %s"}}\n' "$sw" >> "$smn/$ssid.jsonl";;
+  *) cat "$T/sm/plan";;
+esac
+S
+chmod +x "$T/run/rescue.sh"; pinf rescue.sh; rm -f "$T/sm/calls"
+SM() { ZEO_RESCUE_TABLE="$T/sm/table" ZEO_RESCUE_MOVES="$T/sm/moves" ZEO_RESCUE_PINS="$T/sm/pins" ZEO_RESCUE_PROJECTS="$T/sm/proj" ZEO_RESCUE_CLAUDE_JSON="$T/sm/cj.json" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_PROOF_TRIES=2 L "$@" 2>&1; }
+smplan() { printf 'RESEAT sa: claude %s (--permission-mode auto; marker master, no record, default) in sa-s\nMOVE sa: from %s to %s, carrying the clone while the seat is stopped\n' "$ssid" "$SMF" "$SMT" > "$T/sm/plan"; }
+smplan; echo "$rv (Claude Code)" > "$T/ver"
+out=$(SM structure-first); rc=$?; [ $rc -eq 2 ] && grep -q '^usage: reseat-lines.sh structure-first SEAT; nothing was run' <<< "$out" && ok "a structure step needs its seat" || bad "sm usage: $rc $out"
+out=$(SM structure-first 'sa;x'); rc=$?; [ $rc -eq 2 ] && grep -q '^usage: reseat-lines.sh structure-first SEAT' <<< "$out" && ok "and a seat id that is only a seat id" || bad "sm bad seat: $rc $out"
+grep -q '^REFUSED, nothing was changed: nobody needs exactly one row in structure-moves' <<< "$(SM structure-first nobody)" && ok "a seat with no row runs nothing" || bad "sm no row: $(SM structure-first nobody)"
+echo "sa $SMT" > "$T/sm/moves"; grep -q '^REFUSED, nothing was changed: folder-moves needs exactly one line: sa .* carry' <<< "$(SM structure-first sa)" && ok "the move must be a carry line in folder-moves" || bad "sm moves: $(SM structure-first sa)"
+printf 'sa %s carry\nsa %s carry\n' "$SMT" "$SMT" > "$T/sm/moves"; grep -q '^REFUSED, nothing was changed: folder-moves needs exactly one line' <<< "$(SM structure-first sa)" && ok "and only one" || bad "sm two moves"
+echo "sa $SMT carry" > "$T/sm/moves"; echo "sa 34343434-3434-4434-8434-343434343434" > "$T/sm/pins"; grep -q '^REFUSED, nothing was changed: session-pins needs sa' <<< "$(SM structure-first sa)" && ok "its thread must be pinned, the same one" || bad "sm pin"
+echo "sa $ssid" > "$T/sm/pins"; sed -i '' 's/ claude / codex /' "$T/sm/table"; grep -q '^REFUSED, nothing was changed: sa is a codex seat, and only a Claude carry is rehearsed' <<< "$(SM structure-first sa)" && ok "a Codex seat is refused until its own rehearsal" || bad "sm codex"
+smrow sa 1; grep -q '^REFUSED, nothing was changed: neither .* nor .* is the folder read for sa (inode 1): an unknown state' <<< "$(SM structure-trust sa)" && ok "any state but the two it knows is refused, by every step" || bad "sm state: $(SM structure-trust sa)"
+smrow; printf 'sa claude sa-s %s %s %s %s extra\n' "$ssid" "$SMF" "$SMT" "$(stat -f %i "$SMF")" > "$T/sm/table"; grep -q '^REFUSED, nothing was changed: the row for sa in structure-moves is not' <<< "$(SM structure-first sa)" && ok "a row of the wrong shape is refused" || bad "sm shape"
+smrow; out=$(SM structure-trust sa); rc=$?
+[ $rc -eq 0 ] && grep -q "^ADDED: $SMT is trusted, before the folder is there" <<< "$out" && [ "$(jq -r --arg d "$SMT" '.projects[$d].hasTrustDialogAccepted' "$T/sm/cj.json")" = true ] && [ "$(stat -f %Lp "$T/state/claude-json.before-sa")" = 600 ] && ok "structure-trust trusts the new folder before it exists, with a backup of mode 600" || bad "sm trust: $rc $out"
+grep -q '^NOTHING TO ADD' <<< "$(SM structure-trust sa)" && ok "a second trust run changes nothing" || bad "sm trust twice"
+echo "2.1.999 (Claude Code)" > "$T/ver"; out=$(SM structure-first sa); rc=$?; echo "$rv (Claude Code)" > "$T/ver"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: Claude is 2.1.999 and the rehearsal ran on $rv" <<< "$out" && [ ! -e "$T/sm/calls" ] && ok "structure-first refuses a Claude nobody rehearsed" || bad "sm version: $rc $out"
+out=$(SM structure-first sa); rc=$?; [ $rc -eq 2 ] && grep -q '^NOT READY, nothing was run: no transcript for sa' <<< "$out" && ok "it needs the seat's transcript" || bad "sm transcript: $rc $out"
+mkdir -p "$smo/memory"; echo '{"type":"user","message":{"content":"before"}}' > "$smo/$ssid.jsonl"; cp "$smo/$ssid.jsonl" "$T/sm/tr.keep"
+printf '{"type":"user","message":{"content":"%s"}}\n' "$sw" >> "$smo/$ssid.jsonl"; out=$(SM structure-first sa); rc=$?; cp "$T/sm/tr.keep" "$smo/$ssid.jsonl"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: the note's words are already in" <<< "$out" && ok "it refuses when the note's words are already there" || bad "sm words: $rc $out"
+printf 'WORK sa: a turn is in progress on its screen\n' >> "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
+[ $rc -eq 2 ] && grep -q '^BUSY, nothing was run' <<< "$out" && ! grep -q -- '--apply' "$T/sm/calls" && ok "it refuses while the seat is working" || bad "sm busy: $rc $out"
+printf 'UNRESOLVED sa: stub\n' > "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was run: the plan does not move sa from $SMF to $SMT" <<< "$out" && ! grep -q -- '--apply' "$T/sm/calls" && ok "it refuses a plan that does not move this seat from its row's folder" || bad "sm plan: $rc $out"
+sed -i '' 's/ in sa-s$/ in other-s/' "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
+[ $rc -eq 2 ] && grep -q '^REFUSED, nothing was run: the plan does not move' <<< "$out" && ok "or one in another tmux session" || bad "sm sess: $rc $out"
+cp "$T/run/notes/structure-move-claude.txt" "$T/sm/tpl.keep"; echo "{NOPE}" >> "$T/run/notes/structure-move-claude.txt"; pinf notes/structure-move-claude.txt; : > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; cp "$T/sm/tpl.keep" "$T/run/notes/structure-move-claude.txt"; pinf notes/structure-move-claude.txt
+[ $rc -eq 1 ] && grep -q "^FAILED, nothing was run: the note did not render" <<< "$out" && ! grep -q -- "--apply" "$T/sm/calls" && ok "a note with a placeholder left in it runs nothing" || bad "sm placeholder: $rc $out"
+: > "$T/sm/fail"; out=$(SM structure-first sa); rc=$?; rm -f "$T/sm/fail"
+[ $rc -eq 1 ] && grep -q '^STOPPED: the move or its check failed' <<< "$out" && [ ! -e "$T/state/structure-move-sa/first.done" ] && ok "a move that fails stops there and marks nothing" || bad "sm stopped: $rc $out"
+note=$T/state/structure-move-sa/note.txt
+grep -qF "from $SMF to $SMT." "$note" && grep -qF "$T/sm/proj/$(enc2 "$SMT")/memory/:" "$note" && grep -qF "$T/sm/proj/$(enc2 "$SMF")/memory/, no longer exists" "$note" && grep -qF "$sw" "$note" && ! grep -q '[{}`*]' "$note" && [ "$(stat -f %Lp "$T/state/structure-move-sa")" = 700 ] && ok "the note names both folders and both memory folders, carries the proof, and keeps no placeholder" || bad "sm note: $(cat "$note")"
+mv "$SMT" "$SMF.back"; rmdir "$SMF"; mv "$SMF.back" "$SMF"; [ ! -d "$smn" ] || mv "$smn" "$smo"
+out=$(SM structure-first sa); rc=$?
+[ $rc -eq 1 ] && grep -q '^NOT DELIVERED: ' <<< "$out" && [ ! -e "$T/state/structure-move-sa/first.done" ] && ok "a transcript that never shows the note says NOT DELIVERED and marks nothing" || bad "sm undelivered: $rc $out"
+grep -qF "MOVE sa: from $SMF to $SMT" <<< "$(cat "$T/sm/plan")" && : > "$T/sm/calls"; : > "$T/sm/deliver"; sed -i '' 's/, carrying the clone while the seat is stopped$//' "$T/sm/plan"
+out=$(SM structure-first sa); rc=$?
+[ $rc -eq 0 ] && grep -q "^NOTE DELIVERED sa: its words are in session $ssid under $SMT" <<< "$out" && [ -s "$T/state/structure-move-sa/first.done" ] && ok "after a carry whose start failed, a rerun starts it in the new folder, proves the note and marks itself done" || bad "sm deliver: $rc $out"
+grep -qF -- "--reseat --apply --relaunch --harness claude --seat sa --note-file $note" "$T/sm/calls" && ok "the move carries the rendered note" || bad "sm args: $(cat "$T/sm/calls")"
+: > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; [ $rc -eq 0 ] && grep -q '^ALREADY DONE: sa moved' <<< "$out" && [ ! -s "$T/sm/calls" ] && ok "a second structure-first restarts nothing" || bad "sm twice: $rc $out"
+: > "$T/sm/wrong"; out=$(SM structure-clear sa); rc=$?; rm -f "$T/sm/wrong"
+[ $rc -eq 2 ] && grep -q '^OUT OF ORDER, nothing was deleted: sa is not right yet' <<< "$out" && [ -e "$T/state/claude-json.before-sa" ] && ok "structure-clear keeps the backup while the seat is wrong" || bad "sm clear wrong: $rc $out"
+out=$(SM structure-clear sa); rc=$?; [ $rc -eq 0 ] && grep -q '^DELETED' <<< "$out" && [ ! -e "$T/state/claude-json.before-sa" ] && ok "and deletes it once the seat checks right" || bad "sm clear: $rc $out"
+grep -q '^NOTHING TO DELETE' <<< "$(SM structure-clear sa)" && ok "a second clear has nothing to do" || bad "sm clear twice"
+mv "$SMT" "$SMF.back"; rmdir "$SMF"; mv "$SMF.back" "$SMF"; grep -q '^OUT OF ORDER, nothing was deleted: sa has not moved' <<< "$(SM structure-clear sa)" && ok "clear never runs before the move" || bad "sm clear before"
+cp "$T/sm/rescue.sh.keep" "$T/run/rescue.sh"; pinf rescue.sh
+# the real table: every row agrees with folder-moves and session-pins, and the note has no backtick or star
+bad_rows=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-moves" | while read -r s h ts sid f t i; do
+  [ "$(awk -v s="$s" '$1==s {print $2 " " $3}' "$HERE/folder-moves")" = "$t carry" ] && [ "$(awk -v s="$s" '$1==s {print $2}' "$HERE/session-pins")" = "$sid" ] || echo "$s"; done)
+[ -z "$bad_rows" ] && ok "each row of structure-moves agrees with folder-moves and session-pins" || bad "rows: $bad_rows"
+[ "$(grep -c '[`*]' "$HERE/notes/structure-move-claude.txt")" = 0 ] && ok "the structure note has no backtick or star" || bad "sm note marks"
 n=$HERE/notes/claude-move-ducktyper-ops-20261108.txt; grep -qF "$(enc2 /Volumes/AIPEMedia1/code/zeroemployeeorg/ducktyper-ops)/memory/, which no longer exists" "$n" && grep -qF "$(enc2 /Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops)/memory/" "$n" && [ "$(grep -c '[`*]' "$n")" = 0 ] && ok "the seat's note names its old memory folder as gone and the new one by its key, with no backtick or star" || bad "cf note"
 grep -q 'zeroemployeeorg-zeocreator/memory/' "$HERE/notes/zeocreator-memory-20261108.txt" && grep -q "never in the old folder" "$HERE/notes/zeocreator-memory-20261108.txt" && grep -qF "$(printf %s /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')/memory/" "$HERE/notes/zeocreator-memory-20261108.txt" && ok "its note names the old memory folder as gone, and the real one by the key of its folder" || bad "zc note"
 SIDC=ca076ba8-7fee-46f0-853b-8182adc3c975; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"ducktyper-ops","mailbox":"ducktyper-ops","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"

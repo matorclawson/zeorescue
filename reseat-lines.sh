@@ -23,6 +23,10 @@
 #   reseat-lines.sh zeocreator-note  restarts zeocreator in place with a note naming its real memory folder; restarts even when it reads as right, proves the note reached its transcript, and runs once; refuses while it is working, or on a Claude nobody rehearsed
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
+#   reseat-lines.sh structure-trust SEAT  adds the trust entry for that seat's new folder in the one code structure (structure-moves); starts nothing
+#   reseat-lines.sh structure-first SEAT  restarts that one seat, which carries its clone to the new folder while it is stopped; proves its note
+#                                arrived, and runs once; refuses while it is working, or on a Claude nobody rehearsed (structure-move.sh)
+#   reseat-lines.sh structure-clear SEAT  deletes the backup its trust step made; only once the seat checks right
 set -uo pipefail
 WANT=rodbot@Mac-mini
 BEFORE=202611050511
@@ -60,14 +64,14 @@ CLAUDE_FIRST_DONE=$STATE/ops-move-$CLAUDE_SEAT/first.done
 CLAUDE_TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
 ZEOCREATOR_DONE=$STATE/zeocreator-note-20261108.done
 step=${1:-}
-case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back; nothing was run"; exit 2;; esac
+case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back|structure-trust|structure-first|structure-clear) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back|structure-trust SEAT|structure-first SEAT|structure-clear SEAT; nothing was run"; exit 2;; esac
 place="$(id -un)@$(hostname -s)"
 [ "$place" = "$WANT" ] || { echo "WRONG PLACE, nothing was run: you are $place. Open the rodbot terminal on the Mac mini."; exit 2; }
 cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin c79cae05fbec740628950ce3bdcdc2a5aca9dbd300315f123f2bca8fe7bbdb32 rescue.sh
+pin 633424ca575f43b1f6cca99234fe135af307ccb3554ca7b5a62e2f26858dc236 rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871 Makefile
 pin 1adcb30598013a977074ea0cc5159fff7486cec90b2cabf5a2cd47695657d2de session-pins
@@ -75,13 +79,16 @@ pin ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029 notes/resea
 pin 6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b notes/zeoarchitect-resume.txt
 pin be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2 notes/lic-test-20261106.txt
 pin caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de notes/codex-relaunch-20261106.txt
-pin 2de7cd3942503aaa421243110b84416568b46d453071e1c63e37c89aa27f4fd9 folder-moves
+pin ed89d2743246af454df54ccb68e4191c5e8507bacd6f63faf645c81ccae361a1 folder-moves
 pin 13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d zshenv-lines.sh
 pin c8cae72eb76d4376a682d9425486d0e47c48e7f7c1c5ee046b51b34532ef7afb notes/claude-move-zbs-20261107.txt
 pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
 pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 pin 710302729c54dffab39ab4809813b6d8bb87516706862fa4f67a22367cb7cbe0 ops-move.sh
 pin 3a18e0a2edae23907b0307dfa842cd645379a300146282ad25e4bc47730e2d1f notes/claude-move-ducktyper-ops-20261108.txt
+pin f67d0e6551a09faff3f82af5f1fe0798d8cf17194edd9225951caf403aa88eb2 structure-move.sh
+pin 09108ef54ed0c88c4434231f2bc71e9e9dfab89de65a9494b4813879b745f6bd structure-moves
+pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2
 moves_ready() { # every seat has its folder, and the folder exists; the folders are the Architect's to name
@@ -105,6 +112,9 @@ not_busy() { # a restart cuts a turn in progress, so a turn on any seat this ste
   [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when these are idle:"; echo "$w"; exit 2; }
 }
 log=$STATE/reseat-lines-$step-$(date +%Y%m%d-%H%M%S).log
+case "$step" in structure-*)
+  [[ "${2:-}" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { echo "usage: reseat-lines.sh $step SEAT; nothing was run"; exit 2; }
+  log=$STATE/reseat-lines-$step-$2-$(date +%Y%m%d-%H%M%S).log;; esac
 mkdir -p "$STATE"
 case "$step" in
   verify) echo "verified: right place, every pin matches; nothing was run"; exit 0;;
@@ -123,7 +133,7 @@ case "$step" in
     { make reseat ARGS="--seat $LIC_SEAT --before $BEFORE --note-file $LIC_NOTE" && make check ARGS="--seat $LIC_SEAT"; } 2>&1 | tee "$log";;
   trust)
     moves_ready; add=""
-    while read -r seat to; do
+    while read -r seat to _; do
       case "$seat" in ""|\#*) continue;; esac
       git -C "$to" rev-parse --git-dir >/dev/null 2>&1 || continue # a folder outside git never asks
       if /usr/bin/grep -qxF "[projects.\"$to\"]" "$CODEX_CONFIG"; then
@@ -167,6 +177,7 @@ case "$step" in
   zbs-folder-abs) STATE="$STATE" ./zbs-move.sh folder-abs 2>&1 | tee "$log";;
   ops-folder) STATE="$STATE" ./ops-move.sh "$CLAUDE_SEAT" folder 2>&1 | tee "$log";;
   ops-old) STATE="$STATE" ./ops-move.sh "$CLAUDE_SEAT" old 2>&1 | tee "$log";;
+  structure-trust|structure-first|structure-clear) STATE="$STATE" ./structure-move.sh "${2:-}" "${step#structure-}" 2>&1 | tee "$log";;
   claude-trust)
     claude_ready
     if [ "$(jq -r --arg d "$CLAUDE_NEW" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON")" = true ]; then echo "NOTHING TO ADD: $CLAUDE_NEW is already trusted; nothing was changed"; exit 0; fi

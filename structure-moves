@@ -1,0 +1,6 @@
+# SEAT HARNESS TMUX-SESSION SESSION-ID FROM TO FROM-INODE: one seat's move into the one code structure (the operator's order of 8 Nov 2026,
+# the Architect's list of 22:10Z). A row is added only when its seat has been read, and it is that read: structure-move.sh refuses any state but
+# the clone at FROM with this inode, or that same folder at TO. Its move also needs its line in folder-moves and its pin in session-pins.
+# zeoarchitect: read 8 Nov 22:20Z: an ordinary clone on main, clean, Go with no virtualenv; only the seat works in it; one live linked worktree
+# outside (za-ci), seven prunable; nothing on the host names its path.
+zeoarchitect claude zeoarchitect-maintainer 766f4d22-bf17-4513-b068-514a9bf46d00 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoarchitect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoarchitect/main 65492221
