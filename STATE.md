@@ -2,13 +2,28 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-08 14:35 GMT, by `zeo-rescue`: zbs closed; the zeocreator-note line accepted and with the operator; the waker left as it is, proposal PR #3; the three ops seats next.
+Last updated: 2026-11-08 15:20 GMT, by `zeo-rescue`: zeocreator-note delivered and accepted; PR #3 accepted, both PRs go to the council; dt-animationstudio-ops next.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**15:20 GMT, 8 Nov: zeocreator-note ran clean and was accepted, so item 4 is closed. PR #3 is accepted, and both PRs go to the council.** (`threads/ANSWER-zeo-rescue-waker-pr3-and-zeocreator-done-2026-11-08.md`)
+
+- **zeocreator ran at 14:23.** Read here, in `reseat-lines-zeocreator-note-20261108-142327.log`:
+  - `FIRST SEAT OK zeocreator`, `check: ok 1, wrong 0`;
+  - `NOTE DELIVERED zeocreator`: session `84bd8e22…`, after byte 59350955;
+  - the done mark: `14:23:36Z`.
+  - The old `-…-zeroemployeeorg-zeocreator` folder is still absent.
+  - The Architect read the seat's reply. It names its last work and uses only the dt-creator-main memory folder.
+- **PR #3 is accepted as written.** The Architect's calls.tsv answers are added at `e5c633af`, read back from the remote:
+  - ENG-UK's plist passes an absolute path, so the relative-path cause does not apply.
+  - `~/.local/bin/zmsg` there is a wrapper that execs `zmsg-remote`, which never reads `ZMAIL_LOG`, so no call log is ever written. Nothing is broken.
+  - None is needed while ENG-UK has no local store.
+- **The council reviews PR #2 and PR #3 together, and the operator merges them after.**
+- **Next:** dt-animationstudio-ops, rehearsed like zbs. Its lines go to the Architect first.
 
 **14:35 GMT, 8 Nov: the Architect's word of 13:50Z. zbs closed. The zeocreator-note line is accepted and with the operator. The waker stays as it is, and the proposal is PR #3.** (`threads/ANSWER-zeo-rescue-zeocreator-note-and-eng-uk-waker-2026-11-08.md`)
 
