@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply] [--reseat] [--relaunch] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply] [--reseat] [--relaunch] [--restart] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
 #
 # For each seat of the chart on this host it decides one of:
 #   LIVE        its tmux session exists                         left alone
@@ -15,6 +15,8 @@
 # --reseat also restarts LIVE seats that rescue did not start the right way: RESEAT, or OK when the pane already carries @zeo_rescue.
 # --relaunch, with --reseat, also restarts a seat rescue started, if its process lacks the seat settings or it is not yet in its folder.
 # A seat with everything right is left alone, so the same line can be run again after a stop.
+# --restart, with --relaunch, exactly one --seat and a --note-file, restarts that seat even when it reads as right, so the note reaches it.
+# Its line must keep itself from running twice; rescue cannot tell a restart done from one still to do.
 # folder-moves holds a line "SEAT /new/folder" for a Codex seat that leaves the chart's folder. The thread stays the seat's: Codex rewrites a
 # thread's folder when it resumes elsewhere, so a seat moves only if session-pins names its thread. Otherwise a later plan would miss the thread.
 # A folder in git needs a trust entry first, or Codex stops at a question nobody may answer. Every move is proved before the next seat starts.
@@ -64,7 +66,7 @@ DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
@@ -76,6 +78,7 @@ while [ $# -gt 0 ]; do
     --apply) APPLY=1; shift;;
     --reseat) RESEAT=1; shift;;
     --relaunch) RELAUNCH=1; shift;;
+    --restart) RESTART=1; shift;;
     --check) CHECK=1; shift;;
     --harness) [ $# -ge 2 ] || usage; HARNESS=$2; shift 2;;
     --seat) [ $# -ge 2 ] || usage; ONLY="$ONLY$2 "; shift 2;;
@@ -94,6 +97,11 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
 [ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+if [ $RESTART -eq 1 ]; then
+  [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
+  n=0; for w in $ONLY; do n=$((n+1)); done
+  [ "$n" -eq 1 ] || { echo "rescue: --restart needs exactly one --seat" >&2; exit 2; }
+fi
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [ -n "$SESSION_ARG" ]; then
   [[ "$SESSION_ARG" =~ $ID_RE ]] || usage
@@ -512,7 +520,7 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
         case "$(ps_line "$PANE_PID")" in *"$SID"*) ;; *) echo "UNRESOLVED $seat: its pane does not hold $SID"; unresolved=$((unresolved+1)); continue;; esac
         check_settings "$PANE" "$PANE_PID"
         case "$SET_WHY" in ""|*"no seat settings"*) ;; *) echo "UNRESOLVED $seat: $SET_WHY; a restart would not change that"; unresolved=$((unresolved+1)); continue;; esac
-        if [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
+        if [ $RESTART -eq 0 ] && [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
       none) echo "UNRESOLVED $seat: no pane in $sess holds $SID"; unresolved=$((unresolved+1)); continue;;
     esac
     marker_of "$harness" "$SID"

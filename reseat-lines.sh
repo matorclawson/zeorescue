@@ -17,7 +17,7 @@
 #   reseat-lines.sh zbs-folder   moves that folder whole to its new path, with its memory, its one allow rule and the 20 guard rules mirrored; after zbs-repo
 #   reseat-lines.sh zbs-folder-abs  the same, with the 20 mirrored rules as absolute paths, the form that takes effect; the Architect picks one of the two
 #   reseat-lines.sh claude-first restarts that one Claude seat in its new folder; says which Claude will run; refuses while it is working, or on a Claude nobody rehearsed
-#   reseat-lines.sh zeocreator-note  restarts zeocreator in place with a note naming its real memory folder; refuses while it is working, or on a Claude nobody rehearsed
+#   reseat-lines.sh zeocreator-note  restarts zeocreator in place with a note naming its real memory folder; restarts even when it reads as right, proves the note reached its transcript, and runs once; refuses while it is working, or on a Claude nobody rehearsed
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
 set -uo pipefail
@@ -36,6 +36,8 @@ CLAUDE_NEW=/Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main
 CLAUDE_NOTE=notes/claude-move-zbs-20261107.txt
 # zeocreator, on the Architect's word of 2026-11-08 03:09: its saved prompt names a memory folder that went on 6 Nov.
 ZEOCREATOR_NOTE=notes/zeocreator-memory-20261108.txt
+ZEOCREATOR_PROOF="Read and write memories only there, never in the old folder, and never create it."
+ZEOCREATOR_TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
 # The folder read on 7 Nov, by inode: until the seat's own folder is at CLAUDE_NEW, the 24 Sep checkout is, and it must never be trusted or started in.
 CLAUDE_INODE=10850475
 CLAUDE_REHEARSED=2.1.319
@@ -50,6 +52,7 @@ TMUX_BIN=${ZEO_RESCUE_TMUX:-/opt/homebrew/bin/tmux}
 STATE=${ZEO_RESCUE_STATE:-$HOME/.local/state/zeo-rescue}
 CLAUDE_BACKUP=$STATE/claude-json.before-20261107
 CLAUDE_READY_MARK=$STATE/zbs-move-20261107/folder.done
+ZEOCREATOR_DONE=$STATE/zeocreator-note-20261108.done
 step=${1:-}
 case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|claude-trust|claude-first|zeocreator-note|claude-clear|claude-back) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|claude-trust|claude-first|zeocreator-note|claude-clear|claude-back; nothing was run"; exit 2;; esac
 place="$(id -un)@$(hostname -s)"
@@ -58,7 +61,7 @@ cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin 2ae5c243dbe140212166b8b08d7eb75312127f2f230eda6446f03698997b39e9 rescue.sh
+pin c79cae05fbec740628950ce3bdcdc2a5aca9dbd300315f123f2bca8fe7bbdb32 rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 141ca64943f20b5991654b2f7f3f2301010737eaf5a280a71fde63e9bb80c871 Makefile
 pin 01610ba243f2a0a3ef0b42c5eafb7761956a7081327c9bf72df89e1c2cfa2846 session-pins
@@ -178,11 +181,25 @@ case "$step" in
     [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when it is idle:"; echo "$w"; exit 2; }
     { echo "claude $v"; make reseat ARGS="--relaunch --harness claude --seat $CLAUDE_SEAT --note-file $CLAUDE_NOTE" && make check ARGS="--seat $CLAUDE_SEAT"; } 2>&1 | tee "$log";;
   zeocreator-note)
+    # Once: the seat reads as right before and after, so only this mark tells a delivered note from one still to send.
+    [ ! -f "$ZEOCREATOR_DONE" ] || { echo "ALREADY DONE: the note reached zeocreator ($(cat "$ZEOCREATOR_DONE")). Nothing was run."; exit 0; }
     v=$("$CLAUDE_BIN" --version 2>/dev/null | /usr/bin/awk 'NR==1 {print $1}'); echo "the Claude that will run: ${v:-unknown}; rehearsed on $CLAUDE_REHEARSED"
     [ "$v" = "$CLAUDE_REHEARSED" ] || { echo "VERSION CHANGED, nothing was run: Claude is ${v:-unknown} and the rehearsal ran on $CLAUDE_REHEARSED. Bring this to zeo-rescue."; exit 2; }
-    w=$(./rescue.sh --reseat --relaunch --harness claude --seat zeocreator 2>&1 | /usr/bin/grep 'a turn is in progress')
+    sid=$(awk '$1=="zeocreator" {print $2}' session-pins); dir=$(awk '$1=="zeocreator" {print $2}' folder-moves)
+    t=$PROJECTS/$(printf %s "$dir" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')/$sid.jsonl
+    [ -n "$sid" ] && [ -n "$dir" ] && [ -f "$t" ] || { echo "NOT READY, nothing was run: no transcript for zeocreator at $t"; exit 2; }
+    LC_ALL=C /usr/bin/grep -qF -e "$ZEOCREATOR_PROOF" "$t" && { echo "REFUSED, nothing was run: the note's words are already in $t, so the proof could not tell this run's from an earlier one. Bring this to zeo-rescue."; exit 2; }
+    plan=$(./rescue.sh --reseat --relaunch --restart --harness claude --seat zeocreator --note-file "$ZEOCREATOR_NOTE" 2>&1)
+    w=$(/usr/bin/grep 'a turn is in progress' <<< "$plan")
     [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when it is idle:"; echo "$w"; exit 2; }
-    { echo "claude $v"; make reseat ARGS="--relaunch --harness claude --seat zeocreator --note-file $ZEOCREATOR_NOTE" && make check ARGS="--seat zeocreator"; } 2>&1 | tee "$log";;
+    /usr/bin/grep -q '^RESEAT zeocreator: ' <<< "$plan" || { echo "REFUSED, nothing was run: the plan does not restart zeocreator:"; printf '%s\n' "$plan"; exit 2; }
+    b=$(stat -f %z "$t")
+    { echo "claude $v"; make reseat ARGS="--relaunch --restart --harness claude --seat zeocreator --note-file $ZEOCREATOR_NOTE" && make check ARGS="--seat zeocreator"; } 2>&1 | tee "$log"
+    [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "STOPPED: the restart or its check failed; the note's delivery is not proved. Bring this to zeo-rescue." | tee -a "$log"; exit 1; }
+    i=0; until [ "$(tail -c +$((b+1)) "$t" | LC_ALL=C /usr/bin/grep -cF -e "$ZEOCREATOR_PROOF")" -ge 1 ]; do
+      i=$((i+1)); [ $i -lt "$ZEOCREATOR_TRIES" ] || { echo "NOT DELIVERED: the note's words are not in $t after the restart. Bring this to zeo-rescue." | tee -a "$log"; exit 1; }; perl -e 'select(undef,undef,undef,1)'; done
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$ZEOCREATOR_DONE"
+    echo "NOTE DELIVERED zeocreator: its words are in session $sid, after byte $b; a second run says ALREADY DONE. Tell zeo-rescue: done." | tee -a "$log";;
   claude-clear)
     claude_ready
     ./rescue.sh --check --seat "$CLAUDE_SEAT" 2>&1 | /usr/bin/grep "^OK $CLAUDE_SEAT " >/dev/null || { echo "OUT OF ORDER, nothing was deleted: $CLAUDE_SEAT is not right yet."; exit 2; }

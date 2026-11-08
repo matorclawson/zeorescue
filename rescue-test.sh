@@ -431,6 +431,12 @@ grep -q '^OK cx: started by rescue' <<< "$(R --reseat --seat cx 2>&1)" && ok "wi
 grep -q '^RESEAT cx:' <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "with it, a process without settings is restarted" || bad "relaunch: $(R --reseat --relaunch --seat cx 2>&1)"
 printf '%s' "$GOOD" > "$T/psE.out"
 grep -q '^OK cx: started by rescue, right already' <<< "$(R --reseat --relaunch --seat cx 2>&1)" && ok "a seat with everything right is left alone, so the line can run again" || bad "right: $(R --reseat --relaunch --seat cx 2>&1)"
+echo "a note" > "$T/rnote"; out=$(R --reseat --relaunch --restart --seat cx --note-file "$T/rnote" 2>&1)
+echo "$out" | grep -q '^RESEAT cx:' && ! echo "$out" | grep -q 'right already' && ok "--restart restarts a seat that reads as right, so its note reaches it" || bad "restart: $out"
+out=$(R --reseat --relaunch --restart --seat cx 2>&1); [ $? -eq 2 ] && ! echo "$out" | grep -q '^RESEAT' && ok "but only with a note" || bad "restart no note: $out"
+out=$(R --reseat --restart --seat cx --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && ! echo "$out" | grep -q '^RESEAT' && ok "and only with --relaunch" || bad "restart no relaunch: $out"
+out=$(R --reseat --relaunch --restart --seat cx --seat cl --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && echo "$out" | grep -q 'needs exactly one --seat' && ok "and for exactly one seat" || bad "restart two: $out"
+out=$(R --reseat --relaunch --restart --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && echo "$out" | grep -q 'needs exactly one --seat' && ok "never for every seat" || bad "restart all: $out"
 printf 'cx %s\n' "$T/w/new" > "$T/moves"
 out=$(R --reseat --relaunch --seat cx 2>&1)
 echo "$out" | grep -q '^RESEAT cx:' && echo "$out" | grep -q '^MOVE cx' && ok "a right seat in the old folder is restarted to move" || bad "to move: $out"
@@ -608,8 +614,38 @@ rv=$(awk -F= '/^CLAUDE_REHEARSED=/ {print $2}' "$T/run/reseat-lines.sh"); echo "
 echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "the version is read just before the line and printed, in the kept log too" || bad "version print: $out"
 echo "2.1.999 (Claude Code)" > "$T/ver"; rm -f "$T/launched"; out=$(ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L zeocreator-note 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^VERSION CHANGED, nothing was run: Claude is 2.1.999' && [ ! -e "$T/launched" ] && ok "zeocreator-note refuses a Claude nobody rehearsed too" || bad "zc version: $rc $out"
-echo "$rv (Claude Code)" > "$T/ver"; out=$(STATE="$T/state" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_CHART="$T/chart.json" L zeocreator-note 2>&1)
-echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && ok "and prints the version it runs on" || bad "zc version print: $out"
+# zeocreator-note on a stub rescue.sh: the plan it prints is $T/zn/plan; with --apply it writes the note's words into the transcript if $T/zn/deliver exists.
+echo "$rv (Claude Code)" > "$T/ver"; rm -rf "$T/zn"; mkdir -p "$T/zn/proj" "$T/zn/state"; for f in rescue.sh folder-moves session-pins; do cp "$T/run/$f" "$T/zn/$f.keep"; done
+pinf() { local f h; for f in "$@"; do h=$(/usr/bin/shasum -a 256 "$T/run/$f" | cut -d' ' -f1); F=$f H=$h perl -i -pe 's/^pin [0-9a-f]{64} \Q$ENV{F}\E$/pin $ENV{H} $ENV{F}/' "$T/run/reseat-lines.sh"; done; }
+zsid=84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c; zdir=$T/zn/creator; ztr=$T/zn/proj/$(enc2 "$zdir")/$zsid.jsonl; zw=$(awk -F'"' '/^ZEOCREATOR_PROOF=/ {print $2}' "$T/run/reseat-lines.sh")
+echo "zeocreator $zdir" > "$T/run/folder-moves"; echo "zeocreator $zsid" > "$T/run/session-pins"
+cat > "$T/run/rescue.sh" <<S
+#!/bin/bash
+echo "\$*" >> "$T/zn/calls"
+case " \$* " in
+  *" --check "*) echo "OK zeocreator (claude)"; echo "check: ok 1, wrong 0";;
+  *" --apply "*) echo "RESUMED zeocreator: stub"; [ ! -f "$T/zn/deliver" ] || printf '{"type":"user","message":{"content":"Correction. %s"}}\n' "$zw" >> "$ztr";;
+  *) cat "$T/zn/plan";;
+esac
+S
+chmod +x "$T/run/rescue.sh"; pinf rescue.sh folder-moves session-pins
+ZN() { ZEO_RESCUE_STATE="$T/zn/state" ZEO_RESCUE_PROJECTS="$T/zn/proj" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_PROOF_TRIES=2 L zeocreator-note 2>&1; }
+out=$(ZN); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -q '^NOT READY, nothing was run: no transcript for zeocreator' && [ ! -e "$T/zn/calls" ] && ok "zeocreator-note needs the seat's transcript where its folder says" || bad "zn transcript: $rc $out"
+mkdir -p "$(dirname "$ztr")"; echo '{"type":"user","message":{"content":"before"}}' > "$ztr"
+echo "OK zeocreator: started by rescue, right already" > "$T/zn/plan"; out=$(ZN); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^REFUSED, nothing was run: the plan does not restart zeocreator' && ! grep -q -- '--apply' "$T/zn/calls" && ok "it refuses a plan that would not restart the seat: the 04:27 fault" || bad "zn no plan: $rc $out"
+grep -q -- '--reseat --relaunch --restart --harness claude --seat zeocreator --note-file notes/zeocreator-memory-20261108.txt' "$T/zn/calls" && ok "and it plans with --restart and the note" || bad "zn plan args: $(cat "$T/zn/calls")"
+printf 'RESEAT zeocreator: claude %s\nWORK zeocreator: a turn is in progress on its screen\n' "$zsid" > "$T/zn/plan"; out=$(ZN); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run' && ! grep -q -- '--apply' "$T/zn/calls" && ok "it refuses while the seat is working" || bad "zn busy: $rc $out"
+printf 'RESEAT zeocreator: claude %s\n' "$zsid" > "$T/zn/plan"; out=$(ZN); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^NOT DELIVERED: ' && [ ! -e "$T/zn/state/zeocreator-note-20261108.done" ] && ok "a restart whose transcript never shows the note says NOT DELIVERED and marks nothing" || bad "zn undelivered: $rc $out"
+cp "$ztr" "$T/zn/tr.keep"; printf '{"type":"user","message":{"content":"%s"}}\n' "$zw" >> "$ztr"; out=$(ZN); rc=$?; cp "$T/zn/tr.keep" "$ztr"
+[ $rc -eq 2 ] && echo "$out" | grep -q "^REFUSED, nothing was run: the note's words are already in" && ok "it refuses when the words are already there, since the proof could not tell runs apart" || bad "zn words before: $rc $out"
+: > "$T/zn/calls"; : > "$T/zn/deliver"; out=$(ZN); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q "^the Claude that will run: $rv; rehearsed on $rv" && echo "$out" | grep -qx "claude $rv" && echo "$out" | grep -q "^NOTE DELIVERED zeocreator: its words are in session $zsid" && [ -s "$T/zn/state/zeocreator-note-20261108.done" ] && ok "with the seat idle it restarts, proves the note reached the transcript, and marks itself done" || bad "zn deliver: $rc $out"
+grep -q -- '--reseat --apply --relaunch --restart --harness claude --seat zeocreator --note-file notes/zeocreator-memory-20261108.txt' "$T/zn/calls" && ok "the restart itself carries --restart and the note" || bad "zn apply args: $(cat "$T/zn/calls")"
+: > "$T/zn/calls"; out=$(ZN); rc=$?; [ $rc -eq 0 ] && echo "$out" | grep -q '^ALREADY DONE: the note reached zeocreator' && [ ! -s "$T/zn/calls" ] && ok "a second run restarts nothing" || bad "zn twice: $rc $out"
+for f in rescue.sh folder-moves session-pins; do cp "$T/zn/$f.keep" "$T/run/$f"; done; pinf rescue.sh folder-moves session-pins
 grep -q 'zeroemployeeorg-zeocreator/memory/' "$HERE/notes/zeocreator-memory-20261108.txt" && grep -q "never in the old folder" "$HERE/notes/zeocreator-memory-20261108.txt" && grep -qF "$(printf %s /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')/memory/" "$HERE/notes/zeocreator-memory-20261108.txt" && ok "its note names the old memory folder as gone, and the real one by the key of its folder" || bad "zc note"
 SIDC=d7fc6540-05c6-43ec-94c5-520b66af4133; kc=$(printf %s "$T/d/creator" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'); printf '{"seats":[{"seat_id":"zbs","mailbox":"zbs","desired_agent":"claude","desired_host":"matormini","desired_tmux":{"session":"zc"},"desired_folder":"%s"}]}' "$T/d/oldc" > "$T/zc.json"
 C() { ZEO_RESCUE_CHART="$T/zc.json" ZEO_RESCUE_PINS="$T/run/session-pins" ZEO_RESCUE_MOVES="$T/run/folder-moves" ZEO_RESCUE_PROJECTS="$T/pc" ZEO_RESCUE_CLAUDE_JSON="$T/cj.json" L "$@" 2>&1; }
