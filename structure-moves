@@ -1,0 +1,17 @@
+# SEAT HARNESS TMUX-SESSION SESSION-ID FROM TO FROM-INODE [ADDITION-SHA256]: one seat's move into the one code structure (the operator's order of 8 Nov 2026,
+# the Architect's list of 22:10Z). A row is added only when its seat has been read, and it is that read: structure-move.sh refuses any state but
+# the clone at FROM with this inode, or that same folder at TO. Its move also needs its line in folder-moves and its pin in session-pins.
+# A last field is the sha256 of notes/structure-move-SEAT.txt, one line its note adds.
+# zeoarchitect: read 8 Nov 22:20Z: an ordinary clone on main, clean, Go with no virtualenv; only the seat works in it; one live linked worktree
+# outside (za-ci), seven prunable; nothing on the host names its path.
+zeoarchitect claude zeoarchitect-maintainer 766f4d22-bf17-4513-b068-514a9bf46d00 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoarchitect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoarchitect/main 65492221
+# The Architect's rulings of 8 Nov 23:40Z: the idle Claude maintainers next, a few at a time. Read 9 Nov 03:15-03:40Z, each idle, its plan
+# refused only for the trust entry its line 1 adds; every process in it is the seat's own tree; nothing live on the host names its path.
+# zeocontrolling: on zeocontrolling/reaper-plain-folders, clean, no stash; Go, no virtualenv; no linked worktrees; its waker is a child of the seat.
+zeocontrolling claude zeocontrolling-maintainer 17f08d7c-267a-4c9c-adca-d151478611b1 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocontrolling /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocontrolling/main 80892043
+# zeomessenger: detached HEAD, clean, no stash; Go, no virtualenv; 14 live linked worktrees outside, which the carry repairs (ruling 8);
+# its waker is a child of the seat.
+zeomessenger claude zeomessenger-maintainer 573ea388-9dac-4afd-86b0-03f224f43aa1 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeomessenger /Volumes/AIPEMedia1/code/zeroemployeeorg/zeomessenger/main 63761543
+# zeoconnect: detached HEAD, clean, one stash (in .git, so it moves); 2 live linked worktrees outside; .venv names its path, so its note
+# adds the rebuild (ruling 7); node_modules is relative.
+zeoconnect claude zeoconnect-maintainer b4825478-8383-44f5-8be8-25005fdac7fa /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/main 3095506 92b5483358ecf020782a882524a14492fa95f2b2feb01fc887ce1673f2485093

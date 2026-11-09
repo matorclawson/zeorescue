@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply] [--reseat] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply] [--reseat] [--relaunch] [--restart] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
 #
 # For each seat of the chart on this host it decides one of:
 #   LIVE        its tmux session exists                         left alone
@@ -13,7 +13,22 @@
 #   UNRESOLVED  dead, and something needed is missing           left alone and named: this is the agent stage's work
 #
 # --reseat also restarts LIVE seats that rescue did not start the right way: RESEAT, or OK when the pane already carries @zeo_rescue.
-# --check starts nothing and judges every seat: OK or WRONG, with the reason.
+# --relaunch, with --reseat, also restarts a seat rescue started, if its process lacks the seat settings or it is not yet in its folder.
+# A seat with everything right is left alone, so the same line can be run again after a stop.
+# --restart, with --relaunch, exactly one --seat and a --note-file, restarts that seat even when it reads as right, so the note reaches it.
+# Its line must keep itself from running twice; rescue cannot tell a restart done from one still to do.
+# folder-moves holds a line "SEAT /new/folder" for a Codex seat that leaves the chart's folder. The thread stays the seat's: Codex rewrites a
+# thread's folder when it resumes elsewhere, so a seat moves only if session-pins names its thread. Otherwise a later plan would miss the thread.
+# A folder in git needs a trust entry first, or Codex stops at a question nobody may answer. Every move is proved before the next seat starts.
+# A Claude seat moves the same way, with one difference: its whole project under ~/.claude/projects goes by one rename while it is stopped, so
+# its memory, which is keyed to the folder, comes too. Claude needs a trust entry for any folder, and a worktree target is refused: no such move is proved.
+# A line "SEAT /new/folder carry" moves the seat's own clone to the new path while the seat is stopped, which is how <org>/<repo> becomes
+# <org>/<repo>/main. It is a rename, not a copy: the same folder, branch, uncommitted and ignored files. The plan refuses unless the clone is an
+# ordinary one with its own .git, the new path is free on the same volume and not inside another repository, its trust entry is in place, and
+# only the seat's own processes work inside the clone. After the rename its linked worktrees elsewhere are repaired, and each must reach it.
+# A seat that is down is not carried: the stop must be this run's own.
+# --check starts nothing and judges every seat: OK or WRONG, with the reason. It reads the running process and a fresh shell in another
+# folder given the process's own settings, not only the snapshot, because Codex uses the snapshot only in the thread's directory and with -lc.
 # It lists what a restart would cut first, as WORK lines, in the plan and again just before --apply stops anything.
 # --session ID (with exactly one --seat) names the session to resume. Use it when the newest transcript in a seat's directory is not
 # the seat's own, such as after someone ran another session there.
@@ -48,12 +63,17 @@ LSOF=${ZEO_RESCUE_LSOF:-/usr/sbin/lsof}
 KILL_BIN=${ZEO_RESCUE_KILL:-/bin/kill}
 CLAUDE=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CODEX=${ZEO_RESCUE_CODEX:-$HOME/.local/bin/codex}
+ZSH_BIN=${ZEO_RESCUE_ZSH:-/bin/zsh}
+SESSIONS=${ZEO_RESCUE_SESSIONS:-$HOME/.codex/sessions}
+CODEX_CONFIG=${ZEO_RESCUE_CODEX_CONFIG:-$HOME/.codex/config.toml}
+CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
 DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
+MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
 
 usage() { sed -n '/^#   rescue.sh/p' "$0" >&2; exit 2; }
@@ -62,6 +82,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift;;
     --reseat) RESEAT=1; shift;;
+    --relaunch) RELAUNCH=1; shift;;
+    --restart) RESTART=1; shift;;
     --check) CHECK=1; shift;;
     --harness) [ $# -ge 2 ] || usage; HARNESS=$2; shift 2;;
     --seat) [ $# -ge 2 ] || usage; ONLY="$ONLY$2 "; shift 2;;
@@ -79,6 +101,12 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [[ "$STAGGER" =~ ^[0-9]+$ ]] || usage
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
+[ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+if [ $RESTART -eq 1 ]; then
+  [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
+  n=0; for w in $ONLY; do n=$((n+1)); done
+  [ "$n" -eq 1 ] || { echo "rescue: --restart needs exactly one --seat" >&2; exit 2; }
+fi
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [ -n "$SESSION_ARG" ]; then
   [[ "$SESSION_ARG" =~ $ID_RE ]] || usage
@@ -109,15 +137,18 @@ running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell
   [ -n "$pids" ] || return 1
   local out rc; out=$("$LSOF" -a -d cwd -Fn -p "$pids" 2>/dev/null); rc=$?
   [ $rc -le 1 ] || return 2
-  printf '%s\n' "$out" | grep -qxF "n$2"
+  printf '%s\n' "$out" | grep -xF "n$2" >/dev/null
 }
 holds() { # holds SID: does a harness process hold this session? Only harness binaries count: a tmux server keeps the command line of its first client as its title, for life.
   "$PS_BIN" -axo pid=,command= | awk -v id="$1" '($2 ~ /(^|\/)(claude|codex)$/ || $2 ~ /\/(claude|codex)\/versions\//) && index($0, id) {f=1} END {exit !f}'
 }
 
 SID="" MODE_ARGS="" WHY="" SANDBOX="" ROLL=""
+project_key() { printf %s "$1" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g'; }
 plan_claude() { # sets SID and MODE_ARGS for a Claude seat, or WHY
-  local dir f m; dir=$PROJECTS/$(printf %s "$1" | LC_ALL=C sed 's/[^A-Za-z0-9]/-/g')
+  local dir f m; dir=$PROJECTS/$(project_key "$1")
+  # until it moves, a moving seat's project is still under its old folder
+  if [ -n "$OLD_CWD" ] && [ ! -d "$dir" ]; then dir=$PROJECTS/$(project_key "$OLD_CWD"); fi
   # newest top-level transcript by name-safe glob; subagent transcripts live one level down
   if [ -n "$SESSION" ]; then f=$dir/$SESSION.jsonl; [ -f "$f" ] || { WHY="no transcript $f"; return 1; }
   else f=$(ls -t "$dir"/*.jsonl 2>/dev/null | head -1); fi
@@ -179,12 +210,44 @@ find_pane() { # find_pane SESSION SID: sets PANE, PANE_PID and PANE_STATE (done,
   done < <(panes_of "$1")
 }
 
+SET_WHY=""
+check_settings() { # check_settings PANE PID: sets SET_WHY unless the seat's settings are in its process and reach a shell that has no snapshot
+  local want settings got acct proto ghdir f out
+  SET_WHY=""
+  want=$("$TMUX_BIN" -L "$SOCKET" show-options -pqv -t "$1" @zeo_seat 2>/dev/null); [ -n "$want" ] || want=inactive
+  # The environment follows the arguments, and a prompt can hold text that looks like a setting, so a name's last appearance wins.
+  # Only these four names are kept: a credential in the seat's environment never leaves this pipe.
+  settings=$("$PS_BIN" -Ewwp "$2" -o command= 2>/dev/null | tr ' ' '\n' | grep -E '^(ZEO_TMUX_SEAT|ZEO_TMUX_ACCOUNT|GIT_ALLOW_PROTOCOL|GH_CONFIG_DIR)=')
+  got=$(printf '%s\n' "$settings" | sed -n 's/^ZEO_TMUX_SEAT=//p' | tail -1)
+  acct=$(printf '%s\n' "$settings" | sed -n 's/^ZEO_TMUX_ACCOUNT=//p' | tail -1)
+  proto=$(printf '%s\n' "$settings" | sed -n 's/^GIT_ALLOW_PROTOCOL=//p' | tail -1)
+  ghdir=$(printf '%s\n' "$settings" | sed -n 's/^GH_CONFIG_DIR=//p' | tail -1)
+  if [ -z "$got" ]; then SET_WHY="process has no seat settings, so tools outside its folder miss them"; return 0; fi
+  if [ "$got" != "$want" ]; then SET_WHY="process says $got, pane says $want"; return 0; fi
+  # What a tool shell without the snapshot gets. Real git refuses before connecting, and ssh is /usr/bin/false, so this enters no seat and reaches nothing.
+  for f in -lc -c; do
+    out=$(cd / && /usr/bin/env -i HOME="$HOME" PATH=/usr/bin:/bin ZEO_TMUX_SEAT="$got" ${acct:+ZEO_TMUX_ACCOUNT="$acct"} ${proto:+GIT_ALLOW_PROTOCOL="$proto"} ${ghdir:+GH_CONFIG_DIR="$ghdir"} \
+      GIT_SSH_COMMAND=/usr/bin/false GIT_TERMINAL_PROMPT=0 "$ZSH_BIN" "$f" 'print -r -- "gh=${GH_CONFIG_DIR##*/} author=${GIT_AUTHOR_EMAIL:-none}"; git ls-remote ssh://127.0.0.1/x 2>&1' 2>&1)
+    case "$want:$out" in
+      inactive:*"not allowed"*) case "$out" in *gh=disabled*) ;; *) SET_WHY="a shell outside its folder has gh on"; return 0;; esac;;
+      inactive:*) SET_WHY="a shell outside its folder has git on"; return 0;;
+      *"not allowed"*) SET_WHY="a shell outside its folder has git off"; return 0;;
+      *author=none*) SET_WHY="a shell outside its folder has no seat author"; return 0;;
+    esac
+  done
+}
+
+moved_already() { # moved_already HARNESS PID SID: Codex says so on its command line. A Claude process follows a folder that moved under it, so its project says.
+  if [ "$1" = codex ]; then case "$(ps_line "$2")" in *" -C $cwd "*) return 0;; esac; return 1; fi
+  [ -f "$PROJECTS/$(project_key "$cwd")/$3.jsonl" ]
+}
+
 check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the reason
   local id pid opt cmd line env snap why="" sid
   IFS='|' read -r id pid opt cmd < <(panes_of "$2")
   [ "$opt" = 1 ] || why="not started by rescue"
   # Nobody may type into a seat's terminal, so a seat stopped at a harness question waits for the operator. It is not resumed.
-  if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -q -E 'Yes, I trust this folder|Do you trust the files'; then
+  if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -E 'Yes, I trust this folder|Do you trust the files|Trust this folder\?' >/dev/null; then
     why="${why:+$why; }waiting at the trust prompt: the operator must answer it"
   fi
   if [ "$3" = codex ]; then
@@ -195,15 +258,18 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
     if [ -z "$snap" ]; then why="${why:+$why; }no snapshot"
     else grep -q "^export ZMAIL_INSTANCE=.\{0,1\}$1.\{0,1\}\$" "$snap" || why="${why:+$why; }snapshot has another identity"; fi
   else
+    line=$(ps_line "$pid"); sid=$(printf '%s\n' "$line" | grep -o -E '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
     env=$("$PS_BIN" -Ewwp "$pid" -o command= 2>/dev/null)
     case "$env" in *"ZMAIL_INSTANCE=$1 "*|*"ZMAIL_INSTANCE=$1") ;; *) why="${why:+$why; }environment has another identity";; esac
   fi
+  if [ -n "$OLD_CWD" ] && ! moved_already "$3" "$pid" "$sid"; then why="${why:+$why; }not yet in its new folder $cwd"; fi
+  check_settings "$id" "$pid"; [ -z "$SET_WHY" ] || why="${why:+$why; }$SET_WHY"
   if [ -z "$why" ]; then echo "OK $1 ($3)"; return 0; fi
   echo "WRONG $1 ($3): $why"; return 1
 }
 
 prove_codex() { # the first Codex seat must show the loader worked before any other starts
-  local seat=$1 sid=$2 mark=$3 pf=$4 i snap=""
+  local seat=$1 sid=$2 mark=$3 pf=$4 sess=$5 i snap="" id pid opt cmd
   for ((i = 0; i < PROOF_TRIES; i++)); do
     snap=$(find "$SNAPSHOTS" -name "$sid.*" -newer "$pf" 2>/dev/null | head -1)
     # a snapshot exists before it is written, so judge it only once it holds an identity
@@ -216,6 +282,10 @@ prove_codex() { # the first Codex seat must show the loader worked before any ot
     grep -q "^export ZEO_TMUX_SEAT=.\{0,1\}$mark.\{0,1\}\$" "$snap" || { echo "STOPPED: $seat lacks marker $mark; no other seat was started"; return 1; }
     if grep -q '^export GIT_ALLOW_PROTOCOL=.\{0,1\}file.\{0,1\}$' "$snap"; then echo "STOPPED: $seat still has network git off; no other seat was started"; return 1; fi
   fi
+  # A right snapshot speaks only for tools in the thread's own directory, so the process must have the settings too.
+  IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
+  check_settings "$id" "$pid"
+  [ -z "$SET_WHY" ] || { echo "STOPPED: $seat: $SET_WHY; no other seat was started"; return 1; }
   echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
 prove_claude() { # the same for the first Claude seat, from the environment of the running process
@@ -234,6 +304,153 @@ prove_claude() { # the same for the first Claude seat, from the environment of t
   echo "FIRST SEAT OK $seat: own identity${mark:+, marker $mark, git on}"
 }
 
+prove_claude_moved() { # prove_claude_moved SEAT SID FOLDER OLD SESSION SIZE PROMPT: one transcript, written from the new folder, by one process
+  local seat=$1 sid=$2 to=$3 old=$4 sess=$5 size=$6 pf=$7 dir f i n found="" id pid opt cmd holders mapped
+  dir=$PROJECTS/$(project_key "$to"); f=$dir/$sid.jsonl
+  # only bytes written since the launch count, so a rerun cannot pass on an earlier record
+  for ((i = 0; i < PROOF_TRIES; i++)); do
+    if tail -c +$((size + 1)) "$f" 2>/dev/null | grep -F "\"cwd\":\"$to\"" >/dev/null; then found=1; break; fi
+    pause "$PROOF_PAUSE"
+  done
+  [ -n "$found" ] || { echo "STOPPED: $seat: its transcript took no line from $to; no other seat was started"; return 1; }
+  n=$(find "$PROJECTS" -maxdepth 2 -name "$sid.jsonl" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = 1 ] || { echo "STOPPED: $seat: $n transcripts carry session $sid; no other seat was started"; return 1; }
+  n=$(find "$dir" -maxdepth 1 -name '*.jsonl' -newer "$pf" ! -name "$sid.jsonl" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = 0 ] || { echo "STOPPED: $seat: $n new sessions appeared beside its own; no other seat was started"; return 1; }
+  [ ! -e "$PROJECTS/$(project_key "$old")" ] || { echo "STOPPED: $seat: its old project came back; no other seat was started"; return 1; }
+  IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
+  holders=$("$PS_BIN" -axo pid=,command= | awk -v id="$sid" '($2 ~ /(^|\/)claude$/ || $2 ~ /\/claude\/versions\//) && index($0, id) {print $1}' | paste -sd' ' -)
+  [ "$holders" = "$pid" ] || { echo "STOPPED: $seat: session $sid is held by pids '${holders}', not only by pid $pid; no other seat was started"; return 1; }
+  mapped=$("$JQ" -r '.sessionId // empty' "$(dirname "$PROJECTS")/sessions/$pid.json" 2>/dev/null)
+  [ -z "$mapped" ] || [ "$mapped" = "$sid" ] || { echo "STOPPED: $seat: its process says session $mapped; no other seat was started"; return 1; }
+  echo "MOVED OK $seat: session $sid, one transcript, one process, in $to"
+}
+
+move_project() { # move_project OLD NEW SID: the seat's whole project goes by one rename while it is stopped: every session and its memory. Sets WHY.
+  local from=$PROJECTS/$(project_key "$1") to=$PROJECTS/$(project_key "$2") size
+  [ ! -f "$to/$3.jsonl" ] || return 0 # an earlier run did it
+  [ -f "$from/$3.jsonl" ] || { WHY="no transcript at $from"; return 1; }
+  [ ! -e "$to" ] || { WHY="$to already exists, and two projects are not merged here"; return 1; }
+  if holds "$3"; then WHY="a process still holds session $3"; return 1; fi
+  size=$(stat -f %z "$from/$3.jsonl")
+  mv "$from" "$to" || { WHY="could not rename $from"; return 1; }
+  [ "$(stat -f %z "$to/$3.jsonl" 2>/dev/null)" = "$size" ] || { WHY="its transcript changed in the rename"; return 1; }
+}
+
+thread_db() { # thread_db SQL: Codex's database is in WAL mode, so mode=ro cannot open it while nothing has it open. Then no log exists, and immutable reads it all.
+  "$SQLITE" "file:$CODEX_DB?mode=ro" "$1" 2>/dev/null || "$SQLITE" "file:$CODEX_DB?mode=ro&immutable=1" "$1" 2>/dev/null
+}
+prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a folder change the seat is still one thread, one rollout and one writer
+  local seat=$1 sid=$2 roll=$3 to=$4 sess=$5 since=$6 i n=0 found="" others was id pid opt cmd who
+  for ((i = 0; i < PROOF_TRIES; i++)); do
+    if tail -c 2000000 "$roll" 2>/dev/null | grep -F "\"cwd\":\"$to\"" >/dev/null; then found=1; break; fi
+    pause "$PROOF_PAUSE"
+  done
+  [ -n "$found" ] || { echo "STOPPED: $seat: its thread never recorded $to; no other seat was started"; return 1; }
+  n=$(find "$SESSIONS" -name "*$sid*" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" = 1 ] || { echo "STOPPED: $seat: $n rollouts carry thread $sid; no other seat was started"; return 1; }
+  others=$(thread_db "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;")
+  [ "$others" = 0 ] || { echo "STOPPED: $seat: ${others:-an unknown number of} new threads appeared in $to; no other seat was started"; return 1; }
+  IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
+  for ((i = 0; i < PROOF_TRIES; i++)); do # the rollout may not be open yet when the proof gets here, so one empty answer proves nothing
+    who=$("$LSOF" -t -- "$roll" 2>/dev/null | paste -sd' ' -)
+    [ "$who" != "$pid" ] || break
+    pause "$PROOF_PAUSE"
+  done
+  [ "$who" = "$pid" ] || { echo "STOPPED: $seat: its rollout is held by pids '${who}', not only by pid $pid; no other seat was started"; return 1; }
+  was=$(thread_db "select cwd from threads where id = '$sid';")
+  [ "$was" = "$to" ] || echo "NOTE $seat: Codex's thread record still says ${was:-nothing}; session-pins holds the thread either way"
+  echo "MOVED OK $seat: thread $sid, one rollout, one writer, in $to"
+}
+
+folder_ready() { # folder_ready SEAT TO: sets WHY unless the seat may move there. Only git folders ask for trust: Codex prompts when a project has no entry.
+  local seat=$1 to=$2 how
+  [[ "$to" = /* ]] && [ -d "$to" ] || { WHY="new folder $to does not exist"; return 1; }
+  if printf '%s\n' "$rows" | cut -d$'\x1f' -f5 | grep -xF "$to" >/dev/null; then WHY="new folder $to is already a seat's folder in the chart"; return 1; fi
+  if [ "$(awk -v t="$to" '$2==t' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="two seats would move to $to"; return 1; fi
+  if [ "$harness" = claude ]; then # Claude asks in any folder, and its trust is keyed to the exact project root
+    if [ "$(git -C "$to" rev-parse --absolute-git-dir 2>/dev/null)" != "$(git -C "$to" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ]; then WHY="$to is a git worktree, and no Claude move into one is proved"; return 1; fi
+    if [ -d "$PROJECTS/$(project_key "$to")" ] && [ -d "$PROJECTS/$(project_key "$cwd")" ]; then WHY="it has projects under both folders"; return 1; fi
+    [ "$("$JQ" -r --arg d "$to" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON" 2>/dev/null)" = true ] || { WHY="$to has no trusted entry in $CLAUDE_JSON, so Claude would stop at a question nobody may answer"; return 1; }
+    return 0
+  fi
+  git -C "$to" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  how=$(awk -v p="[projects.\"$to\"]" '$0==p {f=1; next} f && /^\[/ {exit} f && /^trust_level *=/ {print; exit}' "$CODEX_CONFIG" 2>/dev/null)
+  case "$how" in *'"trusted"'*) return 0;; esac
+  WHY="$to is in git and has no trusted entry in $CODEX_CONFIG, so Codex would stop at a question nobody may answer"; return 1
+}
+
+CARRY="" CARRY_INO="" CARRY_BAD=""
+tree_of() { # tree_of PID: that process and every descendant, each followed by a space
+  "$PS_BIN" -axo pid=,ppid= 2>/dev/null | awk -v r="$1" '{p[$1]=$2} END {for (c in p) {x=c; n=0; while (x != "" && x != r && n < 64) {x=p[x]; n++}; if (x == r) printf "%s ", c}}'
+}
+cwd_under() { # cwd_under DIR: the pids whose working folder is DIR or inside it
+  "$LSOF" -a -d cwd -Fpn 2>/dev/null | awk -v d="$1" '/^p/ {p=substr($0,2)} /^n/ {n=substr($0,2); if (n==d || index(n, d "/")==1) print p}' | sort -u | paste -sd' ' -
+}
+carry_ready() { # carry_ready FROM TO: sets WHY unless the seat's own clone may be carried to TO while it is stopped, and CARRY_INO. Reads only.
+  local from=$1 to=$2 up anc w h
+  CARRY_INO=""
+  [[ "$from" = /* ]] && [[ "$to" = /* ]] || { WHY="a carry needs absolute folders"; return 1; }
+  [ -d "$from" ] && [ ! -L "$from" ] || { WHY="$from is not a folder"; return 1; }
+  [ "$(git -C "$from" rev-parse --show-toplevel 2>/dev/null)" = "$from" ] || { WHY="$from is not the top of a git clone"; return 1; }
+  [ "$(git -C "$from" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$from/.git" ] || { WHY="$from is not an ordinary clone with its own .git, so it is not carried"; return 1; }
+  [ ! -e "$to" ] && [ ! -L "$to" ] || { WHY="$to already exists"; return 1; }
+  up=$(dirname "$to") anc=$from
+  case "$up" in
+    "$from") ;; # <repo> becomes <repo>/main: the clone steps down into a new folder of its old name
+    "$from"/*) WHY="$to is more than one level inside $from"; return 1;;
+    *) if [ -e "$up" ] || [ -L "$up" ]; then anc=$up; [ -d "$up" ] && [ ! -L "$up" ] || { WHY="$up is not a folder"; return 1; }
+       else anc=$(dirname "$up"); [ -d "$anc" ] && [ ! -L "$anc" ] || { WHY="neither $up nor its parent is a folder"; return 1; }; fi
+       ! git -C "$anc" rev-parse --git-dir >/dev/null 2>&1 || { WHY="$anc is in git, so $to would be inside a repository"; return 1; };;
+  esac
+  [ "$(stat -f %d "$anc")" = "$(stat -f %d "$from")" ] || { WHY="$to is on another volume, so the move would be a copy"; return 1; }
+  while IFS= read -r w; do
+    case "$w" in "$from"/*) WHY="its linked worktree $w is inside it, and a carry repairs only worktrees outside"; return 1;; esac
+  done < <(git -C "$from" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tail -n +2)
+  w=$(git -C "$from" config --list 2>/dev/null | grep -F -- "$from" | head -1)
+  [ -z "$w" ] || { WHY="its git config names its own path ($w), which the carry would break"; return 1; }
+  if [ "$harness" = claude ]; then
+    [ "$("$JQ" -r --arg d "$to" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON" 2>/dev/null)" = true ] || { WHY="$to has no trusted entry in $CLAUDE_JSON, so Claude would stop at a question nobody may answer"; return 1; }
+    [ ! -e "$PROJECTS/$(project_key "$to")" ] || { WHY="$PROJECTS/$(project_key "$to") already exists, and two projects are not merged here"; return 1; }
+  else
+    h=$(awk -v p="[projects.\"$to\"]" '$0==p {f=1; next} f && /^\[/ {exit} f && /^trust_level *=/ {print; exit}' "$CODEX_CONFIG" 2>/dev/null)
+    case "$h" in *'"trusted"'*) ;; *) WHY="$to has no trusted entry in $CODEX_CONFIG, so Codex would stop at a question nobody may answer"; return 1;; esac
+  fi
+  CARRY_INO=$(stat -f %i "$from")
+}
+carry_folder() { # carry_folder INDEX: with the seat stopped, the clone goes to its new path by rename, then its linked worktrees are repaired. Sets WHY.
+  local i=$1 from=${P_OLD[$1]} to=${P_CWD[$1]} ino=${P_INO[$1]} head w n left="" up tmp made="" k wbad="" wts=()
+  [ "$(stat -f %i "$from" 2>/dev/null)" = "$ino" ] || { WHY="$from is not the folder the plan read (inode $ino); nothing was moved"; return 1; }
+  [ ! -e "$to" ] && [ ! -L "$to" ] || { WHY="$to appeared after the plan; nothing was moved"; return 1; }
+  for ((k = 0; k < STOP_TRIES; k++)); do left=$(cwd_under "$from"); [ -n "$left" ] || break; pause 1; done
+  [ -z "$left" ] || { WHY="pid $left still works in $from after the stop; nothing was moved"; return 1; }
+  head=$(git -C "$from" rev-parse HEAD 2>/dev/null)
+  while IFS= read -r w; do [ ! -e "$w/.git" ] || wts[${#wts[@]}]=$w; done < <(git -C "$from" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tail -n +2)
+  up=$(dirname "$to")
+  if [ "$up" = "$from" ]; then
+    tmp=$from.carry-${P_SEAT[$i]}
+    [ ! -e "$tmp" ] && [ ! -L "$tmp" ] || { WHY="$tmp is in the way; nothing was moved"; return 1; }
+    mv "$from" "$tmp" || { WHY="could not rename $from; nothing was moved"; return 1; }
+    if ! mkdir -m 755 "$from"; then
+      if mv "$tmp" "$from"; then WHY="could not make $from again; the clone was put back"; else WHY="could not make $from again, and the clone is at $tmp"; fi; return 1; fi
+    if ! mv "$tmp" "$to"; then
+      if rmdir "$from" && mv "$tmp" "$from"; then WHY="could not move the clone into $from; it was put back"; else WHY="could not move the clone into $from, and it is at $tmp"; fi; return 1; fi
+  else
+    if [ ! -d "$up" ]; then mkdir -m 755 "$up" || { WHY="could not make $up; nothing was moved"; return 1; }; made=1; fi
+    if ! mv "$from" "$to"; then [ -z "$made" ] || rmdir "$up"; WHY="could not move $from to $to; nothing was moved"; return 1; fi
+  fi
+  [ "$(stat -f %i "$to" 2>/dev/null)" = "$ino" ] && [ "$(git -C "$to" rev-parse --show-toplevel 2>/dev/null)" = "$to" ] && [ "$(git -C "$to" rev-parse HEAD 2>/dev/null)" = "$head" ] \
+    || { WHY="$to does not read as the same clone after the move"; return 1; }
+  n=${#wts[@]}
+  if [ "$n" -gt 0 ]; then
+    git -C "$to" worktree repair "${wts[@]}" >/dev/null 2>&1
+    for w in "${wts[@]}"; do [ "$(git -C "$w" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$to/.git" ] || wbad="$wbad $w"; done
+  fi
+  echo "CARRIED ${P_SEAT[$i]}: $from to $to, the same folder (inode $ino) at ${head:-no commit}; $n linked worktrees elsewhere repaired${wbad:+, but these still do not reach it:$wbad}"
+  [ -z "$wbad" ] || CARRY_BAD="$CARRY_BAD ${P_SEAT[$i]}"
+  return 0
+}
+
 HOLDER=""
 rollout_free() { # rollout_free FILE: sets HOLDER and fails while any process has the rollout open. Run it after the daemon stop.
   local i
@@ -248,7 +465,7 @@ rollout_free() { # rollout_free FILE: sets HOLDER and fails while any process ha
 
 children() { # children TREE PID: a process's children as "pid etime command", without what every seat runs: mail hooks, caffeinate and the daemon's own processes
   printf '%s\n' "$1" | awk -v p="$2" '$2==p { c=$0; sub(/^ *[0-9]+ +[0-9]+ +[^ ]+ +/, "", c); i=index(c, " && eval "); if (i) c=substr(c, i+9)
-    if (c !~ /\/\.local\/share\/zeo\/messenger\/hooks\// && c !~ /^caffeinate / && c !~ /\/app-server-daemon\/releases\//) print $1, $3, substr(c, 1, 110) }'
+    if (c !~ /\/\.local\/share\/zeo\/messenger\/hooks\// && c !~ /^caffeinate / && c !~ /\/app-server-daemon\/releases\// && c !~ /\/codex-code-mode-host$/) print $1, $3, substr(c, 1, 110) }'
 }
 work_list() { # what a restart would cut: it reads only, and a quiet result is what could be seen, not a promise that nothing is in progress
   local tree i seats=0 busy=0 hit kids daemon line pid
@@ -256,7 +473,7 @@ work_list() { # what a restart would cut: it reads only, and a quiet result is w
   for ((i = 0; i < ${#P_SEAT[@]}; i++)); do
     [ -n "${P_PANE[$i]}" ] || continue
     seats=$((seats+1)) hit=0
-    if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "${P_PANE[$i]}" 2>/dev/null | grep -q 'esc to interrupt'; then echo "WORK ${P_SEAT[$i]}: a turn is in progress on its screen"; hit=1; fi
+    if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "${P_PANE[$i]}" 2>/dev/null | grep 'esc to interrupt' >/dev/null; then echo "WORK ${P_SEAT[$i]}: a turn is in progress on its screen"; hit=1; fi
     kids=$(children "$tree" "${P_PID[$i]}")
     if [ -n "$kids" ]; then hit=1; while IFS= read -r line; do echo "WORK ${P_SEAT[$i]}: $line"; done <<< "$kids"; fi
     busy=$((busy+hit))
@@ -314,7 +531,8 @@ stop_daemon() { # the shared app-server keeps every attached thread open, so it 
 launch() { # launch INDEX: the marker goes on before any shell starts
   local i=$1 seat=${P_SEAT[$1]} sess=${P_SESS[$1]} cwd=${P_CWD[$1]} harness=${P_HARNESS[$1]} sid=${P_SID[$1]} mark=${P_MARK[$1]} pane=${P_PANE[$1]} pf
   pf=$STATE/prompts/$seat.txt
-  { printf '%s' "$PROMPT"; if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi; } > "$pf" || return 1
+  { printf '%s' "$PROMPT"; if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi
+    if [ -n "${P_OLD[$i]}" ]; then printf ' Your working folder moved from %s to %s by the Architect'"'"'s order. This is the same thread, with your history. Work in the new folder from now on.' "${P_OLD[$i]}" "$cwd"; fi; } > "$pf" || return 1
   if [ -z "$pane" ]; then
     env -u TMUX "$TMUX_BIN" -L "$SOCKET" new-session -d -s "$sess" -c "$cwd" -- sleep 3600 || return 1
     pane=$(panes_of "$sess" | head -1 | cut -d'|' -f1)
@@ -331,11 +549,13 @@ launch() { # launch INDEX: the marker goes on before any shell starts
   fi
 }
 
-P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=()
+P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=() P_OLD=() P_CARRY=() P_INO=()
 live=0 ok=0 wrong=0 running=0 resume=0 resumed=0 reseat=0 unresolved=0 failed=0
 planned() { # planned SEAT SESSION CWD HARNESS PANE: record what the plan decided
   local n=${#P_SEAT[@]}
-  P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID
+  P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID P_OLD[$n]=$OLD_CWD
+  P_CARRY[$n]=$CARRY P_INO[$n]=$CARRY_INO
+  [ -z "$OLD_CWD" ] || echo "MOVE $1: from $OLD_CWD to $3${CARRY:+, carrying the clone while the seat is stopped}"
 }
 while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ -n "$seat" ] || continue
@@ -351,13 +571,44 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
     SESSION=$(awk -v s="$seat" '$1==s {print $2}' "$PINS")
     [ -z "$SESSION" ] || [[ "$SESSION" =~ $ID_RE ]] || { echo "UNRESOLVED $seat: bad pin in $PINS"; unresolved=$((unresolved+1)); continue; }
   fi
+  OLD_CWD="" to="" how="" CARRY="" CARRY_INO=""
+  if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); how=$(awk -v s="$seat" '$1==s {print $3}' "$MOVES"); fi
+  if [ -n "$to" ] && [ "$to" != "$cwd" ]; then # once the chart itself says the new folder, the line has nothing left to do
+    WHY=""
+    if [ "$(awk -v s="$seat" '$1==s' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="more than one line for it in $MOVES"
+    elif [ -n "$how" ] && [ "$how" != carry ]; then WHY="its line in $MOVES ends in '$how', and only carry is known"
+    elif [ -z "$SESSION" ]; then WHY="it moves folder, so $PINS must name its thread"
+    elif [ "$how" = carry ] && [ ! -e "$to" ] && [ ! -L "$to" ]; then carry_ready "$cwd" "$to" && CARRY=1 # once carried, it is an ordinary move
+    elif [ "$how" = carry ] && { [ "$(git -C "$to" rev-parse --show-toplevel 2>/dev/null)" != "$to" ] || [ "$(git -C "$to" rev-parse --absolute-git-dir 2>/dev/null)" != "$to/.git" ]; }; then
+      WHY="$to is there, but it is not a carried clone with its own .git"
+    else folder_ready "$seat" "$to"; fi
+    if [ -n "$WHY" ]; then
+      if [ $CHECK -eq 1 ]; then echo "WRONG $seat ($harness): $WHY"; wrong=$((wrong+1)); else echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); fi
+      continue
+    fi
+    if [ -n "$CARRY" ] && [ $CHECK -eq 1 ]; then echo "WRONG $seat ($harness): not yet carried to $to; the carry is ready"; wrong=$((wrong+1)); continue; fi
+    OLD_CWD=$cwd cwd=$to
+  fi
   if "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null; then
     if [ $CHECK -eq 1 ]; then if check_seat "$seat" "$sess" "$harness"; then ok=$((ok+1)); else wrong=$((wrong+1)); fi; continue; fi
     if [ $RESEAT -eq 0 ]; then echo "LIVE $seat ($sess)"; live=$((live+1)); continue; fi
+    # tmux would start it somewhere else, and Claude would resume there; a folder moved under a live seat with no line in folder-moves is the case
+    if [ -n "$CARRY" ]; then [ -d "$OLD_CWD" ] || { echo "UNRESOLVED $seat: no directory $OLD_CWD"; unresolved=$((unresolved+1)); continue; }
+    else [ -d "$cwd" ] || { echo "UNRESOLVED $seat: no directory $cwd"; unresolved=$((unresolved+1)); continue; }; fi
     if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
     find_pane "$sess" "$SID"
+    if [ -n "$CARRY" ] && [ -n "$PANE_PID" ]; then # anything else working in the clone would have its folder moved from under it
+      WHY="" mine=" $(tree_of "$PANE_PID")"
+      for p in $(cwd_under "$OLD_CWD"); do case "$mine" in *" $p "*) ;; *) WHY="pid $p works in $OLD_CWD and is not the seat's own, so the carry would move the folder from under it";; esac; done
+      [ -z "$WHY" ] || { echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; }
+    fi
     case "$PANE_STATE" in
-      done) echo "OK $seat: started by rescue"; ok=$((ok+1)); continue;;
+      done)
+        [ $RELAUNCH -eq 1 ] || { echo "OK $seat: started by rescue"; ok=$((ok+1)); continue; }
+        case "$(ps_line "$PANE_PID")" in *"$SID"*) ;; *) echo "UNRESOLVED $seat: its pane does not hold $SID"; unresolved=$((unresolved+1)); continue;; esac
+        check_settings "$PANE" "$PANE_PID"
+        case "$SET_WHY" in ""|*"no seat settings"*) ;; *) echo "UNRESOLVED $seat: $SET_WHY; a restart would not change that"; unresolved=$((unresolved+1)); continue;; esac
+        if [ $RESTART -eq 0 ] && [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
       none) echo "UNRESOLVED $seat: no pane in $sess holds $SID"; unresolved=$((unresolved+1)); continue;;
     esac
     marker_of "$harness" "$SID"
@@ -366,6 +617,7 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
     continue
   fi
   [ $CHECK -eq 0 ] || { echo "WRONG $seat ($harness): no session $sess"; wrong=$((wrong+1)); continue; }
+  [ -z "$CARRY" ] || { echo "UNRESOLVED $seat: it is down, and a carry moves only a seat this run stops itself"; unresolved=$((unresolved+1)); continue; }
   running_in "$harness" "$cwd"; rc=$?
   [ $rc -eq 0 ] && { echo "RUNNING $seat: a $harness process is in $cwd"; running=$((running+1)); continue; }
   [ $rc -eq 2 ] && { echo "UNRESOLVED $seat: could not tell whether a process runs in $cwd"; unresolved=$((unresolved+1)); continue; }
@@ -389,7 +641,8 @@ if [ $APPLY -eq 1 ]; then
   # Every harness is stopped first, then the daemon, and only then does any seat start: a thread must never have two writers.
   for ((i = 0; i < n; i++)); do
     [ -n "${P_PANE[$i]}" ] || continue
-    if ! stop_seat "${P_PANE[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then echo "FAILED ${P_SEAT[$i]}: its old process would not stop, so it was not restarted"; P_SEAT[$i]=""; failed=$((failed+1)); fi
+    sd=${P_CWD[$i]}; [ -z "${P_CARRY[$i]}" ] || sd=$(dirname "${P_OLD[$i]}") # a carry's new folder is not there yet, and its old one is about to go
+    if ! stop_seat "${P_PANE[$i]}" "$sd" "${P_SID[$i]}"; then echo "FAILED ${P_SEAT[$i]}: its old process would not stop, so it was not restarted"; P_SEAT[$i]=""; failed=$((failed+1)); fi
   done
   [ $RESEAT -eq 0 ] || stop_daemon
   proved_codex=0 proved_claude=0
@@ -397,18 +650,32 @@ if [ $APPLY -eq 1 ]; then
     seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
     if [ "${P_HARNESS[$i]}" = codex ] && ! rollout_free "${P_ROLL[$i]}"; then echo "FAILED $seat: pid $HOLDER still holds its rollout, so it was not started: that would be two writers"; failed=$((failed+1)); continue; fi
     [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER"
+    if [ -n "${P_CARRY[$i]}" ] && ! carry_folder "$i"; then echo "FAILED $seat: $WHY; it was not started"; failed=$((failed+1)); continue; fi
+    if [ "${P_HARNESS[$i]}" = claude ] && [ -n "${P_OLD[$i]}" ]; then
+      if ! move_project "${P_OLD[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then echo "FAILED $seat: $WHY; it was not started"; failed=$((failed+1)); continue; fi
+      claude_size=$(stat -f %z "$PROJECTS/$(project_key "${P_CWD[$i]}")/${P_SID[$i]}.jsonl")
+    fi
+    since=$(date +%s)
     if ! launch "$i"; then echo "FAILED $seat: tmux could not start it"; unseat "$i"; failed=$((failed+1)); continue; fi
     echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]}"; resumed=$((resumed+1))
     if [ "${P_HARNESS[$i]}" = codex ] && [ $proved_codex -eq 0 ]; then
-      prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+      prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
       proved_codex=1
-    elif [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
+    fi
+    if [ -n "${P_OLD[$i]}" ] && [ "${P_HARNESS[$i]}" = codex ]; then
+      prove_moved "$seat" "${P_SID[$i]}" "${P_ROLL[$i]}" "${P_CWD[$i]}" "${P_SESS[$i]}" "$since" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+    fi
+    if [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
       prove_claude "$seat" "${P_MARK[$i]}" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
       proved_claude=1
+    fi
+    if [ -n "${P_OLD[$i]}" ] && [ "${P_HARNESS[$i]}" = claude ]; then
+      prove_claude_moved "$seat" "${P_SID[$i]}" "${P_CWD[$i]}" "${P_OLD[$i]}" "${P_SESS[$i]}" "$claude_size" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$i"; break; }
     fi
   done
 fi
 
+if [ -n "$CARRY_BAD" ]; then echo "FAILED:$CARRY_BAD: the seat runs in its carried clone, but a linked worktree of it does not reach it. Bring this to zeo-rescue."; failed=$((failed+1)); fi
 echo "rescue: live $live, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
 [ $stopped -eq 1 ] || exit 1
 [ $failed -eq 0 ] || exit 1

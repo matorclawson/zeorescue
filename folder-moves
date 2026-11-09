@@ -1,0 +1,16 @@
+# SEAT /new/folder: a seat that leaves the chart's folder. Folders come from the Architect, not from zeo-rescue.
+# One line each, no spaces in a folder. The first line is the first seat: it moves alone and proves the path before the rest.
+# A line goes quiet once the chart names the same folder; zeo-rt changes the chart after the moves, on the Architect's word.
+# A third word "carry" moves the seat's own clone to the new folder while it is stopped (the one code structure, from 8 Nov): structure-moves.
+rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
+zeoapp /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp
+ducktyper /Volumes/AIPEMedia1/code/ducktyper-ai/org-ducktyper-ai/main
+profrod /Volumes/AIPEMedia1/code/profrodai/profrod-site/worktrees/profrod--author-public-gate-20261104
+zeo-rt /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoruntime/worktrees/rt-codex-recovery
+zeocreator /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main
+zbs /Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main
+ducktyper-ops /Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops
+zeoarchitect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoarchitect/main carry
+zeocontrolling /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocontrolling/main carry
+zeomessenger /Volumes/AIPEMedia1/code/zeroemployeeorg/zeomessenger/main carry
+zeoconnect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/main carry

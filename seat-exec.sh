@@ -7,10 +7,10 @@
 # ZMAIL_INSTANCE and git settings (25 Oct and 5 Nov 2026).
 #
 #   seat-exec.sh SEAT HARNESS PROMPT_FILE ARGV...
-seat=$1 harness=$2 prompt_file=$3
+seat=$1 prompt_file=$3
 shift 3
 prompt=$(cat "$prompt_file") || exit 1
-# Codex builds its own login shell for tools. Claude's tools inherit from this shell, so the seat loader in .zshrc must run here.
-case "$harness" in codex) flags=-lc;; *) flags=-lic;; esac
+# The seat loader in .zshrc must run here for both harnesses, so its settings are in the process and every tool shell inherits them.
+# Codex uses its shell snapshot only in the thread's own directory and with -lc, so a snapshot alone misses its other shells (6 Nov 2026).
 exec env -i HOME="$HOME" USER="$(id -un)" LOGNAME="$(id -un)" SHELL=/bin/zsh TERM="${TERM:-xterm-256color}" LANG="${LANG:-en_US.UTF-8}" \
-  TMUX="$TMUX" TMUX_PANE="$TMUX_PANE" ZMAIL_INSTANCE="$seat" /bin/zsh "$flags" 'exec "$@"' zeo-rescue "$@" "$prompt"
+  TMUX="$TMUX" TMUX_PANE="$TMUX_PANE" ZMAIL_INSTANCE="$seat" /bin/zsh -lic 'exec "$@"' zeo-rescue "$@" "$prompt"
