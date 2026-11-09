@@ -1,7 +1,8 @@
 # zeo-rescue: the org's recovery path. Nothing here runs until someone asks. See RUNBOOK.md.
 SHELL := /bin/bash
 ARGS ?=
-STATE ?= $(HOME)/.local/state/zeo-rescue
+# ZEO_RESCUE_STATE, as rescue.sh and reseat-lines.sh read it: without it, a test with a stub rescue.sh wrote its reseat log here for real.
+STATE ?= $(or $(ZEO_RESCUE_STATE),$(HOME)/.local/state/zeo-rescue)
 STAMP := $(shell date +%Y%m%d-%H%M%S)
 
 .PHONY: help plan rescue reseat-plan reseat check agent test teardown-log

@@ -708,6 +708,7 @@ printf 'RESEAT zeocreator: claude %s\nWORK zeocreator: a turn is in progress on 
 [ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run' && ! grep -q -- '--apply' "$T/zn/calls" && ok "it refuses while the seat is working" || bad "zn busy: $rc $out"
 printf 'RESEAT zeocreator: claude %s\n' "$zsid" > "$T/zn/plan"; out=$(ZN); rc=$?
 [ $rc -eq 1 ] && echo "$out" | grep -q '^NOT DELIVERED: ' && [ ! -e "$T/zn/state/zeocreator-note-20261108.done" ] && ok "a restart whose transcript never shows the note says NOT DELIVERED and marks nothing" || bad "zn undelivered: $rc $out"
+grep -l "^RESUMED zeocreator: stub\$" "$T/zn/state"/reseat-2*.log >/dev/null 2>&1 && ok "make reseat keeps its log in ZEO_RESCUE_STATE, so a stub run never writes the real state folder" || bad "make state: $(ls "$T/zn/state")"
 cp "$ztr" "$T/zn/tr.keep"; printf '{"type":"user","message":{"content":"%s"}}\n' "$zw" >> "$ztr"; out=$(ZN); rc=$?; cp "$T/zn/tr.keep" "$ztr"
 [ $rc -eq 2 ] && echo "$out" | grep -q "^REFUSED, nothing was run: the note's words are already in" && ok "it refuses when the words are already there, since the proof could not tell runs apart" || bad "zn words before: $rc $out"
 : > "$T/zn/calls"; : > "$T/zn/deliver"; out=$(ZN); rc=$?
@@ -849,6 +850,10 @@ out=$(SM structure-first sa); rc=$?
 grep -qF -- "--reseat --apply --relaunch --harness claude --seat sa --note-file $note" "$T/sm/calls" && ok "the move carries the rendered note" || bad "sm args: $(cat "$T/sm/calls")"
 : > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; [ $rc -eq 0 ] && grep -q '^ALREADY DONE: sa moved' <<< "$out" && [ ! -s "$T/sm/calls" ] && ok "a second structure-first restarts nothing" || bad "sm twice: $rc $out"
 out=$(SM structure-trust sa); rc=$?; [ $rc -eq 0 ] && grep -q '^NOTHING TO ADD' <<< "$out" && grep -q '^GUARDS: none to add' <<< "$out" && [ -f "$SMT/.claude/settings.local.json" ] && [ ! -e "$smsl" ] && ok "after the move, trust reads the guards in the new folder and adds nothing" || bad "sm guard after: $rc $out"
+# the allow-carry batch (Q5 of 9 Nov 04:19Z): a seat moved before trust carried allow rules still has one only on the old folder
+smsn=$SMT/.claude/settings.local.json; cp "$smsn" "$T/sm/after.keep"; jq --arg r "Read(/$SMF/docs/**)" '.permissions.allow = ((.permissions.allow // []) + [$r])' "$T/sm/after.keep" > "$smsn"; cp "$smsn" "$T/sm/after.old"; rm -f "$smgb"
+out=$(SM structure-trust sa); rc=$?; [ $rc -eq 0 ] && grep -q "^GUARDS ADDED: 1 allow, ask or deny rules on $SMF/ now stand for $SMT/ too, in $smsn; backup at $smgb, mode 600" <<< "$out" && [ "$(jq -r '.permissions.allow[-2]' "$smsn")" = "Read(/$SMF/docs/**)" ] && jq -r '.permissions.allow[-1]' "$smsn" | grep -qxF "Read(/$SMT/docs/**)" && cmp -s "$smgb" "$T/sm/after.old" && ok "after the move, trust carries an allow rule left only on the old folder, with its backup" || bad "sm allow after: $rc $out $(jq -c .permissions.allow "$smsn")"
+: > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; [ $rc -eq 0 ] && grep -q '^ALREADY DONE: sa moved' <<< "$out" && [ ! -s "$T/sm/calls" ] && ok "and first, as the batch runs it next, restarts nothing" || bad "sm allow first: $rc $out"
 : > "$T/sm/wrong"; out=$(SM structure-clear sa); rc=$?; rm -f "$T/sm/wrong"
 [ $rc -eq 2 ] && grep -q '^OUT OF ORDER, nothing was deleted: sa is not right yet' <<< "$out" && [ -e "$T/state/claude-json.before-sa" ] && ok "structure-clear keeps the backup while the seat is wrong" || bad "sm clear wrong: $rc $out"
 out=$(SM structure-clear sa); rc=$?; [ $rc -eq 0 ] && grep -q '^DELETED' <<< "$out" && [ ! -e "$T/state/claude-json.before-sa" ] && [ ! -e "$smgb" ] && ok "and deletes it, and the settings backup, once the seat checks right" || bad "sm clear: $rc $out"
@@ -889,8 +894,8 @@ sbreset; echo 'ALREADY DONE: sa moved to x and its note arrived (t). Nothing was
 ls "$T/state"/reseat-lines-structure-batch-b1-* >/dev/null 2>&1 && ok "the batch's output is kept in the state folder, under its name" || bad "sb log"
 cp "$T/sb/keep-structure-move" "$T/run/structure-move.sh"; pinf structure-move.sh
 # the real batches: every seat has its row, and is in one batch only
-sbbad=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-batches" | while read -r bb ss x; do [ -z "$x" ] && [ "$(awk -v s="$ss" '$1==s' "$HERE/structure-moves" | wc -l | tr -d ' ')" = 1 ] || echo "$ss"; done; awk '$1 !~ /^#/ && NF {print $2}' "$HERE/structure-batches" | sort | uniq -d)
-[ -z "$sbbad" ] && ok "each seat in structure-batches has its one row in structure-moves, and is in one batch only" || bad "batches: $sbbad"
+sbbad=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-batches" | while read -r bb ss x; do [ -z "$x" ] && [ "$(awk -v s="$ss" '$1==s' "$HERE/structure-moves" | wc -l | tr -d ' ')" = 1 ] || echo "$ss"; done; awk '$1 !~ /^#/ && NF {print $1, $2}' "$HERE/structure-batches" | sort | uniq -d)
+[ -z "$sbbad" ] && ok "each seat in structure-batches has its one row in structure-moves, and is in each of its batches once" || bad "batches: $sbbad"
 # the real table: every row agrees with folder-moves and session-pins, and the note has no backtick or star
 bad_rows=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-moves" | while read -r s h ts sid f t i a; do
   [ "$(awk -v s="$s" '$1==s {print $2 " " $3}' "$HERE/folder-moves")" = "$t carry" ] && [ "$(awk -v s="$s" '$1==s {print $2}' "$HERE/session-pins")" = "$sid" ] || echo "$s"

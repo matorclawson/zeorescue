@@ -8,3 +8,12 @@ batch1 zeocore
 batch1 zeonewsroom
 # batch1-zeocouncil: zeocouncil alone, once the Architect rules on its 11 untracked entries.
 batch1-zeocouncil zeocouncil
+# allow-carry: the moved seats again, on the Architect's ruling Q5 of 9 Nov 04:19Z and order 6 of 05:26Z: trust now carries allow rules too.
+# Each seat is already moved, so first finds ALREADY DONE and nothing is stopped or started; clear deletes any backup trust made.
+allow-carry zeocouncil
+allow-carry zeoarchitect
+allow-carry zeocontrolling
+allow-carry zeomessenger
+allow-carry zeoconnect
+allow-carry zeocore
+allow-carry zeonewsroom
