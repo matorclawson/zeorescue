@@ -33,7 +33,25 @@ cd "$HERE" || exit 2
 no() { echo "REFUSED, nothing was changed: $*"; exit 2; }
 sha() { /usr/bin/shasum -a 256 "$1" 2>/dev/null | cut -d " " -f 1; }
 ino() { stat -f %i "$1" 2>/dev/null; }
-db() { sqlite3 "file:$CODEX_DB?mode=ro" "$1" 2>/dev/null || sqlite3 "file:$CODEX_DB?mode=ro&immutable=1" "$1" 2>/dev/null; } # WAL: see thread_db in rescue.sh
+db() { # db SQL, as db_read in rescue.sh: Codex keeps rows in its database's -wal for minutes, so an immutable read misses them (the Architect, 9 Nov 11:28Z).
+  # It is read on a private copy of the database and its -wal, taken again until neither file changed while it was copied. The -shm is not
+  # copied: it is only the -wal's index, sqlite rebuilds it from the copied -wal, and one copied a moment apart could name frames the copy lacks.
+  local d i before r rc
+  d=$(mktemp -d "${TMPDIR:-/tmp}/zeo-codex-db.XXXXXX") || return 1
+  for ((i = 0; i < 5; i++)); do
+    before=$(db_stamp)
+    rm -f "$d/db" "$d/db-wal" "$d/db-shm"
+    cp "$CODEX_DB" "$d/db" 2>/dev/null || break
+    if [ -e "$CODEX_DB-wal" ]; then cp "$CODEX_DB-wal" "$d/db-wal" 2>/dev/null || break; fi
+    [ "$(db_stamp)" = "$before" ] || continue
+    r=$(sqlite3 "$d/db" "$1" 2>/dev/null); rc=$?
+    rm -f "$d/db" "$d/db-wal" "$d/db-shm"; rmdir "$d"
+    [ $rc -eq 0 ] || return 1
+    printf '%s\n' "$r"; return 0
+  done
+  rm -f "$d/db" "$d/db-wal" "$d/db-shm"; rmdir "$d"; return 1
+}
+db_stamp() { stat -f '%i %Fm %z' "$CODEX_DB" "$CODEX_DB-wal" 2>/dev/null; }
 
 # Read: the seat's row, and the same move in the two files rescue.sh reads.
 row=$(awk -v s="$seat" '$1==s' "$TABLE" 2>/dev/null)
