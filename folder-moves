@@ -8,7 +8,6 @@ profrod /Volumes/AIPEMedia1/code/profrodai/profrod-site/worktrees/profrod--autho
 zeo-rt /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoruntime/worktrees/rt-codex-recovery
 zeocreator /Volumes/AIPEMedia1/code/ducktyper-ai/dt-creator/main
 zbs /Volumes/AIPEMedia1/code/ducktyper-ai/dt-broadcastingstudio/main
-ducktyper-ops /Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops
 zeoarchitect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoarchitect/main carry
 zeocontrolling /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocontrolling/main carry
 zeomessenger /Volumes/AIPEMedia1/code/zeroemployeeorg/zeomessenger/main carry
@@ -23,3 +22,4 @@ zeoapp /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp/main carry
 rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community/main carry
 dt-brandedimage-maintainer /Volumes/AIPEMedia1/code/ducktyper-ai/dt-brandedimage/main carry
 rasa-bench /Volumes/AIPEMedia1/code/rasahq/rasa-community-benchmarks/main carry
+ducktyper-ops /Volumes/AIPEMedia1/code/ducktyper-ai/dt-animationstudio/worktrees/ducktyper-ops carry-plain

@@ -49,3 +49,9 @@ dt-brandedimage-maintainer codex dt-brandedimage-maintainer 01a18e5d-9ea5-7631-8
 # rasa-bench: on main; five live linked worktrees outside, under rasa-community-recovery-20261003/, which the carry repairs; three prunable
 # ones under /Volumes/ZeoWork/rasa-bench/ are left as they are.
 rasa-bench codex rasa-community-benchmarks-maintainer 01a121da-f744-7513-b32f-cb23acd4a9c5 /Volumes/AIPEMedia1/code/rasahq/rasa-community-benchmarks /Volumes/AIPEMedia1/code/rasahq/rasa-community-benchmarks/main 62551842
+# Batch 3, 9 Nov, on the Architect's answer of 12:49Z (item 13) and the hold of 15:29Z (item 14): ducktyper-ops alone. zeo-rt set its chart folder
+# to ducktyper-ai/ducktyper-ops at 12:43Z, so its 8 Nov bridge line in folder-moves goes and its carry-plain line replaces it.
+# ducktyper-ops: read 9 Nov 16:00-16:10Z: idle since 04:41; the folder is empty (doorbells/ was gone by 15:57Z, not by the seat: its
+# transcript is untouched since 15:29Z), so the carry holds no clone; only the seat's own tree works in it; dt-animationstudio/worktrees/ is a
+# plain folder outside git, as for profrod-ops; the target and its project key are free.
+ducktyper-ops claude dt-animationstudio-ops ca076ba8-7fee-46f0-853b-8182adc3c975 /Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops /Volumes/AIPEMedia1/code/ducktyper-ai/dt-animationstudio/worktrees/ducktyper-ops 88747264
