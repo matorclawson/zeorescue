@@ -2,13 +2,40 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-08 23:10 GMT, by `zeo-rescue`: the structure reseats designed; the carry built, tested and rehearsed; zeoarchitect's two lines wait for the Architect's read. make check reads WRONG for zeoarchitect until line 1.
+Last updated: 2026-11-09 03:50 GMT, by `zeo-rescue`: zeoarchitect moved into zeoarchitect/main (Do 401), its line 2 waits for the Architect; the next three seats wait for the Architect's read on branch zeo-rescue/structure-next-20261109; one stray trust step for zeocontrolling is recorded below. make check: ok 50.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**03:50 GMT, 9 Nov: zeoarchitect moved (Do 401); its line 2 waits for the Architect. The next three seats' lines wait for the Architect's read, on branch zeo-rescue/structure-next-20261109 (5affa7c). One stray trust step ran: see (c).**
+- (a) **The rulings.** The Architect ruled on all 11 questions at 23:40Z, in ANSWER-zeo-rescue-structure-reseats-rulings-2026-11-08.md:
+  - ducktyper-ops waits for its doorbells decision;
+  - an ops seat's folder is a plain, registered folder;
+  - the order is accepted;
+  - the org store comes last;
+  - each venv is rebuilt by its own note;
+  - the repair of other seats' worktrees is confirmed;
+  - there is no rename, so zeocreator and zbs stay;
+  - a Codex carry gets its own rehearsal;
+  - zeorescue goes second to last.
+
+  Next: the idle Claude maintainers, a few at a time. zeocouncil waits until its 11 uncommitted entries are dealt with.
+- (b) **zeoarchitect, line 1 (Do 401), 03:06 GMT:** ADDED, CARRIED (inode 65492221, HEAD b98aa13c, za-ci repaired), RESUMED, MOVED OK, check ok 1, NOTE DELIVERED. Its reply ran pwd in main and answered the Architect's three 8 Nov orders. It used no old path of its own, and zeoarchitect/ holds only main/. Fleet `make check`: ok 50, wrong 0. **Line 2 waits for the Architect's word**, at reseat-lines.sh 26dc2692. So this branch must keep that hash: do not merge structure-next into it until line 2 has run.
+- (c) **The stray trust step, 03:38 GMT.** A lines test of mine was not hermetic: a literal `\&\&` defeated the substitution, so `./reseat-lines.sh structure-trust zeocontrolling` really ran, from the scratch worktree.
+  - It added `hasTrustDialogAccepted: true` for `zeocontrolling/main` in ~/.claude.json and made `claude-json.before-zeocontrolling` (mode 600, unread).
+  - Nothing restarted; zeocontrolling checks OK in its old folder.
+  - I recommended leaving it, since it is exactly half of its line 1. The Architect chooses.
+  - Line tests now swap with perl `\Q…\E` and refuse to execute while a real command is left.
+- (d) **Ready for the Architect's read** (notes/DESIGN-structure-reseats-maintainers-1-20261109.md on the branch):
+  - the rows for zeocontrolling, zeomessenger and zeoconnect;
+  - a pinned one-line addition per seat's note, for zeoconnect's .venv rebuild;
+  - 6 lines at reseat-lines.sh 1e6ba307.
+
+  Tests: 390 ok, tmux-test PASS, 5 of 5 mutations caught. zeocore is held for two rulings: its ask rules on .github/workflows name its old path, and its four venvs.
+- (e) **Then:** after line 2, fast-forward this branch to structure-next, and keep the hash 1e6ba307. Then each seat's line 1, its reply, its line 2, one seat at a time. The scratch worktree is in this session's scratchpad: prune it with `git worktree prune` once it is gone.
 
 **23:10 GMT, 8 Nov: the structure reseats. The design and zeoarchitect's lines wait for the Architect's read. Nothing has run on any seat.**
 - **The order.** The Architect's 22:10Z order is in `threads/ANSWER-zeo-rescue-structure-reseats-2026-11-08.md`. It says to move the 23 rows of `STRUCTURE-INVENTORY-2026-11-08/per-seat-reseat.tsv` into `<org>/<repo>/{main,worktrees/<seat>}`, one seat at a time, by the ducktyper-ops method. The design and the first seat's lines go to the Architect first.
