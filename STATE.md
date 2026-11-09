@@ -2,13 +2,32 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-09 04:45 GMT, by `zeo-rescue`: batch 1 ran (Do 430): 4 moved, zeocontrolling skipped as busy, a rerun of Do 430 moves it; allow-rule carry on its own branch; Codex rehearsal running. make check: ok 48, wrong 2.
+Last updated: 2026-11-09 11:55 GMT, by `zeo-rescue`: batch 1 complete (ok 50, wrong 0); bootstrap 42c54af with the allow and Codex branches merged; the allow-carry line waits for the Architect; Codex prep and the Claude-seat survey running.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**11:55 GMT, 9 Nov: batch 1 COMPLETE (Do 431 zeocouncil 11:17, Do 432 zeocontrolling 11:20). make check: ok 50, wrong 0. Bootstrap at 42c54af: the allow and Codex branches merged. The allow-carry line waits for the Architect's read.**
+- (a) **Orders read:**
+  - ANSWER-zeo-rescue-after-batch1 (05:26Z): zeoconnect-ui, zeoerp and zeo-rt-sched join the rehome queue, and org-zeroemployeeorg/main must become a full clone first.
+  - ANSWER-zeo-rescue-batch1-complete-and-codex (11:28Z): merge both branches now; the next line takes every ready Claude seat, ops seats included; the Codex batch is one line after a real-rollout rehearsal and a memories read; send zeocouncil's leftovers; write reports under /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/.
+- (b) **Bootstrap 42c54af** (reseat-lines.sh a23821da):
+  - the allow branch dbbf78a and the Codex branch 08324df;
+  - 7d13e47: batch allow-carry (the seven moved seats; only zeocouncil adds anything, 2 allow rules), and the Makefile now follows ZEO_RESCUE_STATE.
+  - make test PASS: rescue-test 457 ok; 7 mutants caught.
+  - The line is in notes/structure-lines-allow-carry-20261109.txt.
+- (c) **Finding: 549 one-line stub reseat logs** in ~/.local/state/zeo-rescue, written by tests through the Makefile since 8 Nov. Nothing real ran. They are fixed and left for the junk batch.
+- (d) **Finding: deploy/codex-seats.json** (zeomessenger's file, not ours) still gives zeocouncil and zeocontrolling their old cwds.
+  - zeocouncil was rung at its old path at 11:48Z, so the wake was missed.
+  - Codex moves will need the same map update.
+- (e) **Report:** /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/REPORT-zeo-rescue-allow-carry-and-merge-2026-11-09.md. It includes zeocouncil's 11 leftovers, now in main/, and the stray old-path .zeo-doorbell.
+- (f) **Running:**
+  - the Codex prep fork, on branch zeo-rescue/structure-codex2-20261109;
+  - the read-only Claude-seat survey, for the wide batch.
+- (g) **Next:** the wide Claude batch line; the Codex batch line; the org-ledger rehome (refused while main is partial); zeorescue; the Architect.
 
 **04:45 GMT, 9 Nov: batch 1 ran (Do 430, 04:29): moved 4, skipped 1 (zeocontrolling, busy), stopped at none. make check: ok 48, wrong 2.**
 - (a) **What happened.**
