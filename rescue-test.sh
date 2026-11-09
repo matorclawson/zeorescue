@@ -564,7 +564,7 @@ kreset; reset_live; rm -f "$T/onstop" "$T/pstree" "$T/claudeadd"; : > "$T/ps.out
 
 echo "-- a check reads all its input: under pipefail a reader that leaves early turns a match into a miss"
 pad() { printf '%s\n' "$1"; head -c 1000000 /dev/zero | tr '\0' x; echo; }
-hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh" "$HERE/structure-move.sh")
+hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh" "$HERE/structure-move.sh" "$HERE/structure-batch.sh")
 [ -z "$hits" ] && ok "no script pipes into grep -q" || bad "pipes into grep -q: $hits"
 reset_live; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"
 echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/cx --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
@@ -588,14 +588,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt structure-batch.sh structure-batches; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt structure-batch.sh structure-batches; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -764,7 +764,7 @@ case " \$* " in
 esac
 S
 chmod +x "$T/run/rescue.sh"; pinf rescue.sh; rm -f "$T/sm/calls"
-SM() { ZEO_RESCUE_TABLE="$T/sm/table" ZEO_RESCUE_MOVES="$T/sm/moves" ZEO_RESCUE_PINS="$T/sm/pins" ZEO_RESCUE_PROJECTS="$T/sm/proj" ZEO_RESCUE_CLAUDE_JSON="$T/sm/cj.json" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_PROOF_TRIES=2 L "$@" 2>&1; }
+SM() { ZEO_RESCUE_USER_SETTINGS="$T/sm/user.json" ZEO_RESCUE_TABLE="$T/sm/table" ZEO_RESCUE_MOVES="$T/sm/moves" ZEO_RESCUE_PINS="$T/sm/pins" ZEO_RESCUE_PROJECTS="$T/sm/proj" ZEO_RESCUE_CLAUDE_JSON="$T/sm/cj.json" ZEO_RESCUE_CLAUDE="$T/bin/claudev" ZEO_RESCUE_PROOF_TRIES=2 L "$@" 2>&1; }
 smplan() { printf 'RESEAT sa: claude %s (--permission-mode auto; marker master, no record, default) in sa-s\nMOVE sa: from %s to %s, carrying the clone while the seat is stopped\n' "$ssid" "$SMF" "$SMT" > "$T/sm/plan"; }
 smplan; echo "$rv (Claude Code)" > "$T/ver"
 out=$(SM structure-first); rc=$?; [ $rc -eq 2 ] && grep -q '^usage: reseat-lines.sh structure-first SEAT; nothing was run' <<< "$out" && ok "a structure step needs its seat" || bad "sm usage: $rc $out"
@@ -776,9 +776,35 @@ echo "sa $SMT carry" > "$T/sm/moves"; echo "sa 34343434-3434-4434-8434-343434343
 echo "sa $ssid" > "$T/sm/pins"; sed -i '' 's/ claude / codex /' "$T/sm/table"; grep -q '^REFUSED, nothing was changed: sa is a codex seat, and only a Claude carry is rehearsed' <<< "$(SM structure-first sa)" && ok "a Codex seat is refused until its own rehearsal" || bad "sm codex"
 smrow sa 1; grep -q '^REFUSED, nothing was changed: neither .* nor .* is the folder read for sa (inode 1): an unknown state' <<< "$(SM structure-trust sa)" && ok "any state but the two it knows is refused, by every step" || bad "sm state: $(SM structure-trust sa)"
 smrow; printf 'sa claude sa-s %s %s %s %s extra\n' "$ssid" "$SMF" "$SMT" "$(stat -f %i "$SMF")" > "$T/sm/table"; grep -q '^REFUSED, nothing was changed: the row for sa in structure-moves is not' <<< "$(SM structure-first sa)" && ok "a row of the wrong shape is refused" || bad "sm shape"
-smrow; out=$(SM structure-trust sa); rc=$?
+smrow
+# the seat's guards: each ask or deny rule on the old folder is added again for the new one; nothing else changes
+smsl=$SMF/.claude/settings.local.json smgb=$T/state/settings-local.before-sa; mkdir -p "$SMF/.claude"
+jq -n --arg f "$SMF" --arg t "$SMT" '{env: {X: "1"}, permissions: {allow: ["Edit(/\($f)/**)"], ask: ["Edit(/\($f)/.github/**)", "Read(\($f)/a)", "Bash(ls)", "Edit(/\($f)-wt/**)", "Edit(/\($t)/b)"], deny: ["Write(/\($f)/.git/**)"]}}' > "$smsl"; chmod 640 "$smsl"; cp "$smsl" "$T/sm/sl.keep"
+jq -n --arg f "$SMF" '{permissions: {deny: ["Write(/\($f)/x)"]}}' > "$SMF/.claude/settings.json"; out=$(SM structure-trust sa); rc=$?; rm -f "$SMF/.claude/settings.json"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: $SMF/.claude/settings.json has an ask or deny rule on $SMF/" <<< "$out" && [ "$(jq -r --arg d "$SMT" '.projects[$d] // "none"' "$T/sm/cj.json")" = none ] && cmp -s "$smsl" "$T/sm/sl.keep" && ok "a guard on the old folder in the tracked settings is refused before anything is written" || bad "sm guard tracked: $rc $out"
+jq -n --arg f "$SMF" '{permissions: {ask: ["Edit(//\($f)/y)"]}}' > "$T/sm/user.json"; out=$(SM structure-trust sa); rc=$?; rm -f "$T/sm/user.json"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: $T/sm/user.json has an ask or deny rule on $SMF/" <<< "$out" && [ "$(jq -r --arg d "$SMT" '.projects[$d] // "none"' "$T/sm/cj.json")" = none ] && ok "and so is one in the shared user settings" || bad "sm guard user: $rc $out"
+mv "$smsl" "$T/sm/sl.real"; ln -s "$T/sm/sl.real" "$smsl"; out=$(SM structure-trust sa); rc=$?; rm -f "$smsl"; mv "$T/sm/sl.real" "$smsl"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: $smsl is a link" <<< "$out" && ok "a settings.local.json that is a link is not changed" || bad "sm guard link: $rc $out"
+echo '[1]' > "$smsl"; out=$(SM structure-trust sa); rc=$?; cp "$T/sm/sl.keep" "$smsl"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: $smsl is not a JSON object" <<< "$out" && ok "nor one that is not a JSON object" || bad "sm guard json: $rc $out"
+out=$(SM structure-trust sa); rc=$?
 [ $rc -eq 0 ] && grep -q "^ADDED: $SMT is trusted, before the folder is there" <<< "$out" && [ "$(jq -r --arg d "$SMT" '.projects[$d].hasTrustDialogAccepted' "$T/sm/cj.json")" = true ] && [ "$(stat -f %Lp "$T/state/claude-json.before-sa")" = 600 ] && ok "structure-trust trusts the new folder before it exists, with a backup of mode 600" || bad "sm trust: $rc $out"
-grep -q '^NOTHING TO ADD' <<< "$(SM structure-trust sa)" && ok "a second trust run changes nothing" || bad "sm trust twice"
+want=$(jq -n --arg f "$SMF" --arg t "$SMT" '{env: {X: "1"}, permissions: {allow: ["Edit(/\($f)/**)"], ask: ["Edit(/\($f)/.github/**)", "Read(\($f)/a)", "Bash(ls)", "Edit(/\($f)-wt/**)", "Edit(/\($t)/b)", "Edit(/\($t)/.github/**)", "Read(\($t)/a)"], deny: ["Write(/\($f)/.git/**)", "Write(/\($t)/.git/**)"]}}')
+grep -q "^GUARDS ADDED: 3 ask or deny rules on $SMF/ now stand for $SMT/ too, in $smsl; backup at $smgb, mode 600" <<< "$out" && [ "$(jq -S . "$smsl")" = "$(jq -S . <<< "$want")" ] && [ "$(jq -c '.permissions.ask' "$smsl")" = "$(jq -c '.permissions.ask' <<< "$want")" ] && ok "and adds each ask or deny rule on the old folder for the new one, in order, after the old ones; allow rules, a sibling folder and rules already on the new one are left" || bad "sm guards: $out $(cat "$smsl")"
+[ "$(stat -f %Lp "$smsl")" = 640 ] && [ "$(stat -f %Lp "$smgb")" = 600 ] && cmp -s "$smgb" "$T/sm/sl.keep" && [ ! -e "$smsl.zeo" ] && ok "the file keeps its mode, its backup is the old bytes at mode 600, and no copy is left" || bad "sm guard modes"
+out=$(SM structure-trust sa); grep -q '^NOTHING TO ADD' <<< "$out" && grep -q "^GUARDS: none to add" <<< "$out" && [ "$(jq -S . "$smsl")" = "$(jq -S . <<< "$want")" ] && ok "a second trust run changes nothing" || bad "sm trust twice: $out"
+# a writer during the carry: its write stands, and nothing is added
+cp "$T/sm/sl.keep" "$smsl"; rm -f "$smgb"; mkdir -p "$T/smbin"
+printf '#!/bin/bash\n"%s" "$@"; rc=$?\ncase "$*" in *"reduce ("*) case "$*" in *--slurpfile*) ;; *) echo " " >> "%s";; esac;; esac\nexit $rc\n' "$realjq" "$smsl" > "$T/smbin/jq"; chmod +x "$T/smbin/jq"
+out=$(PATH="$T/smbin:$PATH" SM structure-trust sa); rc=$?
+[ $rc -eq 2 ] && grep -q "^REFUSED, the guards were not added: $smsl changed while they were carried" <<< "$out" && [ "$(tail -c 2 "$smsl")" = " " ] && [ "$(jq -c '.permissions.ask' "$smsl")" = "$(jq -c '.permissions.ask' "$T/sm/sl.keep")" ] && [ ! -e "$smgb" ] && [ ! -e "$smsl.zeo" ] && ok "a write to the settings while the guards are carried is refused, its write stands, and no backup or copy is left" || bad "sm guard race: $rc $out"
+cp "$T/sm/sl.keep" "$smsl"
+printf '#!/bin/bash\ncase "$*" in *"reduce ("*) case "$*" in *--slurpfile*) ;; *) "%s" "$@" | "%s" ".permissions.allow = [] | .permissions.ask += [\\"Bash(x)\\"]"; exit;; esac;; esac\nexec "%s" "$@"\n' "$realjq" "$realjq" "$realjq" > "$T/smbin/jq"; chmod +x "$T/smbin/jq"
+out=$(PATH="$T/smbin:$PATH" SM structure-trust sa); rc=$?
+[ $rc -eq 1 ] && grep -q "^FAILED, the guards were not added: the carried file is not the old one with rules only added" <<< "$out" && cmp -s "$smsl" "$T/sm/sl.keep" && [ ! -e "$smgb" ] && [ ! -e "$smsl.zeo" ] && ok "a carried file that drops a rule or adds one not carried is refused, and the old file stands" || bad "sm guard verify: $rc $out"
+printf 'older\n' > "$smgb"; chmod 644 "$smgb"; out=$(SM structure-trust sa)
+grep -q "^GUARDS ADDED: 3 " <<< "$out" && [ "$(stat -f %Lp "$smgb")" = 600 ] && [ "$(cat "$smgb")" = older ] && ok "an earlier backup is kept, not overwritten, and made mode 600" || bad "sm guard re-add: $out $(stat -f %Lp "$smgb")"
 echo "2.1.999 (Claude Code)" > "$T/ver"; out=$(SM structure-first sa); rc=$?; echo "$rv (Claude Code)" > "$T/ver"
 [ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: Claude is 2.1.999 and the rehearsal ran on $rv" <<< "$out" && [ ! -e "$T/sm/calls" ] && ok "structure-first refuses a Claude nobody rehearsed" || bad "sm version: $rc $out"
 out=$(SM structure-first sa); rc=$?; [ $rc -eq 2 ] && grep -q '^NOT READY, nothing was run: no transcript for sa' <<< "$out" && ok "it needs the seat's transcript" || bad "sm transcript: $rc $out"
@@ -787,6 +813,8 @@ printf '{"type":"user","message":{"content":"%s"}}\n' "$sw" >> "$smo/$ssid.jsonl
 [ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: the note's words are already in" <<< "$out" && ok "it refuses when the note's words are already there" || bad "sm words: $rc $out"
 printf 'WORK sa: a turn is in progress on its screen\n' >> "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
 [ $rc -eq 2 ] && grep -q '^BUSY, nothing was run' <<< "$out" && ! grep -q -- '--apply' "$T/sm/calls" && ok "it refuses while the seat is working" || bad "sm busy: $rc $out"
+printf 'UNRESOLVED sa: it is down, and a carry moves only a seat this run stops itself\n' > "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
+[ $rc -eq 2 ] && grep -q '^DOWN, nothing was run: sa is not running' <<< "$out" && ! grep -q -- '--apply' "$T/sm/calls" && ok "it says DOWN for a seat that is not running, and runs nothing" || bad "sm down: $rc $out"
 printf 'UNRESOLVED sa: stub\n' > "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
 [ $rc -eq 2 ] && grep -q "^REFUSED, nothing was run: the plan does not move sa from $SMF to $SMT" <<< "$out" && ! grep -q -- '--apply' "$T/sm/calls" && ok "it refuses a plan that does not move this seat from its row's folder" || bad "sm plan: $rc $out"
 sed -i '' 's/ in sa-s$/ in other-s/' "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
@@ -818,12 +846,49 @@ out=$(SM structure-first sa); rc=$?
 [ $rc -eq 0 ] && grep -q "^NOTE DELIVERED sa: its words are in session $ssid under $SMT" <<< "$out" && [ -s "$T/state/structure-move-sa/first.done" ] && ok "after a carry whose start failed, a rerun starts it in the new folder, proves the note and marks itself done" || bad "sm deliver: $rc $out"
 grep -qF -- "--reseat --apply --relaunch --harness claude --seat sa --note-file $note" "$T/sm/calls" && ok "the move carries the rendered note" || bad "sm args: $(cat "$T/sm/calls")"
 : > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; [ $rc -eq 0 ] && grep -q '^ALREADY DONE: sa moved' <<< "$out" && [ ! -s "$T/sm/calls" ] && ok "a second structure-first restarts nothing" || bad "sm twice: $rc $out"
+out=$(SM structure-trust sa); rc=$?; [ $rc -eq 0 ] && grep -q '^NOTHING TO ADD' <<< "$out" && grep -q '^GUARDS: none to add' <<< "$out" && [ -f "$SMT/.claude/settings.local.json" ] && [ ! -e "$smsl" ] && ok "after the move, trust reads the guards in the new folder and adds nothing" || bad "sm guard after: $rc $out"
 : > "$T/sm/wrong"; out=$(SM structure-clear sa); rc=$?; rm -f "$T/sm/wrong"
 [ $rc -eq 2 ] && grep -q '^OUT OF ORDER, nothing was deleted: sa is not right yet' <<< "$out" && [ -e "$T/state/claude-json.before-sa" ] && ok "structure-clear keeps the backup while the seat is wrong" || bad "sm clear wrong: $rc $out"
-out=$(SM structure-clear sa); rc=$?; [ $rc -eq 0 ] && grep -q '^DELETED' <<< "$out" && [ ! -e "$T/state/claude-json.before-sa" ] && ok "and deletes it once the seat checks right" || bad "sm clear: $rc $out"
+out=$(SM structure-clear sa); rc=$?; [ $rc -eq 0 ] && grep -q '^DELETED' <<< "$out" && [ ! -e "$T/state/claude-json.before-sa" ] && [ ! -e "$smgb" ] && ok "and deletes it, and the settings backup, once the seat checks right" || bad "sm clear: $rc $out"
 grep -q '^NOTHING TO DELETE' <<< "$(SM structure-clear sa)" && ok "a second clear has nothing to do" || bad "sm clear twice"
 mv "$SMT" "$SMF.back"; rmdir "$SMF"; mv "$SMF.back" "$SMF"; grep -q '^OUT OF ORDER, nothing was deleted: sa has not moved' <<< "$(SM structure-clear sa)" && ok "clear never runs before the move" || bad "sm clear before"
 cp "$T/sm/rescue.sh.keep" "$T/run/rescue.sh"; pinf rescue.sh
+# structure-batch.sh, through the runner, on a stub structure-move.sh: $T/sb/SEAT.STEP holds the exit code a step gives, .out its words.
+rm -rf "$T/sb"; mkdir -p "$T/sb"; cp "$T/run/structure-move.sh" "$T/sb/keep-structure-move"
+cat > "$T/run/structure-move.sh" <<S
+#!/bin/bash
+echo "\$1 \$2" >> "$T/sb/calls"
+f="$T/sb/\$1.\$2"; [ ! -f "\$f.out" ] || cat "\$f.out"; [ -f "\$f" ] && exit "\$(cat "\$f")"; echo "stub \$1 \$2"; exit 0
+S
+chmod +x "$T/run/structure-move.sh"; pinf structure-move.sh
+printf 'sa x\nsb x\nsc x\n' > "$T/sb/table"
+SB() { ZEO_RESCUE_BATCHES="$T/sb/batches" ZEO_RESCUE_TABLE="$T/sb/table" L structure-batch "$@" 2>&1; }
+sbreset() { rm -f "$T/sb/calls" "$T/sb"/s?.*; }
+printf '# a comment\nb1 sa\nb1 sb\nb1 sc\nb2 sa\nb2 sa\nb3 sa\nb3 sz\nb4 sa x\n' > "$T/sb/batches"
+out=$(SB); rc=$?; [ $rc -eq 2 ] && grep -q '^usage: reseat-lines.sh structure-batch BATCH; nothing was run' <<< "$out" && ok "a batch step needs its batch" || bad "sb usage: $rc $out"
+sbreset; out=$(SB nope); rc=$?; [ $rc -eq 2 ] && grep -q '^REFUSED, nothing was run: there is no batch nope' <<< "$out" && [ ! -e "$T/sb/calls" ] && ok "an unknown batch runs nothing" || bad "sb unknown: $rc $out"
+out=$(SB b2); rc=$?; [ $rc -eq 2 ] && grep -q '^REFUSED, nothing was run: sa is in batch b2 twice' <<< "$out" && [ ! -e "$T/sb/calls" ] && ok "a seat twice in a batch runs nothing" || bad "sb twice: $rc $out"
+out=$(SB b3); rc=$?; [ $rc -eq 2 ] && grep -q '^REFUSED, nothing was run: sz needs exactly one row in structure-moves' <<< "$out" && [ ! -e "$T/sb/calls" ] && ok "every seat is read before any moves: one with no row runs nothing, not even the seats before it" || bad "sb row: $rc $out"
+out=$(SB b4); rc=$?; [ $rc -eq 2 ] && grep -q '^REFUSED, nothing was run: a line of batch b4 in structure-batches is not BATCH SEAT' <<< "$out" && [ ! -e "$T/sb/calls" ] && ok "a line of the wrong shape runs nothing" || bad "sb shape: $rc $out"
+sbreset; out=$(SB b1); rc=$?
+[ $rc -eq 0 ] && [ "$(grep -c '^RESULT s[abc]: MOVED: note delivered, its own check OK, its backup gone$' <<< "$out")" = 3 ] && grep -q '^batch b1: moved 3, already moved 0, skipped 0, stopped at none, not reached 0, of 3\.' <<< "$out" && ok "a batch moves each seat: one RESULT line each, then the total" || bad "sb all: $rc $out"
+[ "$(tr '\n' ' ' < "$T/sb/calls")" = "sa trust sa first sa clear sb trust sb first sb clear sc trust sc first sc clear " ] && ok "each seat in the table's order: trust, first, clear, and only then the next" || bad "sb order: $(cat "$T/sb/calls")"
+sbreset; echo 2 > "$T/sb/sb.first"; printf 'BUSY, nothing was run. Try again when it is idle:\nWORK sb: a turn is in progress on its screen\n' > "$T/sb/sb.first.out"; out=$(SB b1); rc=$?
+[ $rc -eq 0 ] && grep -q '^RESULT sb: SKIPPED, it is busy: WORK sb: a turn is in progress' <<< "$out" && grep -q '^RESULT sc: MOVED' <<< "$out" && ! grep -q '^sb clear' "$T/sb/calls" && grep -q 'skipped 1, stopped at none' <<< "$out" && ok "a busy seat is SKIPPED with the reason, nothing more is run for it, and the batch goes on" || bad "sb busy: $rc $out"
+sbreset; echo 2 > "$T/sb/sb.first"; echo 'DOWN, nothing was run: sb is not running' > "$T/sb/sb.first.out"; out=$(SB b1); rc=$?
+[ $rc -eq 0 ] && grep -q '^RESULT sb: SKIPPED, it is down' <<< "$out" && grep -q '^RESULT sc: MOVED' <<< "$out" && ok "and so is a seat that is down" || bad "sb down: $rc $out"
+for case_ in "first 1 STOPPED: the move or its check failed" "first 2 REFUSED, nothing was run: the plan does not move sb" "trust 2 REFUSED, nothing was changed: an unknown state" "clear 2 OUT OF ORDER, nothing was deleted: sb is not right yet"; do
+  set -- $case_; st=$1 code=$2; shift 2; sbreset; echo "$code" > "$T/sb/sb.$st"; echo "$*" > "$T/sb/sb.$st.out"; out=$(SB b1); rc=$?
+  [ $rc -eq 1 ] && grep -q "^RESULT sb: STOPPED at $st (exit $code)" <<< "$out" && grep -q '^RESULT sc: NOT REACHED; nothing was run for it' <<< "$out" && ! grep -q '^sc ' "$T/sb/calls" && grep -q 'stopped at sb, not reached 1, of 3' <<< "$out" || { bad "sb stop $st $code: $rc $out"; continue; }
+  case $st in trust) ! grep -q '^sb first' "$T/sb/calls" || bad "sb stop trust ran first";; first) ! grep -q '^sb clear' "$T/sb/calls" || bad "sb stop first ran clear";; esac
+done; ok "a failure, a refusal that is not busy or down, or a check not OK, stops the batch at that seat, and nothing runs for the seats after it"
+sbreset; echo 'ALREADY DONE: sa moved to x and its note arrived (t). Nothing was run.' > "$T/sb/sa.first.out"; out=$(SB b1); rc=$?
+[ $rc -eq 0 ] && grep -q '^RESULT sa: ALREADY MOVED; its backup is gone' <<< "$out" && grep -q '^sa clear' "$T/sb/calls" && grep -q 'moved 2, already moved 1' <<< "$out" && ok "a second run finds a moved seat ALREADY MOVED and still clears its backup" || bad "sb again: $rc $out"
+ls "$T/state"/reseat-lines-structure-batch-b1-* >/dev/null 2>&1 && ok "the batch's output is kept in the state folder, under its name" || bad "sb log"
+cp "$T/sb/keep-structure-move" "$T/run/structure-move.sh"; pinf structure-move.sh
+# the real batches: every seat has its row, and is in one batch only
+sbbad=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-batches" | while read -r bb ss x; do [ -z "$x" ] && [ "$(awk -v s="$ss" '$1==s' "$HERE/structure-moves" | wc -l | tr -d ' ')" = 1 ] || echo "$ss"; done; awk '$1 !~ /^#/ && NF {print $2}' "$HERE/structure-batches" | sort | uniq -d)
+[ -z "$sbbad" ] && ok "each seat in structure-batches has its one row in structure-moves, and is in one batch only" || bad "batches: $sbbad"
 # the real table: every row agrees with folder-moves and session-pins, and the note has no backtick or star
 bad_rows=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-moves" | while read -r s h ts sid f t i a; do
   [ "$(awk -v s="$s" '$1==s {print $2 " " $3}' "$HERE/folder-moves")" = "$t carry" ] && [ "$(awk -v s="$s" '$1==s {print $2}' "$HERE/session-pins")" = "$sid" ] || echo "$s"

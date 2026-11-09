@@ -15,3 +15,13 @@ zeomessenger claude zeomessenger-maintainer 573ea388-9dac-4afd-86b0-03f224f43aa1
 # zeoconnect: detached HEAD, clean, one stash (in .git, so it moves); 2 live linked worktrees outside; .venv names its path, so its note
 # adds the rebuild (ruling 7); node_modules is relative.
 zeoconnect claude zeoconnect-maintainer b4825478-8383-44f5-8be8-25005fdac7fa /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/main 3095506 92b5483358ecf020782a882524a14492fa95f2b2feb01fc887ce1673f2485093
+# The Architect's batch order of 9 Nov 03:49Z. Read 9 Nov 04:10-04:20Z, as the three above: idle, every process in it the seat's own tree.
+# zeocore: ahead 1 on zeocore/voice-licence-headers-20261105, clean; 11 live worktrees outside; four venvs and two ask rules on its own path
+# in settings.local.json, which structure-trust adds again for main (ruling 5 of 03:44Z); its note adds the venv rebuild.
+zeocore claude zeocore-maintainer 970b383e-c4be-43d7-9898-6fe0d7ac3237 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocore /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocore/main 3102959 eed2fa2c0a9b0f764d940c92ad8f5fc9d10bc7a2e49a670f4e8750ab352bc898
+# zeonewsroom (dt-newsroom-maintainer): behind 1 on zeonewsroom/test-order-fix-20261101, clean; no live worktrees; .venv names its path.
+# Its target is in another org folder, ducktyper-ai/dt-newsroom, which does not exist yet: the carry makes it (accepted 8 Nov 23:40Z).
+zeonewsroom claude dt-newsroom-maintainer 14ee484a-d837-4d95-ac1b-6afd826d053e /Volumes/AIPEMedia1/code/zeroemployeeorg/zeonewsroom /Volumes/AIPEMedia1/code/ducktyper-ai/dt-newsroom/main 3096252 589bc3d50ed3368c90d9b45ccf33d072cd7fe9ea7c83bd5b858df1ea008de32b
+# zeocouncil: on zeocouncil/list-zeocontracts-v1 with 11 untracked entries, which the carry moves whole; 24 ask or deny rules on its own
+# path, which structure-trust adds again for main. Its own batch, for the Architect's word on its 11 entries.
+zeocouncil claude zeocouncil-maintainer a37e1942-abd6-40e1-bd68-b61a155e62de /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocouncil /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocouncil/main 70728718

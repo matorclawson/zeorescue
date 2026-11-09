@@ -1,0 +1,1 @@
+Your .venv still names /Volumes/AIPEMedia1/code/zeroemployeeorg/zeonewsroom in its 35 scripts and in its editable install, so it no longer works. It is derived content: before you run anything in Python, rebuild it in /Volumes/AIPEMedia1/code/ducktyper-ai/dt-newsroom/main with uv venv --clear .venv && make sync, the repo's own sync step.

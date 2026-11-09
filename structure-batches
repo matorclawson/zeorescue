@@ -1,0 +1,10 @@
+# BATCH SEAT: the seats structure-batch.sh moves, in this order, on the Architect's order of 9 Nov 03:49Z. Each seat needs its row in
+# structure-moves, its carry line in folder-moves and its pin in session-pins; a seat is in a batch once.
+# batch1: every idle Claude seat whose own clone carries, but zeocouncil, zeorescue and the two org worktrees.
+batch1 zeocontrolling
+batch1 zeomessenger
+batch1 zeoconnect
+batch1 zeocore
+batch1 zeonewsroom
+# batch1-zeocouncil: zeocouncil alone, once the Architect rules on its 11 untracked entries.
+batch1-zeocouncil zeocouncil
