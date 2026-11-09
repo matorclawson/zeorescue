@@ -24,6 +24,7 @@
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
 #   reseat-lines.sh structure-trust SEAT  adds the trust entry for that seat's new folder in the one code structure (structure-moves); starts nothing
+#                                        (a Codex row goes to structure-move-codex.sh: Codex's config, its rollout as the proof)
 #   reseat-lines.sh structure-first SEAT  restarts that one seat, which carries its clone to the new folder while it is stopped; proves its note
 #                                arrived, and runs once; refuses while it is working, or on a Claude nobody rehearsed (structure-move.sh)
 #   reseat-lines.sh structure-clear SEAT  deletes the backup its trust step made; only once the seat checks right
@@ -86,9 +87,11 @@ pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
 pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 pin 710302729c54dffab39ab4809813b6d8bb87516706862fa4f67a22367cb7cbe0 ops-move.sh
 pin 3a18e0a2edae23907b0307dfa842cd645379a300146282ad25e4bc47730e2d1f notes/claude-move-ducktyper-ops-20261108.txt
-pin 2f2993b28e9088892c3123f3856446da9a75c43464fafc75d749e0dea64ecb22 structure-move.sh
+pin b52a31f788ebaf588e9fe038db57251d109fe9def5b52c5d82ba1a8467998568 structure-move.sh
 pin 8f4084d98524c01190d39dc95f8a0744a8dc8bdc585a1ab4aa268b8b9f840c7a structure-moves
 pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
+pin 938e46d82f0a73ee1b4dc94200937b01c65be7eb24a8c299b6c890c502128fe7 structure-move-codex.sh
+pin f2c752cf45aad5d24dcd48c20b53475131447be4d719fe9f8c80e125cca5ad6f notes/structure-move-codex.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2
 moves_ready() { # every seat has its folder, and the folder exists; the folders are the Architect's to name
