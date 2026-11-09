@@ -1,0 +1,11 @@
+# Batch 3 of the one code structure, 9 Nov, on the Architect's answer of 12:49Z (item 13): ducktyper-ops alone, the one seat of item 13 ready now.
+# The operator's line, after the Architect's read. It fast-forwards bootstrap to e545b631, the commit that adds batch 3, and runs at
+# reseat-lines.sh 45ed1e081d6b1949e54a1dd909799c844012795905ca15f750424b22645ccb2e.
+# NNN is the Do number on the operator's page; the Architect sets it in the echo. Nothing else in the line changes.
+# Line 1: ducktyper-ops (tmux dt-animationstudio-ops), an empty plain folder carried whole (carry-plain) from ducktyper-ai/ducktyper-ops to
+# ducktyper-ai/dt-animationstudio/worktrees/ducktyper-ops. trust adds the new folder's entry (no rules name the old one); first stops the seat,
+# carries the folder and its project, and restarts it with the plain-folder note; clear deletes the backup once its own check is OK.
+# A busy or down seat is SKIPPED, and the same line moves it later.
+# e545b631 descends from b7ec8ae; it changes only folder-moves, structure-moves, structure-batches and their pins. So the held lines of Do 446
+# (allow-carry, batch 2, codex1) run unchanged at this head too, at reseat-lines.sh 45ed1e08 instead of 63984b27, once bootstrap is here.
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then h=; cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && git merge -q --ff-only e545b631f7c84c49e22ced46c10f53248365691e && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "45ed1e081d6b1949e54a1dd909799c844012795905ca15f750424b22645ccb2e" ]; then echo "Do NNN: batch 3: ducktyper-ops into the one code structure"; ./reseat-lines.sh structure-batch batch3; else echo "Do NNN: HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "Do NNN: WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi

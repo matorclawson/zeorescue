@@ -2,12 +2,20 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-09 13:05 GMT, by `zeo-rescue`: three lines (allow-carry, batch2, codex1) wait for the Architect on zeo-rescue/structure-codex-batch-20261109; make check ok 50, wrong 0 at 11:40.
+Last updated: 2026-11-09 16:30 GMT, by `zeo-rescue`: Do 446 (allow-carry, batch2, codex1) held until app.zeo.ac is live; batch 3 (ducktyper-ops) waits for the Architect on zeo-rescue/structure-batch3-20261109.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
+
+**16:30 GMT, 9 Nov: Do 446 is HELD (Architect, 15:29Z) until app.zeo.ac is live: nothing in it runs, and nothing before then touches zeoapp, zeoconnect-ops, zeoconnect or profrod-ops. Batch 3 (ducktyper-ops) waits for the Architect's read.**
+- (a) **Batch 3** on zeo-rescue/structure-batch3-20261109: code commit e545b631 (reseat-lines.sh 45ed1e08); line in notes/structure-lines-batch3-20261109.txt, which fast-forwards bootstrap to e545b631 itself. rescue-test 486 ok, tmux-test PASS. Do 446's three batches run unchanged at that head, at the new hash.
+- (b) **The rest of item 13:**
+  - rasa-ops waits for codex1.
+  - zeo-ledger (org-ledger) needs the rehome kind and its rehearsal: not built yet. Its branch is on upstream at its tip, not on origin; org main's origin is still https.
+  - zeo-rt-sched, zeoconnect-ui and zeoerp are Codex seats. The zeo-rt-sched store under org-zeroemployeeorg/worktrees/ is no seat's folder (the seat works in /Volumes/ZeoWork/zeo-rt-sched/zero-employee). zeoconnect-ui and zeoerp are on /Volumes/ZeoWork, another volume, so a rename cannot carry them. Questions are with the Architect.
+- (c) **Filed:** the 549 stub logs, as /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/STUB-LOGS-zeo-rescue-state-2026-11-09.{md,tsv}. Report: REPORT-zeo-rescue-batch3-and-queue-2026-11-09.md there.
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
 **13:05 GMT, 9 Nov: one head, three lines waiting for the Architect's read: branch zeo-rescue/structure-codex-batch-20261109 (reseat-lines.sh 63984b27). Bootstrap fast-forwards to it.**
