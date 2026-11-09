@@ -2,13 +2,36 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-09 12:20 GMT, by `zeo-rescue`: batch 1 complete (ok 50, wrong 0); allow-carry line and batch 2 (two ops seats, carry-plain) wait for the Architect; Codex prep running.
+Last updated: 2026-11-09 13:05 GMT, by `zeo-rescue`: three lines (allow-carry, batch2, codex1) wait for the Architect on zeo-rescue/structure-codex-batch-20261109; make check ok 50, wrong 0 at 11:40.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
+
+**13:05 GMT, 9 Nov: one head, three lines waiting for the Architect's read: branch zeo-rescue/structure-codex-batch-20261109 (reseat-lines.sh 63984b27). Bootstrap fast-forwards to it.**
+- (a) **What the head holds:**
+  - the allow and Codex branches, as bootstrap 2f72d67 had them;
+  - batch 2's carry-plain (03fefda);
+  - the Codex prep (c061209): db reads on a private copy with its WAL, stop_daemon limited to this run's seats, the real-rollout rehearsal PASSED;
+  - codex1's five rows (91790cf).
+  - rescue-test 486 ok; tmux-test PASS; 23 mutants caught.
+- (b) **The lines** (notes/structure-lines-{allow-carry,batch2,codex1}-20261109.txt), in order:
+  1. allow-carry: the 7 moved seats; only zeocouncil gets anything, 2 allow rules;
+  2. batch2: zeoconnect-ops and profrod-ops, by carry-plain;
+  3. codex1: zeroemployee, zeoapp, rasa, dt-brandedimage-maintainer and rasa-bench, to <folder>/main.
+  - The allow-carry line at a23821da is withdrawn.
+- (c) **After codex1:** zeomessenger's owner must update deploy/codex-seats.json for those five, and for zeocouncil and zeocontrolling. Until then each gets no mail (Codex) or its doorbell rings at the old path (Claude).
+- (d) **Waiting:**
+  - ducktyper-ops: the chart's desired_folder is two moves back, so zeo-rt must set it first;
+  - rasa-ops: after rasa moves;
+  - then org-ledger's rehome, zeoconnect-ui, zeoerp, zeo-rt-sched, zeorescue, and the Architect.
+- (e) **Findings reported:**
+  - 549 stub logs in the real state folder (Makefile fixed);
+  - one early real-rollout rehearsal run may have tried the real openai provider, with no credentials;
+  - dt-brandedimage-maintainer runs with no git marker, as its record says.
+- (f) **Reports:** /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/REPORT-zeo-rescue-{allow-carry-and-merge,batch2-ops,codex-prep,three-lines}-2026-11-09.md.
 
 **12:20 GMT, 9 Nov: batch 2 (the ops seats) built on zeo-rescue/structure-ops-20261109 (03fefda, reseat-lines.sh 2907a4b2). Its line waits for the Architect's read; bootstrap stays at 2f72d67 until then.**
 - (a) **New: carry-plain** (folder-moves' third word). rescue.sh carries an ops seat's plain folder of clones by the same rename. structure-move.sh gives it notes/structure-move-claude-folder.txt.
