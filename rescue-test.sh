@@ -36,7 +36,7 @@ exit 0
 S
 cat > "$T/bin/lsof" <<S
 #!/bin/bash
-case "\$1" in -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
+case "\$1" in -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; -Fn) cat "$T/lsof.daemon" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
 S
 cat > "$T/bin/kill" <<S
 #!/bin/bash
@@ -44,7 +44,7 @@ echo "\$*" >> "$T/kills"
 S
 cat > "$T/bin/sqlite3" <<S
 #!/bin/bash
-if [ -f "$T/nolog" ]; then case "\$1" in *immutable*) ;; *mode=ro) echo "Error: in prepare, unable to open database file (14)" >&2; exit 1;; esac; fi
+echo "\$1" >> "$T/sqlargs"
 case "\$2" in
   *"select count(*)"*) cat "$T/newthreads" ;;
   *"select cwd from"*) cat "$T/threadcwd" ;;
@@ -99,6 +99,7 @@ export ZEO_RESCUE_ZSH="$T/bin/zsh-probe" ZEO_RESCUE_CLAUDE_JSON="$T/claude.json"
 export ZEO_RESCUE_PINS="$T/no-pins" ZEO_RESCUE_STATE="$T/state" ZEO_RESCUE_PROJECTS="$T/projects" ZEO_RESCUE_CODEX_DB="$T/db" ZEO_RESCUE_TMUX="$T/bin/tmux" ZEO_RESCUE_SNAPSHOTS="$T/snap" \
   ZEO_RESCUE_SQLITE="$T/bin/sqlite3" ZEO_RESCUE_PS="$T/bin/ps" ZEO_RESCUE_LSOF="$T/bin/lsof" ZEO_RESCUE_KILL="$T/bin/kill" ZEO_RESCUE_CLAUDE=/x/claude ZEO_RESCUE_CODEX=/x/codex \
   ZEO_RESCUE_PROOF_TRIES=2 ZEO_RESCUE_PROOF_PAUSE=0 ZEO_RESCUE_STOP_TRIES=2 ZEO_RESCUE_DAEMON_WAIT=0
+: > "$T/db" # the stub answers the SQL; the database file is only copied (db_read)
 R() { "$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart.json" "$@"; }
 
 echo "-- the plan"
@@ -246,11 +247,12 @@ esac
 if [ -f "$T/ps.seen" ]; then cat "$T/ps.after"; else touch "$T/ps.seen"; cat "$T/ps.out"; fi
 exit 0
 S
+printf 'p900\nfcwd\nn/\nf31\nn%s\n' "$T/sess/rollout-2026-11-09T01-02-03-44444444-4444-4444-8444-444444444444.jsonl" > "$T/lsof.daemon"
 reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
 echo "900 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server" >> "$T/ps.out"
 echo "900 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server" > "$T/ps.after"
 out=$(R --reseat --apply --seat cx 2>&1)
-echo "$out" | grep -q 'DAEMON STOP: exact pids 900' && ok "the daemon stops when no seat is attached" || bad "daemon: $out"
+echo "$out" | grep -q '^DAEMON STOP: pid 900, /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server$' && ok "the daemon stops when no seat is attached and it holds only the threads of seats this run stopped, each pid named" || bad "daemon: $out"
 grep -qx '900' "$T/kills" && ok "by exact pid" || bad "kills: $(cat "$T/kills" 2>/dev/null)"
 grep -qx -- '-9 900' "$T/kills" && ok "and by SIGKILL when it ignores SIGTERM" || bad "kill -9: $(cat "$T/kills" 2>/dev/null)"
 d=$(grep -n 'seat-exec' "$T/tmux.log" | head -1 | cut -d: -f1); [ -n "$d" ] && ok "the seat restarts after the daemon stops" || bad "no restart: $out"
@@ -260,6 +262,26 @@ out=$(R --reseat --apply --seat cx 2>&1)
 echo "$out" | grep -q 'DAEMON LEFT: 1 Codex seats' && ok "the daemon stays while another seat is attached" || bad "daemon left: $out"
 [ ! -e "$T/kills" ] && ok "and nothing is killed" || bad "killed: $(cat "$T/kills")"
 rm -f "$T/ps.seen"
+# The daemon goes only when every thread it holds open is a seat this run stopped, and only when that can be read (the Architect, 9 Nov 11:28Z)
+dtest() { # dtest LSOF-DAEMON-FILE-OR-none: one reseat of cx with the daemon at pid 900; $out holds the output
+  rm -f "$T/ps.seen"; reset_live; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"
+  echo "900 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server" > "$T/ps.after"
+  if [ "$1" = none ]; then rm -f "$T/lsof.daemon"; else printf "$1" > "$T/lsof.daemon"; fi
+  out=$(R --reseat --apply --seat cx 2>&1)
+}
+dtest "p900\nfcwd\nn/\nf31\nn$T/sess/rollout-2026-11-09T01-02-03-01010101-0101-4101-8101-010101010101.jsonl\n"
+echo "$out" | grep -q '^DAEMON LEFT: pid 900 holds thread 01010101-0101-4101-8101-010101010101 open, which is no seat this run stopped, so no daemon was stopped' && [ ! -e "$T/kills" ] && ok "a daemon holding another seat's thread is left, and nothing is killed" || bad "daemon other: $out $(cat "$T/kills" 2>/dev/null)"
+dtest none
+echo "$out" | grep -q '^DAEMON LEFT: which seats pid 900 serves cannot be read, so no daemon was stopped' && [ ! -e "$T/kills" ] && ok "a daemon whose open files cannot be read is left, and the run says so" || bad "daemon unread: $out"
+dtest "p900\nfcwd\nn/\n"; out2=$out; ZEO_RESCUE_LSOF=$T/no-lsof dtest "p900\nfcwd\nn/\n"
+echo "$out" | grep -q '^DAEMON LEFT: which seats pids 900 serve cannot be read (no lsof), so no daemon was stopped' && [ ! -e "$T/kills" ] && ok "and so is one when there is no lsof" || bad "daemon no lsof: $out"
+echo "$out2" | grep -q '^DAEMON STOP: pid 900, ' && ok "a daemon that holds no thread open goes" || bad "daemon none held: $out2"
+rm -f "$T/ps.seen"; reset_live; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"
+printf '900 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server\n800 /x/codex resume --no-daemon 44444444-4444-4444-8444-444444444444\n' > "$T/ps.after"
+printf "p900\nfcwd\nn/\nf31\nn$T/sess/rollout-2026-11-09T01-02-03-44444444-4444-4444-8444-444444444444.jsonl\n" > "$T/lsof.daemon"; out=$(R --reseat --apply --seat cx 2>&1)
+echo "$out" | grep -q '^FAILED cx: its old process would not stop' && echo "$out" | grep -q '^DAEMON LEFT: pid 900 holds thread 44444444-4444-4444-8444-444444444444 open, which is no seat this run stopped' && [ ! -e "$T/kills" ] && ok "a seat whose old process would not stop is not this run's to free: its daemon is left" || bad "daemon stuck seat: $out"
+echo "900 /u/.codex/packages/app-server-daemon/releases/1/bin/codex app-server" > "$T/ps.after"
+printf 'p900\nfcwd\nn/\n' > "$T/lsof.daemon"; rm -f "$T/ps.seen"
 
 echo "-- two writers: a thread something still holds"
 reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
@@ -403,8 +425,21 @@ out=$(R --apply --seat cx 2>&1); rc=$?
 echo "$out" | grep -q "^MOVE cx: from $T/w/cx to $T/w/new" && ok "the plan says where from and to" || bad "move line: $out"
 grep -q -- "resume -a never -s danger-full-access -C $T/w/new --no-daemon $SID" "$T/launched" && ok "it resumes the pinned thread in the new folder" || bad "argv: $(cat "$T/launched")"
 grep -q "moved from $T/w/cx to $T/w/new" "$T/state/prompts/cx.txt" && ok "the seat is told" || bad "note"
-touch "$T/nolog"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?; rm -f "$T/nolog"
-[ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && ok "a database nothing has open, so mode=ro fails, does not stop a good seat" || bad "no log: $rc $out"
+rm -f "$T/sqlargs"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
+dirs=$(sed -n 's#/db$##p' "$T/sqlargs" | sort -u); left=""; for d in $dirs; do [ ! -e "$d" ] || left="$left $d"; done
+[ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && [ -n "$dirs" ] && ! grep -q -v '/zeo-codex-db\.[A-Za-z0-9]*/db$' "$T/sqlargs" && [ -z "$left" ] && ok "Codex's database is read only on a private copy, never in place or immutable, and each copy is deleted" || bad "db copy: $rc $out $(cat "$T/sqlargs") left:$left"
+# db_read, and structure-move-codex.sh's db, on a real database whose row is only in its -wal
+WD=$T/walt; mkdir -p "$WD/tmp"; /usr/bin/sqlite3 "$WD/s.db" "pragma journal_mode=wal; create table threads (id text, cwd text);" >/dev/null
+printf '.dbconfig no_ckpt_on_close on\npragma wal_autocheckpoint=0;\ninsert into threads values (%s);\n' "'w1', '/x'" | /usr/bin/sqlite3 "$WD/s.db" >/dev/null
+fnsrc() { awk -v f="$1() {" 'index($0, f) == 1 {p = 1} p {print} p && /^}/ {p = 0} index($0, "db_stamp() {") == 1 {print}' "$2"; }
+dbr() { ( eval "$(fnsrc "$1" "$2")"; SQLITE=/usr/bin/sqlite3 CODEX_DB=$WD/s.db TMPDIR=$WD/tmp; [ -z "${3:-}" ] || eval "$3"; "$1" 'select id from threads;' ) 2>&1; }
+[ -s "$WD/s.db-wal" ] && [ "$(/usr/bin/sqlite3 "file:$WD/s.db?mode=ro&immutable=1" 'select count(*) from threads;')" = 0 ] && ok "the test row is only in the -wal: an immutable read misses it" || bad "wal fixture"
+for fs in "db_read $HERE/rescue.sh" "db $HERE/structure-move-codex.sh"; do set -- $fs
+  [ "$(dbr "$1" "$2")" = w1 ] && [ -z "$(ls "$WD/tmp")" ] && [ -s "$WD/s.db-wal" ] && ok "$1 in $(basename "$2") reads it, leaves no copy, and leaves the -wal as it was" || bad "$1 wal: $(dbr "$1" "$2")"
+  [ "$(dbr "$1" "$2" 'cp() { command cp "$@"; [ -e "$WD/once" ] || { : > "$WD/once"; touch "$CODEX_DB-wal"; }; }')" = w1 ] && ok "$1: a -wal written during the copy is copied again" || bad "$1 retry"
+  rm -f "$WD/once"; out=$(dbr "$1" "$2" 'cp() { command cp "$@"; touch "$CODEX_DB-wal"; }'); rc=$?
+  [ $rc -ne 0 ] && [ -z "$out" ] && [ -z "$(ls "$WD/tmp")" ] && ok "$1: one that never stops changing reads nothing, and leaves no copy" || bad "$1 busy: $rc $out"
+done
 { printf '{"cwd":"%s"}\n' "$T/w/new"; head -c 1000000 /dev/zero | tr '\0' x; echo; } > "$T/rolladd"; fresh; out=$(R --apply --seat cx 2>&1); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q '^MOVED OK cx' && ok "a rollout larger than the pipe does not stop a good seat" || bad "big rollout: $rc $out"
 printf '{"cwd":"%s"}\n' "$T/w/new" > "$T/rolladd"

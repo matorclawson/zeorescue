@@ -74,7 +74,7 @@ cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin 049e730d75078d2ade39092e3ced8125ddc781914aacccceaa266b80783c2cbd rescue.sh
+pin 02fbc10e39f6894ba7c96b14bd5c4a8bf98d284d795c8d59af13e6e9b7b7af0e rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 0e5a2052fe699fcae9183a4f56d1f1f23ba007d1aa5d70add8d7befd22f1b3bd Makefile
 pin 655421ca5c720f29806e080356cef2d57d8c8366ac90d470682aeabc73c64635 session-pins
@@ -95,7 +95,7 @@ pin 529956dfa3dd1d9fc65d342eb69730958d18f86408e1bf66cbdf8ca456dee4db structure-b
 pin cca806b52dc7e114f6e6505bb3fad3587145f7183a65587ee9e872f24f96f38b structure-batches
 pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
 pin b2c88a99e9e11c70bbf32ca4f9c9c2f96ca244736b4c59f89a1c68804452598d notes/structure-move-claude-folder.txt
-pin 938e46d82f0a73ee1b4dc94200937b01c65be7eb24a8c299b6c890c502128fe7 structure-move-codex.sh
+pin 3966231423200b3504058d303aee17a70d74beb6636450b5e5225933c79040df structure-move-codex.sh
 pin f2c752cf45aad5d24dcd48c20b53475131447be4d719fe9f8c80e125cca5ad6f notes/structure-move-codex.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2

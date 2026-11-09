@@ -1,6 +1,8 @@
 #!/bin/bash
 # zeo-rescue: a Codex seat's move into the one code structure (a clone at <org>/<repo> that becomes <org>/<repo>/main), rehearsed on the real
-# Codex without touching a seat. Usage: structure-move-codex.sh [PORT]
+# Codex without touching a seat. Usage: structure-move-codex.sh [--real THREAD] [PORT]
+# --real THREAD: the seat runs on a copy of that real thread instead: its rollout and its thread record only, the real folder written as the
+# private clone; the auth file, the config and the rest of the real CODEX_HOME are never copied.
 # A private CODEX_HOME that this script writes itself: no auth file, a model provider on a local listener that keeps each request and answers
 # 400, and a fake key, so nothing leaves this machine and no credential is read. The seat's thread is made there by the real Codex in a clone
 # of the seats' shape: an ordinary clone with a commit, an untracked and an ignored file, one live linked worktree outside it and one prunable.
@@ -8,6 +10,7 @@
 # structure-trust, structure-first, structure-clear, and second runs. The seat is rcx, the kill that stops a daemon is a stub that kills
 # nothing, and the copies refuse to start if they could reach zeo2 or a real folder. KEEP=1 keeps the working folder.
 set -uo pipefail
+RT=""; if [ "${1:-}" = --real ]; then RT=${2:-}; shift 2; [[ "$RT" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { echo "usage: structure-move-codex.sh [--real THREAD] [PORT]"; exit 2; }; fi
 port=${1:-39093}; HERE=$(cd "$(dirname "$0")" && pwd -P); R0=$(dirname "$HERE")
 CX=$HOME/.local/bin/codex TM=/opt/homebrew/bin/tmux S=rcx$$
 VERSION=$("$CX" --version | awk 'NR==1 {print $2}')
@@ -58,8 +61,38 @@ echo "== the thread, made by the real Codex $VERSION in the clone"
 db() { sqlite3 "file:$CH/state_5.sqlite?mode=ro" "$1" 2>/dev/null || sqlite3 "file:$CH/state_5.sqlite?mode=ro&immutable=1" "$1"; }
 sid=$(db "select id from threads where cwd = '$OLD' and thread_source = 'user' order by updated_at desc limit 1;"); roll=$(db "select rollout_path from threads where id = '$sid';")
 [ -n "$sid" ] && [ -f "$roll" ] || { echo "NO THREAD: this proves nothing"; exit 1; }
-# rescue.sh reads the real database immutable, as a long-lived file whose rows are written through; a fresh private one is still in its log.
+# rescue.sh now reads a copy with the -wal; the checkpoint still makes the private database whole before the real thread record goes in.
 sqlite3 "$CH/state_5.sqlite" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null || { echo "COULD NOT CHECKPOINT THE PRIVATE DATABASE: this proves nothing"; exit 1; }
+if [ -n "$RT" ]; then
+  echo "== a copy of the real thread $RT: its rollout and its thread record only (the Architect, 9 Nov 11:28Z)"
+  # Read from a private copy of the real database with its -wal; nothing else of the real CODEX_HOME is copied, and no auth or config.
+  RDB=$P/realdb; mkdir -m 700 "$RDB"; cp "$HOME/.codex/state_5.sqlite" "$RDB/s" && { [ ! -e "$HOME/.codex/state_5.sqlite-wal" ] || cp "$HOME/.codex/state_5.sqlite-wal" "$RDB/s-wal"; } \
+    || { echo "COULD NOT COPY THE REAL DATABASE: this proves nothing"; exit 1; }
+  rroll=$(sqlite3 "$RDB/s" "select rollout_path from threads where id = '$RT';") rcwd=$(sqlite3 "$RDB/s" "select cwd from threads where id = '$RT';")
+  # Copied by column name: the real database can be at another schema than the one this Codex made, and the columns that differ are named.
+  rcols=$(sqlite3 "$RDB/s" "select name from pragma_table_info('threads');" | sort) pcols=$(sqlite3 "$CH/state_5.sqlite" "select name from pragma_table_info('threads');" | sort)
+  common=$(comm -12 <(printf '%s\n' "$rcols") <(printf '%s\n' "$pcols") | sed 's/.*/"&"/' | paste -sd, -)
+  printf 'thread record columns only in the real database: %s; only in the private one: %s; real schema migration %s, private %s\n' "$(comm -23 <(printf '%s\n' "$rcols") <(printf '%s\n' "$pcols") | paste -sd' ' - | sed 's/^$/none/')" \
+    "$(comm -13 <(printf '%s\n' "$rcols") <(printf '%s\n' "$pcols") | paste -sd' ' - | sed 's/^$/none/')" "$(sqlite3 "$RDB/s" 'select max(version) from _sqlx_migrations;')" "$(sqlite3 "$CH/state_5.sqlite" 'select max(version) from _sqlx_migrations;')"
+  sqlite3 "$RDB/s" ".headers on" ".mode insert threads" "select $common from threads where id = '$RT';" > "$P/row.sql"; rm -f "$RDB/s" "$RDB/s-wal" "$RDB/s-shm"
+  [ -f "$rroll" ] && [ -n "$rcwd" ] && [ -s "$P/row.sql" ] || { echo "NO REAL THREAD $RT: this proves nothing"; exit 1; }
+  case "$rroll" in "$HOME/.codex/sessions/"*) ;; *) echo "THE REAL ROLLOUT IS NOT UNDER sessions: stopped"; exit 1;; esac
+  # The copy gets a thread id of its own, so no check here can take the live seat that holds the real one for it, and the real folder is
+  # written as the private clone, so nothing in the copy names it. A last line still being written is left out.
+  NID=$(uuidgen | tr "A-F" "a-f"); nroll=$CH/sessions/$(dirname "${rroll#"$HOME/.codex/sessions/"}")/$(basename "$rroll" | sed "s/$RT/$NID/"); mkdir -p "$(dirname "$nroll")"
+  F="$rcwd" T="$OLD" A="$RT" B="$NID" perl -ne 's/\Q$ENV{F}\E/$ENV{T}/g; s/\Q$ENV{A}\E/$ENV{B}/g; s/"(model_provider(?:_id)?)":"[^"]*"/"$1":"rehearsal"/g; print if /\n\z/' "$rroll" > "$nroll"
+  # Its model provider becomes the local listener too: the real record and rollout name the real provider, which a resume would use.
+  ! LC_ALL=C grep -qF -e "$rcwd" -e "$RT" "$nroll" || { echo "THE COPY STILL NAMES THE REAL FOLDER OR THREAD: stopped"; exit 1; }
+  [ -z "$(LC_ALL=C grep -o '"model_provider[_id]*":"[^"]*"' "$nroll" | grep -v ':"rehearsal"$')" ] || { echo "THE COPY NAMES ANOTHER MODEL PROVIDER: stopped"; exit 1; }
+  sqlite3 "$CH/state_5.sqlite" "update threads set archived = 1 where id = '$sid';" < /dev/null && sqlite3 "$CH/state_5.sqlite" < "$P/row.sql" \
+    && sqlite3 "$CH/state_5.sqlite" "update threads set id = '$NID', cwd = '$OLD', rollout_path = '$nroll', model_provider = 'rehearsal' where id = '$RT';" || { echo "COULD NOT COPY THE THREAD RECORD: this proves nothing"; exit 1; }
+  [ "$(sqlite3 "$CH/state_5.sqlite" "select count(*) from threads where model_provider <> 'rehearsal';")" = 0 ] || { echo "A THREAD RECORD NAMES ANOTHER MODEL PROVIDER: stopped"; exit 1; }
+  sqlite3 "$CH/state_5.sqlite" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
+  printf 'real rollout %s bytes, copy %s bytes; its records: %s\n' "$(stat -f %z "$rroll")" "$(stat -f %z "$nroll")" \
+    "$(jq -r '[.type, (.payload.type // "-")] | join(" ")' "$nroll" 2>/dev/null | sort | uniq -c | sort -rn | awk '{printf "%s%s %s %s", s, $1, $2, $3; s=", "}')"
+  printf 'the exec-made thread %s, archived; its records: %s\n' "$sid" "$(jq -r '[.type, (.payload.type // "-")] | join(" ")' "$roll" 2>/dev/null | sort | uniq -c | sort -rn | awk '{printf "%s%s %s %s", s, $1, $2, $3; s=", "}')"
+  echo "the copy is thread $NID"; sid=$NID roll=$nroll
+fi
 echo "thread $sid, rollout $(stat -f %z "$roll") bytes; clone inode $ino0 at $head0; worktrees: $(git -C "$OLD" worktree list | wc -l | tr -d ' ') listed, $(git -C "$OLD" worktree list --porcelain | grep -c '^prunable') prunable"
 # The copies of the operator's scripts: the seat is rcx, the socket and folders private; checked before anything starts.
 cp "$R0/seat-exec.sh" "$R0/Makefile" "$R0/structure-move.sh" "$R0/structure-move-codex.sh" "$P/run/"; cp "$R0/notes/structure-move-codex.txt" "$R0/notes/structure-move-claude.txt" "$P/run/notes/"
@@ -91,6 +124,12 @@ cp -p "$CH/config.toml" "$P/config.before"
 Ln structure-trust rcx 2>&1 | grep -E '^(NOTHING|ADDED|REFUSED|FAILED)' | show
 printf 'the config is the old one with exactly the entry added: %s\n' "$([ "$(diff "$P/config.before" "$CH/config.toml" | grep -c '^>')" = 3 ] && [ "$(diff "$P/config.before" "$CH/config.toml" | grep -c '^<')" = 0 ] && echo yes || echo NO)"
 (cd "$P" && "$P/codex" mcp list >/dev/null 2>&1) && echo "Codex reads the new config" || echo "CODEX CANNOT READ THE NEW CONFIG"
+# A seat resumed on months of history can be at work for a while after it starts; the batch skips a busy seat, so this waits for idle.
+w0=$(date +%s) quiet=0 busy=""; while [ $quiet -lt 3 ] && [ $(($(date +%s) - w0)) -lt 300 ]; do
+  if R --reseat --relaunch 2>&1 | grep -q '^WORK rcx'; then quiet=0; [ -n "$busy" ] || busy=$("$TM" -L "$S" capture-pane -p -t '=rcx-s' | grep 'esc to interrupt' | tail -1 | show); else quiet=$((quiet+1)); fi
+  perl -e 'select(undef,undef,undef,2)'; done
+[ -z "$busy" ] || echo "busy after it started, on its screen: $busy"
+echo "idle $(($(date +%s) - w0)) s after the trust step; requests it had sent the model: $(ls "$P/cap" | wc -l | tr -d ' ')"
 before=$(newest); b2=$(stat -f %z "$roll"); s=$(perl -MTime::HiRes -e 'print Time::HiRes::time()')
 Ln structure-first rcx 2>&1 | grep -E '^(the Codex|the note|codex |RESEAT|MOVE|CARRIED|RESUMED|FIRST SEAT OK|MOVED OK|NOTE|STOPPED|FAILED|UNRESOLVED|RECOVERY|OK|WRONG|check:|rescue:|NOT|REFUSED|BUSY|ALREADY|work:|DAEMON)' | show
 e=$(perl -MTime::HiRes -e 'print Time::HiRes::time()'); perl -e 'printf "seconds through the restart: %.1f\n", $ARGV[1]-$ARGV[0]' "$s" "$e"

@@ -83,7 +83,9 @@ chmod +x "$P/run/rescue.sh" "$P/run/reseat-lines.sh" "$P/run/zbs-move.sh"
 [ "$(cat "$P/run/rescue.sh" "$P/run/reseat-lines.sh" "$P/run/zbs-move.sh" | grep -c zeo2)" = 0 ] && ! grep -E '^(MAIN|SEAT|ASIDE|WT|MEM_FROM_DIR)=/Volumes' "$P/run/zbs-move.sh" >/dev/null || { echo "THE COPY CAN REACH THE ORG: stopped before anything started"; exit 1; }
 printf '{"seats":[{"seat_id":"rz","mailbox":"rz","desired_agent":"claude","desired_host":"h","desired_tmux":{"session":"rz-s"},"desired_folder":"%s"}]}' "$SEAT" > "$P/chart.json"
 echo "rz $sid" > "$P/run/session-pins"; : > "$P/run/folder-moves"
-export ZEO_RESCUE_CHART=$P/chart.json ZEO_RESCUE_STATE=$P/state STATE=$P/state ZEO_RESCUE_PROJECTS=$P/cfg/projects ZEO_RESCUE_CLAUDE=$P/claude ZEO_RESCUE_CLAUDE_JSON=$P/cfg/.claude.json ZEO_RESCUE_PROOF_TRIES=60 ZEO_RESCUE_PROOF_PAUSE=1
+# The kill that stops a shared Codex daemon is a stub that only writes down what it was asked (the Architect, 9 Nov 11:28Z): a rehearsal stops no real daemon.
+printf '#!/bin/sh\necho "$*" >> "%s/kills"\n' "$P" > "$P/nokill"; chmod +x "$P/nokill"
+export ZEO_RESCUE_KILL=$P/nokill ZEO_RESCUE_CHART=$P/chart.json ZEO_RESCUE_STATE=$P/state STATE=$P/state ZEO_RESCUE_PROJECTS=$P/cfg/projects ZEO_RESCUE_CLAUDE=$P/claude ZEO_RESCUE_CLAUDE_JSON=$P/cfg/.claude.json ZEO_RESCUE_PROOF_TRIES=60 ZEO_RESCUE_PROOF_PAUSE=1
 R() { "$P/run/rescue.sh" "$@"; }; Ln() { "$P/run/reseat-lines.sh" "$@"; }
 perl "$HERE/capture.pl" "$port" "$P/cap" & L=$!; perl -e 'select(undef,undef,undef,0.4)'
 tail -n 4000 "$oe/$sid.jsonl" | jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="text") | .text' 2>/dev/null | grep -v '^$' | tail -1 | cut -c1-48 > "$P/lastwords"

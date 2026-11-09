@@ -51,6 +51,7 @@ row() { printf '{"seat_id":"%s","mailbox":"%s","desired_agent":"%s","desired_hos
 echo "{\"seats\":[$(row tc claude tc-s "$T/w/cl"),$(row tx codex tx-s "$T/w/cx"),$(row txi codex txi-s "$T/w/cxi")]}" > "$T/chart.json"
 export ZEO_RESCUE_PINS=$T/none ZEO_RESCUE_STATE=$T/state ZEO_RESCUE_PROJECTS=$T/projects ZEO_RESCUE_CODEX_DB=$T/db ZEO_RESCUE_SNAPSHOTS=$T/snap \
   ZEO_RESCUE_SQLITE=$T/bin/sqlite3 ZEO_RESCUE_CLAUDE=$T/bin/claude ZEO_RESCUE_CODEX=$T/bin/codex ZEO_RESCUE_KILL=/usr/bin/true ZEO_RESCUE_PROOF_TRIES=20 ZEO_RESCUE_PROOF_PAUSE=0.5
+: > "$T/db" # the stub answers the SQL; the database file is only copied (db_read)
 R() { "$HERE/rescue.sh" --host h --socket "$SOCK" --stagger 0 --chart "$T/chart.json" "$@"; }
 
 echo "-- a dead seat comes up through real tmux and the real loader"

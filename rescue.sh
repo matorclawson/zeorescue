@@ -170,7 +170,7 @@ plan_codex() { # sets SID, MODE_ARGS and SANDBOX for a Codex seat, or WHY
   where="cwd = '$(printf %s "$1" | sed "s/'/''/g")'"
   [ -z "$SESSION" ] || where="id = '$SESSION'"
   q="select id || ' ' || rollout_path from threads where $where and archived = 0 and thread_source = 'user' order by updated_at desc limit 1;"
-  row=$("$SQLITE" "file:$CODEX_DB?mode=ro&immutable=1" "$q" 2>/dev/null) || { WHY="cannot read $CODEX_DB"; return 1; }
+  row=$(db_read "$q") || { WHY="cannot read $CODEX_DB"; return 1; }
   [ -n "$row" ] || { WHY="no Codex thread for this directory"; return 1; }
   # a space, not a control byte: the sqlite3 shell escapes control characters in values, so char(31) arrives as a literal ^_
   SID=${row%% *}; roll=${row#* }
@@ -341,9 +341,25 @@ move_project() { # move_project OLD NEW SID: the seat's whole project goes by on
   [ "$(stat -f %z "$to/$3.jsonl" 2>/dev/null)" = "$size" ] || { WHY="its transcript changed in the rename"; return 1; }
 }
 
-thread_db() { # thread_db SQL: Codex's database is in WAL mode, so mode=ro cannot open it while nothing has it open. Then no log exists, and immutable reads it all.
-  "$SQLITE" "file:$CODEX_DB?mode=ro" "$1" 2>/dev/null || "$SQLITE" "file:$CODEX_DB?mode=ro&immutable=1" "$1" 2>/dev/null
+db_read() { # db_read SQL: Codex keeps rows in its database's -wal for minutes, so an immutable read misses them (the Architect, 9 Nov 11:28Z).
+  # It is read on a private copy of the database and its -wal, taken again until neither file changed while it was copied. The -shm is not
+  # copied: it is only the -wal's index, sqlite rebuilds it from the copied -wal, and one copied a moment apart could name frames the copy lacks.
+  local d i before r rc
+  d=$(mktemp -d "${TMPDIR:-/tmp}/zeo-codex-db.XXXXXX") || return 1
+  for ((i = 0; i < 5; i++)); do
+    before=$(db_stamp)
+    rm -f "$d/db" "$d/db-wal" "$d/db-shm"
+    cp "$CODEX_DB" "$d/db" 2>/dev/null || break
+    if [ -e "$CODEX_DB-wal" ]; then cp "$CODEX_DB-wal" "$d/db-wal" 2>/dev/null || break; fi
+    [ "$(db_stamp)" = "$before" ] || continue
+    r=$("$SQLITE" "$d/db" "$1" 2>/dev/null); rc=$?
+    rm -f "$d/db" "$d/db-wal" "$d/db-shm"; rmdir "$d"
+    [ $rc -eq 0 ] || return 1
+    printf '%s\n' "$r"; return 0
+  done
+  rm -f "$d/db" "$d/db-wal" "$d/db-shm"; rmdir "$d"; return 1
 }
+db_stamp() { stat -f '%i %Fm %z' "$CODEX_DB" "$CODEX_DB-wal" 2>/dev/null; }
 prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a folder change the seat is still one thread, one rollout and one writer
   local seat=$1 sid=$2 roll=$3 to=$4 sess=$5 since=$6 i n=0 found="" others was id pid opt cmd who
   for ((i = 0; i < PROOF_TRIES; i++)); do
@@ -353,7 +369,7 @@ prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a fol
   [ -n "$found" ] || { echo "STOPPED: $seat: its thread never recorded $to; no other seat was started"; return 1; }
   n=$(find "$SESSIONS" -name "*$sid*" 2>/dev/null | wc -l | tr -d ' ')
   [ "$n" = 1 ] || { echo "STOPPED: $seat: $n rollouts carry thread $sid; no other seat was started"; return 1; }
-  others=$(thread_db "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;")
+  others=$(db_read "select count(*) from threads where cwd = '$(printf %s "$to" | sed "s/'/''/g")' and id <> '$sid' and thread_source = 'user' and created_at >= $since;")
   [ "$others" = 0 ] || { echo "STOPPED: $seat: ${others:-an unknown number of} new threads appeared in $to; no other seat was started"; return 1; }
   IFS='|' read -r id pid opt cmd < <(panes_of "$sess")
   for ((i = 0; i < PROOF_TRIES; i++)); do # the rollout may not be open yet when the proof gets here, so one empty answer proves nothing
@@ -362,7 +378,7 @@ prove_moved() { # prove_moved SEAT SID ROLLOUT FOLDER SESSION SINCE: after a fol
     pause "$PROOF_PAUSE"
   done
   [ "$who" = "$pid" ] || { echo "STOPPED: $seat: its rollout is held by pids '${who}', not only by pid $pid; no other seat was started"; return 1; }
-  was=$(thread_db "select cwd from threads where id = '$sid';")
+  was=$(db_read "select cwd from threads where id = '$sid';")
   [ "$was" = "$to" ] || echo "NOTE $seat: Codex's thread record still says ${was:-nothing}; session-pins holds the thread either way"
   echo "MOVED OK $seat: thread $sid, one rollout, one writer, in $to"
 }
@@ -555,14 +571,25 @@ stop_seat() { # stop_seat PANE CWD SID: replace the harness with a sleep, and wa
   return 1
 }
 
-stop_daemon() { # the shared app-server keeps every attached thread open, so it goes only when no seat is attached to it
-  local out attached pids p
-  out=$("$PS_BIN" -axo pid=,command=) || return 1
+stop_daemon() { # the shared app-server keeps every attached thread open, so it goes only when no seat is attached to it, and only when each
+  # thread it holds open is a seat this run stopped (the Architect, 9 Nov 11:28Z). What it serves is read from the rollouts it has open;
+  # when that cannot be read, no daemon is stopped, and the run says so.
+  local out attached pids p held ids id ours="" i
+  out=$("$PS_BIN" -axo pid=,command=) || { echo "DAEMON UNKNOWN: ps could not be read, so no daemon was stopped"; return 1; }
   attached=$(printf '%s\n' "$out" | grep -E '/codex resume ' | grep -vc -- '--no-daemon')
   pids=$(printf '%s\n' "$out" | awk '$2 ~ /\/app-server-daemon\/releases\// {print $1}' | paste -sd' ' -)
   [ -n "$pids" ] || return 0
   if [ "$attached" -gt 0 ]; then echo "DAEMON LEFT: $attached Codex seats are still attached to pids $pids"; return 0; fi
-  echo "DAEMON STOP: exact pids $pids"
+  [ -x "$LSOF" ] || { echo "DAEMON LEFT: which seats pids $pids serve cannot be read (no lsof), so no daemon was stopped"; return 0; }
+  for ((i = 0; i < ${#P_SEAT[@]}; i++)); do [ -z "${P_SEAT[$i]}" ] || ours="$ours ${P_SID[$i]}"; done; ours="$ours "
+  for p in $pids; do
+    held=$("$LSOF" -Fn -p "$p" 2>/dev/null) && [ -n "$held" ] || { echo "DAEMON LEFT: which seats pid $p serves cannot be read, so no daemon was stopped"; return 0; }
+    ids=$(printf '%s\n' "$held" | sed -n 's/^n//p' | grep -E '\.jsonl$' | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$' | sed 's/\.jsonl$//' | sort -u)
+    for id in $ids; do
+      case "$ours" in *" $id "*) ;; *) echo "DAEMON LEFT: pid $p holds thread $id open, which is no seat this run stopped, so no daemon was stopped"; return 0;; esac
+    done
+  done
+  for p in $pids; do echo "DAEMON STOP: pid $p, $(printf '%s\n' "$out" | awk -v p="$p" '$1==p {$1=""; print substr($0, 2); exit}' | cut -c1-120)"; done
   # shellcheck disable=SC2086  # pids holds only numbers from ps
   "$KILL_BIN" $pids 2>/dev/null
   pause "${ZEO_RESCUE_DAEMON_WAIT:-5}"
