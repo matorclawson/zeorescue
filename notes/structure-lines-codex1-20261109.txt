@@ -1,0 +1,7 @@
+# The Codex batch of the one code structure, 9 Nov, on the Architect's order of 11:28Z: the operator's line, after the Architect's read. reseat-lines.sh 63984b277ba0bcc9981992a08f8b8e1ee90d03b85d39601a01aa4dffad8c349e.
+# NNN is the Do number on the operator's page; the Architect sets it in the echo. Nothing else in the line changes.
+# Line 1: zeroemployee, zeoapp, rasa, dt-brandedimage-maintainer, rasa-bench, in that order. Each: trust adds the new folder's entry to Codex's config,
+# the carry and the resume of the same thread in main with its note, then its backup deleted once its own check is OK. A busy or down seat is SKIPPED
+# (a seat resumed on long history shows busy for some seconds), and the same line moves it later; anything else stops the batch there.
+# After it, the waker map (zeomessenger's deploy/codex-seats.json) must name each moved seat's .../main, or its mail stops: its owner's change.
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "63984b277ba0bcc9981992a08f8b8e1ee90d03b85d39601a01aa4dffad8c349e" ]; then echo "Do NNN: the Codex batch: five Codex seats into the one code structure"; ./reseat-lines.sh structure-batch codex1; else echo "Do NNN: HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "Do NNN: WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi

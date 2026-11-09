@@ -32,3 +32,20 @@ zeocouncil claude zeocouncil-maintainer a37e1942-abd6-40e1-bd68-b61a155e62de /Vo
 profrod-ops claude profrod-site-ops f0de435a-e940-46ad-af1b-0053003e8fd7 /Volumes/AIPEMedia1/code/zeroemployeeorg/profrod-ops /Volumes/AIPEMedia1/code/profrodai/profrod-site/worktrees/profrod-ops 75178445
 # zeoconnect-ops: org/, a clone of org-zeroemployeeorg that moves as it is; .cloudflare/ moves unread; zeoconnect/worktrees/ is made by the carry.
 zeoconnect-ops claude zeoconnect-ops 24762ded-3983-4e3d-ac57-635859e64b48 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect-ops /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/worktrees/zeoconnect-ops 75178450
+# The Codex seats, on the Architect's order of 9 Nov 03:49Z (batch 2 of the Codex seats) and 11:28Z (one line for all five, after the
+# real-rollout rehearsal and the memories read). Read 9 Nov 12:50Z: each idle, on Codex 0.164.0, run with --no-daemon by its own pane; an
+# ordinary clone with its own .git at the top, clean, its git config naming no old path, no linked worktree inside; only the seat's own tree
+# works in it; FROM trusted in Codex's config and TO not yet (its trust step adds it); nothing at TO; no virtualenv or node_modules.
+# zeroemployee: on zeroemployee/crash-backup-scratch-20261025, no linked worktrees; tracked tmp/ records name the old path, as history.
+zeroemployee codex zeo-site-maintainer 01a13145-4441-7592-b460-9c749fac6750 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeo-site /Volumes/AIPEMedia1/code/zeroemployeeorg/zeo-site/main 2005750
+# zeoapp: on main; one live linked worktree outside (/Volumes/ZeoWork/zeoapp/cleanup-gate-records-20261108), which the carry repairs.
+zeoapp codex zeoapp-maintainer 01a101c3-4a96-7933-b7b7-7914d9da286d /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp/main 88704662
+# rasa: on main, 1 stash; one live linked worktree outside (rasa-community-recovery-20261003/implementation); ignored .env and examples
+# state move with it; tracked docs and receipts name the old path, as history. rasa-ops follows into rasa-community/worktrees/ after this.
+rasa codex rasa-community-maintainer 01a1023d-556f-7e92-ab59-5b1fb5cd23ca /Volumes/AIPEMedia1/code/rasahq/rasa-community /Volumes/AIPEMedia1/code/rasahq/rasa-community/main 1299105
+# dt-brandedimage-maintainer: the real-rollout rehearsal's source thread; on dt-brandedimage-maintainer/ordinary-program-20261101; five live
+# linked worktrees outside, under /Volumes/ZeoWorkCS/dt-brandedimage-maintainer/, which the carry repairs.
+dt-brandedimage-maintainer codex dt-brandedimage-maintainer 01a18e5d-9ea5-7631-8716-08c91cd8d65c /Volumes/AIPEMedia1/code/ducktyper-ai/dt-brandedimage /Volumes/AIPEMedia1/code/ducktyper-ai/dt-brandedimage/main 84528713
+# rasa-bench: on main; five live linked worktrees outside, under rasa-community-recovery-20261003/, which the carry repairs; three prunable
+# ones under /Volumes/ZeoWork/rasa-bench/ are left as they are.
+rasa-bench codex rasa-community-benchmarks-maintainer 01a121da-f744-7513-b32f-cb23acd4a9c5 /Volumes/AIPEMedia1/code/rasahq/rasa-community-benchmarks /Volumes/AIPEMedia1/code/rasahq/rasa-community-benchmarks/main 62551842

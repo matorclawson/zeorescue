@@ -23,3 +23,10 @@ allow-carry zeonewsroom
 # Once zeo-rt sets it to ducktyper-ai/ducktyper-ops, on the Architect's word, its row and carry-plain line join this batch.
 batch2 zeoconnect-ops
 batch2 profrod-ops
+# codex1: the five Codex seats, on the Architect's order of 11:28Z, fewest linked worktrees first. The waker map (zeomessenger's
+# deploy/codex-seats.json) keys each by its cwd, so its owner updates the five to .../main after this line, or their mail stops.
+codex1 zeroemployee
+codex1 zeoapp
+codex1 rasa
+codex1 dt-brandedimage-maintainer
+codex1 rasa-bench
