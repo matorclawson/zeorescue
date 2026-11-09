@@ -2,7 +2,7 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-09 04:35 GMT, by `zeo-rescue`: zeoarchitect done; batch 1 (five seats) built and tested on branch zeo-rescue/structure-zeocore-20261109, its lines wait for the Architect's read; Codex rehearsal in progress; org store design on its own branch. make check: ok 47, wrong 3 (the tabled seats).
+Last updated: 2026-11-09 04:45 GMT, by `zeo-rescue`: batch 1 ran (Do 430): 4 moved, zeocontrolling skipped as busy, a rerun of Do 430 moves it; allow-rule carry on its own branch; Codex rehearsal running. make check: ok 48, wrong 2.
 
 ## Do next, in this order
 
@@ -10,7 +10,28 @@ Last updated: 2026-11-09 04:35 GMT, by `zeo-rescue`: zeoarchitect done; batch 1 
 
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
-**04:35 GMT, 9 Nov: batches now (the Architect's order of 03:49Z). zeoarchitect DONE (Do 422 03:49, DELETED). Batch 1's lines wait for the Architect's read, on branch zeo-rescue/structure-zeocore-20261109 (pushed).**
+**04:45 GMT, 9 Nov: batch 1 ran (Do 430, 04:29): moved 4, skipped 1 (zeocontrolling, busy), stopped at none. make check: ok 48, wrong 2.**
+- (a) **What happened.**
+  - The Architect accepted batch 1 at 04:28Z, and bootstrap was fast-forwarded to 514465f (reseat-lines.sh 7c898306) and pushed.
+  - Do 430 moved zeomessenger, zeoconnect, zeocore and zeonewsroom (to ducktyper-ai/dt-newsroom/main). Each clone kept its inode, each note arrived, each seat checks OK, and the backups are gone.
+  - zeocore's 2 ask rules were added for main.
+  - Log: reseat-lines-structure-batch-batch1-20261109-042943.log.
+- (b) **zeocontrolling** was SKIPPED because it was busy. A rerun of Do 430 as it stands moves it once it is idle, and the moved seats then read ALREADY MOVED. **So do not fast-forward bootstrap past 7c898306 until that rerun has run.**
+- (c) **zeocouncil** waits for the council to deal with its 11 untracked entries (the Architect asked the council).
+- (d) **Observed:** 9 of zeocore's 11 linked worktrees were removed at about 04:12, before the batch, by something other than zeocore and the batch. This was reported to the Architect.
+- (e) **Allow-rule carry** (Q5 of the org store rulings, 04:19Z): on branch zeo-rescue/structure-allow-20261109 (dbbf78a; structure-move.sh dddcd971, reseat-lines.sh ad6adb84). Tests: 417 ok, tmux-test PASS, 3 of 3 mutations caught. It goes to the Architect with the next batch line.
+- (f) **Org store rulings, 04:19Z:**
+  - adopt org-zeroemployeeorg/main, owned by zeo-ledger; origin over ssh to the matorclawson fork, upstream https with push disabled;
+  - (B) rehome;
+  - the old store stays;
+  - org-ledger is refused until ls-remote origin shows its tip;
+  - the two pomar panes are respawned locally after the Architect's move, and named as allowed holders for org-architect only;
+  - allow rules are carried;
+  - main gets its own trust entry;
+  - structure-retire only after the reply is accepted and the manifest matches.
+- (g) **Next:** the ops plain-folder move; org-ledger's rehome and its rehearsal; zeorescue; the Architect. Each as one batch line. The Codex rehearsal fork is still running.
+
+**About 04:20 GMT (first written as 04:35), 9 Nov: batches now (the Architect's order of 03:49Z). zeoarchitect DONE (Do 422 03:49, DELETED). Batch 1's lines wait for the Architect's read, on branch zeo-rescue/structure-zeocore-20261109 (pushed).**
 - (a) **Rulings of 03:44Z:**
   - zeoarchitect accepted;
   - the 03:38 stray trust left as it is; the incident is written up in notes/INCIDENT-20261109-stray-trust.md, for the next SOW;
