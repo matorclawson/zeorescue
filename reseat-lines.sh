@@ -24,6 +24,7 @@
 #   reseat-lines.sh claude-clear deletes the backup of ~/.claude.json, which holds account data; only once the seat checks right
 #   reseat-lines.sh claude-back  puts its project back under the old folder; only with the seat stopped, its line out of folder-moves and that folder back
 #   reseat-lines.sh structure-trust SEAT  adds the trust entry for that seat's new folder in the one code structure (structure-moves); starts nothing
+#                                        (a Codex row goes to structure-move-codex.sh: Codex's config, its rollout as the proof)
 #   reseat-lines.sh structure-first SEAT  restarts that one seat, which carries its clone to the new folder while it is stopped; proves its note
 #                                arrived, and runs once; refuses while it is working, or on a Claude nobody rehearsed (structure-move.sh)
 #   reseat-lines.sh structure-clear SEAT  deletes the backup its trust step made; only once the seat checks right
@@ -88,11 +89,13 @@ pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
 pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 pin 710302729c54dffab39ab4809813b6d8bb87516706862fa4f67a22367cb7cbe0 ops-move.sh
 pin 3a18e0a2edae23907b0307dfa842cd645379a300146282ad25e4bc47730e2d1f notes/claude-move-ducktyper-ops-20261108.txt
-pin dddcd971596644b465412a57093327bd9ad759fb8a8cac9ec8d81d340efe49e2 structure-move.sh
+pin 310d285efd29c77d45ff7d98b39888ac6e6d644e0f4d68e8c8700115e40b2cc0 structure-move.sh
 pin 6523d6b15b2a326975caa92e1ce863983b881924e86d4402fbbf42d5a1e91e4e structure-moves
 pin 529956dfa3dd1d9fc65d342eb69730958d18f86408e1bf66cbdf8ca456dee4db structure-batch.sh
 pin 8ddfdacc72dbbc9a49205f774c54f5dae223c6de027354cafad1e7aab8d3e0dd structure-batches
 pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
+pin 938e46d82f0a73ee1b4dc94200937b01c65be7eb24a8c299b6c890c502128fe7 structure-move-codex.sh
+pin f2c752cf45aad5d24dcd48c20b53475131447be4d719fe9f8c80e125cca5ad6f notes/structure-move-codex.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2
 moves_ready() { # every seat has its folder, and the folder exists; the folders are the Architect's to name

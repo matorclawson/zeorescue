@@ -53,7 +53,9 @@ if [ -n "$ADDSHA" ]; then
   [ "$(sha "$ADD")" = "$ADDSHA" ] || no "notes/structure-move-$seat.txt is not the addition its row pins ($ADDSHA)"
   [ "$(wc -l < "$ADD" | tr -d " ")" = 1 ] && ! LC_ALL=C grep -q "[{}\\]" "$ADD" || no "notes/structure-move-$seat.txt must be one line, with no brace or backslash"
 elif [ -e "$ADD" ] || [ -L "$ADD" ]; then no "notes/structure-move-$seat.txt is there, but its row pins no addition"; fi
-[ "$HARNESS" = claude ] || no "$seat is a $HARNESS seat, and only a Claude carry is rehearsed"
+# A Codex row goes to its own step, which reads the row again; any other harness is refused.
+[ "$HARNESS" != codex ] || exec ./structure-move-codex.sh "$seat" "$step"
+[ "$HARNESS" = claude ] || no "$seat is a $HARNESS seat, and only Claude and Codex carries are rehearsed"
 [ "$(awk -v s="$seat" '$1==s {print $2 " " $3 " " $4}' "$MOVES")" = "$TO carry " ] || no "folder-moves needs exactly one line: $seat $TO carry"
 [ "$(awk -v s="$seat" '$1==s {print $2}' "$PINS")" = "$SID" ] || no "session-pins needs $seat $SID"
 if [ "$(ino "$FROM")" = "$FINO" ] && [ ! -e "$TO" ] && [ ! -L "$TO" ]; then at=before

@@ -564,7 +564,7 @@ kreset; reset_live; rm -f "$T/onstop" "$T/pstree" "$T/claudeadd"; : > "$T/ps.out
 
 echo "-- a check reads all its input: under pipefail a reader that leaves early turns a match into a miss"
 pad() { printf '%s\n' "$1"; head -c 1000000 /dev/zero | tr '\0' x; echo; }
-hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh" "$HERE/structure-move.sh" "$HERE/structure-batch.sh")
+hits=$(grep -nE '\| *(/usr/bin/)?grep +(-[a-zA-Z]+ +)*-[a-zA-Z]*q' "$HERE/rescue.sh" "$HERE/reseat-lines.sh" "$HERE/zshenv-lines.sh" "$HERE/structure-move.sh" "$HERE/structure-batch.sh" "$HERE/structure-move-codex.sh")
 [ -z "$hits" ] && ok "no script pipes into grep -q" || bad "pipes into grep -q: $hits"
 reset_live; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"
 echo "800 /x/codex resume -a never -s danger-full-access -C $T/w/cx --no-daemon 44444444-4444-4444-8444-444444444444 p" > "$T/ps.out"
@@ -588,14 +588,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt structure-batch.sh structure-batches; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt structure-batch.sh structure-batches structure-move-codex.sh notes/structure-move-codex.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt structure-batch.sh structure-batches; do
+for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt structure-batch.sh structure-batches structure-move-codex.sh notes/structure-move-codex.txt; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -774,7 +774,7 @@ grep -q '^REFUSED, nothing was changed: nobody needs exactly one row in structur
 echo "sa $SMT" > "$T/sm/moves"; grep -q '^REFUSED, nothing was changed: folder-moves needs exactly one line: sa .* carry' <<< "$(SM structure-first sa)" && ok "the move must be a carry line in folder-moves" || bad "sm moves: $(SM structure-first sa)"
 printf 'sa %s carry\nsa %s carry\n' "$SMT" "$SMT" > "$T/sm/moves"; grep -q '^REFUSED, nothing was changed: folder-moves needs exactly one line' <<< "$(SM structure-first sa)" && ok "and only one" || bad "sm two moves"
 echo "sa $SMT carry" > "$T/sm/moves"; echo "sa 34343434-3434-4434-8434-343434343434" > "$T/sm/pins"; grep -q '^REFUSED, nothing was changed: session-pins needs sa' <<< "$(SM structure-first sa)" && ok "its thread must be pinned, the same one" || bad "sm pin"
-echo "sa $ssid" > "$T/sm/pins"; sed -i '' 's/ claude / codex /' "$T/sm/table"; grep -q '^REFUSED, nothing was changed: sa is a codex seat, and only a Claude carry is rehearsed' <<< "$(SM structure-first sa)" && ok "a Codex seat is refused until its own rehearsal" || bad "sm codex"
+echo "sa $ssid" > "$T/sm/pins"; sed -i '' 's/ claude / gemini /' "$T/sm/table"; grep -q '^REFUSED, nothing was changed: sa is a gemini seat, and only Claude and Codex carries are rehearsed' <<< "$(SM structure-first sa)" && ok "a seat of another harness is refused" || bad "sm other harness"
 smrow sa 1; grep -q '^REFUSED, nothing was changed: neither .* nor .* is the folder read for sa (inode 1): an unknown state' <<< "$(SM structure-trust sa)" && ok "any state but the two it knows is refused, by every step" || bad "sm state: $(SM structure-trust sa)"
 smrow; printf 'sa claude sa-s %s %s %s %s extra\n' "$ssid" "$SMF" "$SMT" "$(stat -f %i "$SMF")" > "$T/sm/table"; grep -q '^REFUSED, nothing was changed: the row for sa in structure-moves is not' <<< "$(SM structure-first sa)" && ok "a row of the wrong shape is refused" || bad "sm shape"
 smrow
@@ -893,9 +893,94 @@ sbreset; echo 'ALREADY DONE: sa moved to x and its note arrived (t). Nothing was
 [ $rc -eq 0 ] && grep -q '^RESULT sa: ALREADY MOVED; its backup is gone' <<< "$out" && grep -q '^sa clear' "$T/sb/calls" && grep -q 'moved 2, already moved 1' <<< "$out" && ok "a second run finds a moved seat ALREADY MOVED and still clears its backup" || bad "sb again: $rc $out"
 ls "$T/state"/reseat-lines-structure-batch-b1-* >/dev/null 2>&1 && ok "the batch's output is kept in the state folder, under its name" || bad "sb log"
 cp "$T/sb/keep-structure-move" "$T/run/structure-move.sh"; pinf structure-move.sh
-# the real batches: every seat has its row, and is in one batch only
+# the real batches: every seat has its row, and is once in each of its batches
 sbbad=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-batches" | while read -r bb ss x; do [ -z "$x" ] && [ "$(awk -v s="$ss" '$1==s' "$HERE/structure-moves" | wc -l | tr -d ' ')" = 1 ] || echo "$ss"; done; awk '$1 !~ /^#/ && NF {print $1, $2}' "$HERE/structure-batches" | sort | uniq -d)
 [ -z "$sbbad" ] && ok "each seat in structure-batches has its one row in structure-moves, and is in each of its batches once" || bad "batches: $sbbad"
+# structure-move-codex.sh, through the runner and structure-move.sh, on a stub rescue.sh: --apply carries the folder as rescue.sh does, and with
+# $T/cx/deliver writes the note's words and a turn in the new folder into the rollout; with $T/cx/half, only the words.
+rm -rf "$T/cx"; mkdir -p "$T/cx/w/org" "$T/cx/sessions/2026/11/09" "$T/cx/bin" "$T/cxbin"; cp "$T/run/rescue.sh" "$T/cx/rescue.sh.keep"
+CXF=$T/cx/w/org/ca CXT=$T/cx/w/org/ca/main csid=56565656-5656-4656-8656-565656565656; mkdir -p "$CXF"; echo x > "$CXF/f"
+croll=$T/cx/sessions/2026/11/09/rollout-2026-11-09T00-00-00-$csid.jsonl; printf '{"type":"turn_context","payload":{"cwd":"%s"}}\n' "$CXF" > "$croll"; cp "$croll" "$T/cx/roll.keep"
+cw=$(awk -F'"' '/^PROOF=/ {print $2}' "$HERE/structure-move-codex.sh"); cxv=$(awk -F= '/^REHEARSED=/ {print $2}' "$HERE/structure-move-codex.sh")
+sqlite3 "$T/cx/state.sqlite" "create table threads (id text primary key, rollout_path text, cwd text); insert into threads values ('$csid', '$croll', '$CXF');"
+cxrow() { printf 'ca %s ca-s %s %s %s %s%s\n' "${3:-codex}" "$csid" "$CXF" "$CXT" "${1:-$(stat -f %i "$CXF")}" "${2:+ $2}" > "$T/cx/table"; }
+cxrow; echo "ca $CXT carry" > "$T/cx/moves"; echo "ca $csid" > "$T/cx/pins"
+printf 'model = "x"\n\n[projects."%s"]\ntrust_level = "trusted"\n' "$CXF" > "$T/cx/config.toml"; cp "$T/cx/config.toml" "$T/cx/config.keep"
+printf '#!/bin/sh\ncat "%s" 2>/dev/null\n' "$T/cxver" > "$T/cx/bin/codexv"; chmod +x "$T/cx/bin/codexv"; echo "codex-cli $cxv" > "$T/cxver"
+cat > "$T/run/rescue.sh" <<S
+#!/bin/bash
+echo "\$*" >> "$T/cx/calls"
+case " \$* " in
+  *" --check "*) if [ -f "$T/cx/wrong" ]; then echo "WRONG ca (codex): stub"; exit 1; fi; if [ -f "$T/cx/absent" ]; then echo "check: ok 0, wrong 0"; exit 0; fi; echo "OK ca (codex)"; echo "check: ok 1, wrong 0";;
+  *" --apply "*) [ ! -f "$T/cx/fail" ] || { echo "STOPPED: stub"; exit 1; }
+    if [ ! -e "$CXT" ]; then mv "$CXF" "$CXF.c" && mkdir "$CXF" && mv "$CXF.c" "$CXT"; fi; echo "MOVED OK ca: stub"
+    if [ -f "$T/cx/deliver" ] || [ -f "$T/cx/half" ]; then printf '{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Correction. %s"}]}}\n' "$cw" >> "$croll"; fi
+    [ ! -f "$T/cx/deliver" ] || printf '{"type":"turn_context","payload":{"cwd":"%s"}}\n' "$CXT" >> "$croll";;
+  *) cat "$T/cx/plan";;
+esac
+S
+chmod +x "$T/run/rescue.sh"; pinf rescue.sh; rm -f "$T/cx/calls"
+CXE() { ZEO_RESCUE_TABLE="$T/cx/table" ZEO_RESCUE_MOVES="$T/cx/moves" ZEO_RESCUE_PINS="$T/cx/pins" ZEO_RESCUE_CODEX_CONFIG="$T/cx/config.toml" ZEO_RESCUE_CODEX="$T/cx/bin/codexv" ZEO_RESCUE_CODEX_DB="$T/cx/state.sqlite" ZEO_RESCUE_SESSIONS="$T/cx/sessions" ZEO_RESCUE_PROOF_TRIES=2 "$@" 2>&1; }
+CX() { CXE L "$@"; }
+cxplan() { printf 'RESEAT ca: codex %s (-a never -s danger-full-access; marker master, recorded) in ca-s\nMOVE ca: from %s to %s, carrying the clone while the seat is stopped\n' "$csid" "$CXF" "$CXT" > "$T/cx/plan"; }
+cxplan; cxbk=$T/state/codex-config.before-ca
+out=$(CX structure-trust ca); rc=$?; [ $rc -eq 0 ] && grep -q "^ADDED: $CXT is trusted in $T/cx/config.toml" <<< "$out" && ok "structure-move.sh hands a Codex row to the Codex step" || bad "cx hand-off: $rc $out"
+cp "$T/cx/config.keep" "$T/cx/config.toml"; rm -f "$cxbk"
+out=$(CXE env STATE="$T/state" "$T/run/structure-move-codex.sh" ca nope); rc=$?; [ $rc -eq 2 ] && grep -q '^usage: structure-move-codex.sh SEAT trust|first|clear; nothing was run' <<< "$out" && ok "the Codex step knows only its three steps" || bad "cx usage: $rc $out"
+cxrow "" "" claude; out=$(CXE env STATE="$T/state" "$T/run/structure-move-codex.sh" ca trust); rc=$?; cxrow
+[ $rc -eq 2 ] && grep -q '^REFUSED, nothing was changed: ca is a claude seat, and this step moves only Codex seats' <<< "$out" && ok "and refuses a row of another harness" || bad "cx harness: $rc $out"
+printf 'ca codex ca-s not-a-thread %s %s %s\n' "$CXF" "$CXT" "$(stat -f %i "$CXF")" > "$T/cx/table"; out=$(CX structure-trust ca); rc=$?; cxrow
+[ $rc -eq 2 ] && grep -q '^REFUSED, nothing was changed: the row for ca in structure-moves is not' <<< "$out" && ok "a Codex row needs a thread id" || bad "cx row: $rc $out"
+echo "ca $CXT" > "$T/cx/moves"; out=$(CX structure-trust ca); echo "ca $CXT carry" > "$T/cx/moves"; grep -q '^REFUSED, nothing was changed: folder-moves needs exactly one line: ca .* carry' <<< "$out" && ok "its move must be a carry line" || bad "cx moves: $out"
+echo "ca 34343434-3434-4434-8434-343434343434" > "$T/cx/pins"; out=$(CX structure-trust ca); echo "ca $csid" > "$T/cx/pins"; grep -q '^REFUSED, nothing was changed: session-pins needs ca' <<< "$out" && ok "and its thread pinned, the same one" || bad "cx pins: $out"
+cxrow 1; out=$(CX structure-trust ca); cxrow; grep -q '^REFUSED, nothing was changed: neither .* is the folder read for ca (inode 1): an unknown state' <<< "$out" && cmp -s "$T/cx/config.toml" "$T/cx/config.keep" && ok "any state but the two it knows is refused" || bad "cx state: $out"
+cxrow "" "$(printf %064d 0)"; out=$(CX structure-trust ca); cxrow; grep -q '^REFUSED, nothing was changed: notes/structure-move-ca.txt is not the addition its row pins' <<< "$out" && ok "an addition its row pins must be there with that hash" || bad "cx add: $out"
+cxrow "" "$(printf %064d 0)"; out=$(CXE env STATE="$T/state" "$T/run/structure-move-codex.sh" ca trust); rc=$?; cxrow; [ $rc -eq 2 ] && grep -q '^REFUSED, nothing was changed: notes/structure-move-ca.txt is not the addition its row pins' <<< "$out" && ok "and the Codex step checks it itself, when it runs alone" || bad "cx add alone: $rc $out"
+printf '\n[projects."%s"]\ntrust_level = "untrusted"\n' "$CXT" >> "$T/cx/config.toml"; cp "$T/cx/config.toml" "$T/cx/config.u"; out=$(CX structure-trust ca); rc=$?
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: $CXT has an entry in $T/cx/config.toml that is not trusted" <<< "$out" && cmp -s "$T/cx/config.toml" "$T/cx/config.u" && ok "trust never overrides an entry that is not trusted" || bad "cx untrusted: $rc $out"
+printf 'model = "x"' > "$T/cx/config.toml"; out=$(CX structure-trust ca); rc=$?
+[ $rc -eq 0 ] && [ "$(head -1 "$T/cx/config.toml")" = 'model = "x"' ] && /usr/bin/grep -qxF "[projects.\"$CXT\"]" "$T/cx/config.toml" && ok "a config that does not end in a newline keeps its last line, and the entry has its own" || bad "cx newline: $rc $out $(cat "$T/cx/config.toml")"
+cp "$T/cx/config.keep" "$T/cx/config.toml"; rm -f "$cxbk"; chmod 640 "$T/cx/config.toml"; out=$(CX structure-trust ca); rc=$?
+[ $rc -eq 0 ] && grep -q "^ADDED: $CXT is trusted in $T/cx/config.toml, before the folder is there; backup at $cxbk, mode 600" <<< "$out" && [ "$(diff "$T/cx/config.keep" "$T/cx/config.toml" | grep -c '^>')" = 3 ] && [ "$(diff "$T/cx/config.keep" "$T/cx/config.toml" | grep -c '^<')" = 0 ] \
+  && [ "$(tail -2 "$T/cx/config.toml" | head -1)" = "[projects.\"$CXT\"]" ] && [ "$(tail -1 "$T/cx/config.toml")" = 'trust_level = "trusted"' ] && ok "structure-trust adds exactly the new folder's trusted entry at the end, and nothing else" || bad "cx trust: $rc $out"
+[ "$(stat -f %Lp "$T/cx/config.toml")" = 640 ] && [ "$(stat -f %Lp "$cxbk")" = 600 ] && cmp -s "$cxbk" "$T/cx/config.keep" && [ ! -e "$T/cx/config.toml.zeo" ] && ok "the config keeps its mode, its backup is the old bytes at mode 600, and no copy is left" || bad "cx trust modes"
+cp "$T/cx/config.toml" "$T/cx/config.added"; out=$(CX structure-trust ca); grep -q '^NOTHING TO ADD' <<< "$out" && cmp -s "$T/cx/config.toml" "$T/cx/config.added" && ok "a second Codex trust run changes nothing" || bad "cx trust twice: $out"
+cp "$T/cx/config.keep" "$T/cx/config.toml"; echo old > "$cxbk"; chmod 644 "$cxbk"; out=$(CX structure-trust ca); rc=$?; [ $rc -eq 0 ] && grep -q '^ADDED: ' <<< "$out" && [ "$(stat -f %Lp "$cxbk")" = 600 ] && [ "$(cat "$cxbk")" = old ] && ok "an older backup is kept, at mode 600" || bad "cx old backup: $rc $out $(stat -f %Lp "$cxbk")"
+cp "$T/cx/config.keep" "$T/cx/config.toml"; rm -f "$cxbk"; printf '#!/bin/bash\n/usr/bin/cmp "$@"; rc=$?\necho "# a writer" >> "%s"\nexit $rc\n' "$T/cx/config.toml" > "$T/cxbin/cmp"; chmod +x "$T/cxbin/cmp"
+out=$(PATH="$T/cxbin:$PATH" CX structure-trust ca); rc=$?
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: $T/cx/config.toml changed while the entry was added" <<< "$out" && [ "$(tail -1 "$T/cx/config.toml")" = "# a writer" ] && ! /usr/bin/grep -qxF "[projects.\"$CXT\"]" "$T/cx/config.toml" && [ ! -e "$cxbk" ] && [ ! -e "$T/cx/config.toml.zeo" ] && ok "a write to the config during the trust step is refused, its write stands, and no backup or copy is left" || bad "cx race: $rc $out"
+cp "$T/cx/config.added" "$T/cx/config.toml"; (umask 077; cp "$T/cx/config.keep" "$cxbk")
+echo "codex-cli 0.0.1" > "$T/cxver"; : > "$T/cx/calls"; out=$(CX structure-first ca); rc=$?; echo "codex-cli $cxv" > "$T/cxver"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: Codex is 0.0.1 and the rehearsal ran on $cxv" <<< "$out" && [ ! -s "$T/cx/calls" ] && ok "structure-first refuses a Codex nobody rehearsed" || bad "cx version: $rc $out"
+sqlite3 "$T/cx/state.sqlite" "update threads set id = 'gone' where id = '$csid';"; out=$(CX structure-first ca); rc=$?; sqlite3 "$T/cx/state.sqlite" "update threads set id = '$csid' where id = 'gone';"
+[ $rc -eq 2 ] && grep -q "^NOT READY, nothing was run: no rollout for thread $csid" <<< "$out" && ok "it needs the thread's rollout, from Codex's own record" || bad "cx no rollout: $rc $out"
+cp "$croll" "$T/cx/sessions/2026/11/09/rollout-copy-$csid.jsonl"; out=$(CX structure-first ca); rc=$?; rm -f "$T/cx/sessions/2026/11/09/rollout-copy-$csid.jsonl"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: more or fewer than one rollout carries thread $csid" <<< "$out" && ok "and refuses when two rollouts carry the thread" || bad "cx two rollouts: $rc $out"
+printf '{"x":"%s"}\n' "$cw" >> "$croll"; out=$(CX structure-first ca); rc=$?; cp "$T/cx/roll.keep" "$croll"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: the note's words are already in $croll" <<< "$out" && ok "it refuses when the note's words are already in the rollout" || bad "cx words: $rc $out"
+printf 'WORK ca: a turn is in progress on its screen\n' >> "$T/cx/plan"; out=$(CX structure-first ca); rc=$?; cxplan
+[ $rc -eq 2 ] && grep -q '^BUSY, nothing was run' <<< "$out" && ! grep -q -- '--apply' "$T/cx/calls" && ok "it refuses while the Codex seat is working" || bad "cx busy: $rc $out"
+sed -i '' 's/^RESEAT ca: codex /RESEAT ca: claude /' "$T/cx/plan"; out=$(CX structure-first ca); rc=$?; cxplan
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was run: the plan does not move ca from $CXF to $CXT" <<< "$out" && ! grep -q -- '--apply' "$T/cx/calls" && ok "it refuses a plan that does not resume this Codex thread and move it" || bad "cx plan: $rc $out"
+cp "$T/run/notes/structure-move-codex.txt" "$T/cx/tpl.keep"; echo "{NOPE}" >> "$T/run/notes/structure-move-codex.txt"; pinf notes/structure-move-codex.txt; : > "$T/cx/calls"; out=$(CX structure-first ca); rc=$?; cp "$T/cx/tpl.keep" "$T/run/notes/structure-move-codex.txt"; pinf notes/structure-move-codex.txt
+[ $rc -eq 1 ] && grep -q '^FAILED, nothing was run: the note did not render' <<< "$out" && ! grep -q -- '--apply' "$T/cx/calls" && ok "a Codex note with a placeholder left in it runs nothing" || bad "cx placeholder: $rc $out"
+: > "$T/cx/fail"; out=$(CX structure-first ca); rc=$?; rm -f "$T/cx/fail"; cxnote=$T/state/structure-move-ca/note.txt
+[ $rc -eq 1 ] && grep -q '^STOPPED: the move or its check failed' <<< "$out" && [ ! -e "$T/state/structure-move-ca/first.done" ] && ok "a Codex move that fails stops there and marks nothing" || bad "cx stopped: $rc $out"
+grep -qF "from $CXF to $CXT." "$cxnote" && grep -qF "$cw" "$cxnote" && ! grep -q '[{}`*]' "$cxnote" && [ "$(wc -l < "$cxnote" | tr -d ' ')" = 1 ] && [ "$(stat -f %Lp "$T/state/structure-move-ca")" = 700 ] && ok "the Codex note names both folders, carries the proof on one line, and keeps no placeholder" || bad "cx note: $(cat "$cxnote")"
+: > "$T/cx/half"; out=$(CX structure-first ca); rc=$?; rm -f "$T/cx/half"
+[ $rc -eq 1 ] && grep -q '^NOT DELIVERED: ' <<< "$out" && [ ! -e "$T/state/structure-move-ca/first.done" ] && ok "the note's words without a turn in the new folder are not a delivery" || bad "cx half: $rc $out"
+mv "$CXT" "$CXF.back"; rmdir "$CXF"; mv "$CXF.back" "$CXF"; cp "$T/cx/roll.keep" "$croll"; : > "$T/cx/deliver"; : > "$T/cx/calls"; out=$(CX structure-first ca); rc=$?
+[ $rc -eq 0 ] && grep -q "^NOTE DELIVERED ca: its words and the folder $CXT are in thread $csid's rollout after byte " <<< "$out" && [ -s "$T/state/structure-move-ca/first.done" ] && ok "after the restart it proves the note and the new folder in the rollout and marks itself done" || bad "cx deliver: $rc $out"
+grep -qF -- "--reseat --apply --relaunch --harness codex --seat ca --note-file $cxnote" "$T/cx/calls" && ok "the Codex move carries the rendered note" || bad "cx args: $(cat "$T/cx/calls")"
+: > "$T/cx/calls"; out=$(CX structure-first ca); rc=$?; [ $rc -eq 0 ] && grep -q '^ALREADY DONE: ca moved' <<< "$out" && [ ! -s "$T/cx/calls" ] && ok "a second Codex structure-first restarts nothing" || bad "cx twice: $rc $out"
+: > "$T/cx/wrong"; out=$(CX structure-clear ca); rc=$?; rm -f "$T/cx/wrong"
+[ $rc -eq 2 ] && grep -q '^OUT OF ORDER, nothing was deleted: ca is not right yet' <<< "$out" && [ -e "$cxbk" ] && ok "Codex structure-clear keeps the backup while the seat is wrong" || bad "cx clear wrong: $rc $out"
+: > "$T/cx/absent"; out=$(CX structure-clear ca); rc=$?; rm -f "$T/cx/absent"; [ $rc -eq 2 ] && grep -q '^OUT OF ORDER, nothing was deleted: ca is not right yet' <<< "$out" && [ -e "$cxbk" ] && ok "and while the check passes without naming it OK" || bad "cx clear absent: $rc $out"
+out=$(CX structure-clear ca); rc=$?; [ $rc -eq 0 ] && grep -q "^DELETED: the backup of $T/cx/config.toml is gone" <<< "$out" && [ ! -e "$cxbk" ] && ok "and deletes it once the seat checks right" || bad "cx clear: $rc $out"
+grep -q '^NOTHING TO DELETE' <<< "$(CX structure-clear ca)" && ok "a second Codex clear has nothing to do" || bad "cx clear twice"
+mv "$CXT" "$CXF.back"; rmdir "$CXF"; mv "$CXF.back" "$CXF"; grep -q '^OUT OF ORDER, nothing was deleted: ca has not moved' <<< "$(CX structure-clear ca)" && ok "Codex clear never runs before the move" || bad "cx clear before"
+cp "$T/cx/rescue.sh.keep" "$T/run/rescue.sh"; pinf rescue.sh
+n=$HERE/notes/structure-move-codex.txt; grep -qF "$cw" "$n" && [ "$(grep -c '[`*]' "$n")" = 0 ] && [ -z "$(grep -o '{[A-Z]*}' "$n" | sort -u | grep -v -x -e '{FROM}' -e '{TO}')" ] && ok "the Codex note carries the proof, no backtick or star, and only the FROM and TO placeholders" || bad "cx template"
 # the real table: every row agrees with folder-moves and session-pins, and the note has no backtick or star
 bad_rows=$(awk '$1 !~ /^#/ && NF' "$HERE/structure-moves" | while read -r s h ts sid f t i a; do
   [ "$(awk -v s="$s" '$1==s {print $2 " " $3}' "$HERE/folder-moves")" = "$t carry" ] && [ "$(awk -v s="$s" '$1==s {print $2}' "$HERE/session-pins")" = "$sid" ] || echo "$s"
