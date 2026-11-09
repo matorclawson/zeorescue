@@ -2,6 +2,7 @@
 # One line each, no spaces in a folder. The first line is the first seat: it moves alone and proves the path before the rest.
 # A line goes quiet once the chart names the same folder; zeo-rt changes the chart after the moves, on the Architect's word.
 # A third word "carry" moves the seat's own clone to the new folder while it is stopped (the one code structure, from 8 Nov): structure-moves.
+# "carry-plain" moves an ops seat's plain folder of clones the same way (the Architect's order of 9 Nov 11:28Z).
 rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community
 zeoapp /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoapp
 ducktyper /Volumes/AIPEMedia1/code/ducktyper-ai/org-ducktyper-ai/main
@@ -17,3 +18,5 @@ zeoconnect /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/main carry
 zeocore /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocore/main carry
 zeonewsroom /Volumes/AIPEMedia1/code/ducktyper-ai/dt-newsroom/main carry
 zeocouncil /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocouncil/main carry
+profrod-ops /Volumes/AIPEMedia1/code/profrodai/profrod-site/worktrees/profrod-ops carry-plain
+zeoconnect-ops /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/worktrees/zeoconnect-ops carry-plain

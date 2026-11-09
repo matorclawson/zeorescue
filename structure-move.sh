@@ -56,7 +56,10 @@ elif [ -e "$ADD" ] || [ -L "$ADD" ]; then no "notes/structure-move-$seat.txt is 
 # A Codex row goes to its own step, which reads the row again; any other harness is refused.
 [ "$HARNESS" != codex ] || exec ./structure-move-codex.sh "$seat" "$step"
 [ "$HARNESS" = claude ] || no "$seat is a $HARNESS seat, and only Claude and Codex carries are rehearsed"
-[ "$(awk -v s="$seat" '$1==s {print $2 " " $3 " " $4}' "$MOVES")" = "$TO carry " ] || no "folder-moves needs exactly one line: $seat $TO carry"
+# The kind is folder-moves' word: carry, the seat's own clone; carry-plain, an ops seat's plain folder of clones, with its own note.
+KIND=$(awk -v s="$seat" '$1==s {print $3}' "$MOVES")
+case "$(awk -v s="$seat" '$1==s {print $2 " " $3 " " $4}' "$MOVES")" in "$TO carry "|"$TO carry-plain ") ;; *) no "folder-moves needs exactly one line: $seat $TO carry, or $seat $TO carry-plain";; esac
+[ "$KIND" = carry ] || TEMPLATE=$HERE/notes/structure-move-claude-folder.txt
 [ "$(awk -v s="$seat" '$1==s {print $2}' "$PINS")" = "$SID" ] || no "session-pins needs $seat $SID"
 if [ "$(ino "$FROM")" = "$FINO" ] && [ ! -e "$TO" ] && [ ! -L "$TO" ]; then at=before
 elif [ -d "$TO" ] && [ ! -L "$TO" ] && [ "$(ino "$TO")" = "$FINO" ]; then at=after

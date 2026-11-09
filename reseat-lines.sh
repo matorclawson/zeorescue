@@ -74,26 +74,27 @@ cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin 633424ca575f43b1f6cca99234fe135af307ccb3554ca7b5a62e2f26858dc236 rescue.sh
+pin 049e730d75078d2ade39092e3ced8125ddc781914aacccceaa266b80783c2cbd rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 0e5a2052fe699fcae9183a4f56d1f1f23ba007d1aa5d70add8d7befd22f1b3bd Makefile
-pin b6a2ccbea033ce4a5e4433afe7839f9126258efe8923dae22786f648a41d532b session-pins
+pin 655421ca5c720f29806e080356cef2d57d8c8366ac90d470682aeabc73c64635 session-pins
 pin ead62f6999df0115aaf2d4e3b29595528bea57ad7f9972bab10a8f652a9e8029 notes/reseat-20261105.txt
 pin 6d0b0155f9493f1e7909d03acec0133b0f11ea8aad2c35fd6c321e3d358c0c2b notes/zeoarchitect-resume.txt
 pin be3c80bbd7d676af647df90b340eb973b3117b6146130eff954490edf379a4c2 notes/lic-test-20261106.txt
 pin caee56c6aa567ca20d84679cb6ba969a66be37ba92b74472ed60e199cdb400de notes/codex-relaunch-20261106.txt
-pin 4f5ef5aca98e9b407717f7fa79d46b808c8a95318f7fa355e6a8b71936881727 folder-moves
+pin d6d71959a15ac86f81fc52e0db5ba4a5ec72d50470a11da99e857f9b0152b4d5 folder-moves
 pin 13416446261a2d8ba553eee22762e9efa4fdadb879dba5acc3ad1f51a2d2336d zshenv-lines.sh
 pin c8cae72eb76d4376a682d9425486d0e47c48e7f7c1c5ee046b51b34532ef7afb notes/claude-move-zbs-20261107.txt
 pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
 pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 pin 710302729c54dffab39ab4809813b6d8bb87516706862fa4f67a22367cb7cbe0 ops-move.sh
 pin 3a18e0a2edae23907b0307dfa842cd645379a300146282ad25e4bc47730e2d1f notes/claude-move-ducktyper-ops-20261108.txt
-pin 310d285efd29c77d45ff7d98b39888ac6e6d644e0f4d68e8c8700115e40b2cc0 structure-move.sh
-pin 6523d6b15b2a326975caa92e1ce863983b881924e86d4402fbbf42d5a1e91e4e structure-moves
+pin 4a78352d7cc68a8dba86f22dae6d2845c797f27373cf8287e2a29a87c8f29c75 structure-move.sh
+pin 1da95474b77b16132d05d01a299b78834c1e417af0203d13843a2e5d49fe4b18 structure-moves
 pin 529956dfa3dd1d9fc65d342eb69730958d18f86408e1bf66cbdf8ca456dee4db structure-batch.sh
-pin 8ddfdacc72dbbc9a49205f774c54f5dae223c6de027354cafad1e7aab8d3e0dd structure-batches
+pin cca806b52dc7e114f6e6505bb3fad3587145f7183a65587ee9e872f24f96f38b structure-batches
 pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
+pin b2c88a99e9e11c70bbf32ca4f9c9c2f96ca244736b4c59f89a1c68804452598d notes/structure-move-claude-folder.txt
 pin 938e46d82f0a73ee1b4dc94200937b01c65be7eb24a8c299b6c890c502128fe7 structure-move-codex.sh
 pin f2c752cf45aad5d24dcd48c20b53475131447be4d719fe9f8c80e125cca5ad6f notes/structure-move-codex.txt
 # END PINS

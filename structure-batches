@@ -17,3 +17,9 @@ allow-carry zeomessenger
 allow-carry zeoconnect
 allow-carry zeocore
 allow-carry zeonewsroom
+# batch2: every Claude seat ready on 9 Nov 12:10Z, on the Architect's order of 11:28Z: two ops seats, each a plain folder (carry-plain).
+# rasa-ops waits for rasa's Codex carry; org-ledger, zeorescue and the Architect go last.
+# ducktyper-ops waits: the chart still names /Volumes/AIPEMedia1/code/zeroemployeeorg/ducktyper-ops, its folder before 8 Nov, two moves back.
+# Once zeo-rt sets it to ducktyper-ai/ducktyper-ops, on the Architect's word, its row and carry-plain line join this batch.
+batch2 zeoconnect-ops
+batch2 profrod-ops

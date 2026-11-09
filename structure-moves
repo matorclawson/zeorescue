@@ -25,3 +25,10 @@ zeonewsroom claude dt-newsroom-maintainer 14ee484a-d837-4d95-ac1b-6afd826d053e /
 # zeocouncil: on zeocouncil/list-zeocontracts-v1 with 11 untracked entries, which the carry moves whole; 24 ask or deny rules on its own
 # path, which structure-trust adds again for main. Its own batch, for the Architect's word on its 11 entries.
 zeocouncil claude zeocouncil-maintainer a37e1942-abd6-40e1-bd68-b61a155e62de /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocouncil /Volumes/AIPEMedia1/code/zeroemployeeorg/zeocouncil/main 70728718
+# The ops seats, on the Architect's order of 9 Nov 11:28Z (every ready Claude seat), to the targets of the 8 Nov ruling; each a plain folder,
+# carried with folder-moves' carry-plain. Read 9 Nov 11:55-12:10Z: each idle; only the seat's own tree works in it; no allow, ask or deny rule on
+# the old folder anywhere; each clone in it ordinary, clean, its git config naming no old path; the target and its project key free.
+# profrod-ops: profrod-site/, local branches ahead of upstream; one live linked worktree outside, which the carry repairs.
+profrod-ops claude profrod-site-ops f0de435a-e940-46ad-af1b-0053003e8fd7 /Volumes/AIPEMedia1/code/zeroemployeeorg/profrod-ops /Volumes/AIPEMedia1/code/profrodai/profrod-site/worktrees/profrod-ops 75178445
+# zeoconnect-ops: org/, a clone of org-zeroemployeeorg that moves as it is; .cloudflare/ moves unread; zeoconnect/worktrees/ is made by the carry.
+zeoconnect-ops claude zeoconnect-ops 24762ded-3983-4e3d-ac57-635859e64b48 /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect-ops /Volumes/AIPEMedia1/code/zeroemployeeorg/zeoconnect/worktrees/zeoconnect-ops 75178450

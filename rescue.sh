@@ -26,6 +26,10 @@
 # <org>/<repo>/main. It is a rename, not a copy: the same folder, branch, uncommitted and ignored files. The plan refuses unless the clone is an
 # ordinary one with its own .git, the new path is free on the same volume and not inside another repository, its trust entry is in place, and
 # only the seat's own processes work inside the clone. After the rename its linked worktrees elsewhere are repaired, and each must reach it.
+# A line "SEAT /new/folder carry-plain" carries an ops seat's plain folder the same way (the Architect's order of 9 Nov 11:28Z): a folder not
+# in git, holding clones of its own. Each clone in it must be an ordinary one with its own .git, its config must not name the folder, and
+# none may have a linked worktree inside it; a .git file in it is refused. After the rename each clone must read the same, and its linked
+# worktrees elsewhere are repaired.
 # A seat that is down is not carried: the stop must be this run's own.
 # --check starts nothing and judges every seat: OK or WRONG, with the reason. It reads the running process and a fresh shell in another
 # folder given the process's own settings, not only the snapshot, because Codex uses the snapshot only in the thread's directory and with -lc.
@@ -380,20 +384,41 @@ folder_ready() { # folder_ready SEAT TO: sets WHY unless the seat may move there
   WHY="$to is in git and has no trusted entry in $CODEX_CONFIG, so Codex would stop at a question nobody may answer"; return 1
 }
 
-CARRY="" CARRY_INO="" CARRY_BAD=""
+CARRY="" CARRY_INO="" CARRY_BAD="" CARRY_REPOS=""
 tree_of() { # tree_of PID: that process and every descendant, each followed by a space
   "$PS_BIN" -axo pid=,ppid= 2>/dev/null | awk -v r="$1" '{p[$1]=$2} END {for (c in p) {x=c; n=0; while (x != "" && x != r && n < 64) {x=p[x]; n++}; if (x == r) printf "%s ", c}}'
 }
 cwd_under() { # cwd_under DIR: the pids whose working folder is DIR or inside it
   "$LSOF" -a -d cwd -Fpn 2>/dev/null | awk -v d="$1" '/^p/ {p=substr($0,2)} /^n/ {n=substr($0,2); if (n==d || index(n, d "/")==1) print p}' | sort -u | paste -sd' ' -
 }
-carry_ready() { # carry_ready FROM TO: sets WHY unless the seat's own clone may be carried to TO while it is stopped, and CARRY_INO. Reads only.
-  local from=$1 to=$2 up anc w h
+rpath() { if [ "$2" = . ]; then printf %s "$1"; else printf %s "$1/$2"; fi; } # rpath FOLDER REL: a clone's path in the carried folder
+carry_repos() { # carry_repos FROM KIND: sets CARRY_REPOS, the clones a carry moves, one per line ("." is FROM itself), or WHY. Reads only.
+  local from=$1 kind=$2 gl g r
+  CARRY_REPOS=""
+  if [ "$kind" = carry ]; then
+    [ "$(git -C "$from" rev-parse --show-toplevel 2>/dev/null)" = "$from" ] || { WHY="$from is not the top of a git clone"; return 1; }
+    [ "$(git -C "$from" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$from/.git" ] || { WHY="$from is not an ordinary clone with its own .git, so it is not carried"; return 1; }
+    CARRY_REPOS=.; return 0
+  fi
+  ! git -C "$from" rev-parse --git-dir >/dev/null 2>&1 || { WHY="$from is in git, and only a folder outside git is carried plain"; return 1; }
+  gl=$(find "$from" -name .git -prune -print 2>/dev/null) || { WHY="cannot read every folder in $from, so its clones are not known"; return 1; }
+  while IFS= read -r g; do
+    [ -n "$g" ] || continue
+    r=${g%/.git}; r=${r#"$from"/}
+    [ -d "$g" ] && [ ! -L "$g" ] || { WHY="$g is not a .git folder: a linked worktree or submodule, which a plain carry would break"; return 1; }
+    [ "$(git -C "$from/$r" rev-parse --show-toplevel 2>/dev/null)" = "$from/$r" ] && [ "$(git -C "$from/$r" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$from/$r/.git" ] \
+      || { WHY="$from/$r is not an ordinary clone with its own .git, so it is not carried"; return 1; }
+    CARRY_REPOS=$CARRY_REPOS$r$'\n'
+  done <<< "$gl"
+  CARRY_REPOS=$(printf %s "$CARRY_REPOS" | LC_ALL=C sort)
+}
+carry_ready() { # carry_ready FROM TO [KIND]: sets WHY unless the seat's folder may be carried to TO while it is stopped: its own clone (carry),
+  # or a plain folder of clones (carry-plain). Sets CARRY_INO and CARRY_REPOS. Reads only.
+  local from=$1 to=$2 kind=${3:-carry} up anc w h r p
   CARRY_INO=""
   [[ "$from" = /* ]] && [[ "$to" = /* ]] || { WHY="a carry needs absolute folders"; return 1; }
   [ -d "$from" ] && [ ! -L "$from" ] || { WHY="$from is not a folder"; return 1; }
-  [ "$(git -C "$from" rev-parse --show-toplevel 2>/dev/null)" = "$from" ] || { WHY="$from is not the top of a git clone"; return 1; }
-  [ "$(git -C "$from" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$from/.git" ] || { WHY="$from is not an ordinary clone with its own .git, so it is not carried"; return 1; }
+  carry_repos "$from" "$kind" || return 1
   [ ! -e "$to" ] && [ ! -L "$to" ] || { WHY="$to already exists"; return 1; }
   up=$(dirname "$to") anc=$from
   case "$up" in
@@ -404,11 +429,14 @@ carry_ready() { # carry_ready FROM TO: sets WHY unless the seat's own clone may 
        ! git -C "$anc" rev-parse --git-dir >/dev/null 2>&1 || { WHY="$anc is in git, so $to would be inside a repository"; return 1; };;
   esac
   [ "$(stat -f %d "$anc")" = "$(stat -f %d "$from")" ] || { WHY="$to is on another volume, so the move would be a copy"; return 1; }
-  while IFS= read -r w; do
-    case "$w" in "$from"/*) WHY="its linked worktree $w is inside it, and a carry repairs only worktrees outside"; return 1;; esac
-  done < <(git -C "$from" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tail -n +2)
-  w=$(git -C "$from" config --list 2>/dev/null | grep -F -- "$from" | head -1)
-  [ -z "$w" ] || { WHY="its git config names its own path ($w), which the carry would break"; return 1; }
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue; p=$(rpath "$from" "$r")
+    while IFS= read -r w; do
+      case "$w" in "$from"/*) WHY="its linked worktree $w is inside it, and a carry repairs only worktrees outside"; return 1;; esac
+    done < <(git -C "$p" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tail -n +2)
+    w=$(git -C "$p" config --list 2>/dev/null | grep -F -- "$from" | head -1)
+    [ -z "$w" ] || { WHY="its git config names its own path ($w), which the carry would break"; return 1; }
+  done <<< "$CARRY_REPOS"
   if [ "$harness" = claude ]; then
     [ "$("$JQ" -r --arg d "$to" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON" 2>/dev/null)" = true ] || { WHY="$to has no trusted entry in $CLAUDE_JSON, so Claude would stop at a question nobody may answer"; return 1; }
     [ ! -e "$PROJECTS/$(project_key "$to")" ] || { WHY="$PROJECTS/$(project_key "$to") already exists, and two projects are not merged here"; return 1; }
@@ -419,13 +447,20 @@ carry_ready() { # carry_ready FROM TO: sets WHY unless the seat's own clone may 
   CARRY_INO=$(stat -f %i "$from")
 }
 carry_folder() { # carry_folder INDEX: with the seat stopped, the clone goes to its new path by rename, then its linked worktrees are repaired. Sets WHY.
-  local i=$1 from=${P_OLD[$1]} to=${P_CWD[$1]} ino=${P_INO[$1]} head w n left="" up tmp made="" k wbad="" wts=()
+  local i=$1 from=${P_OLD[$1]} to=${P_CWD[$1]} ino=${P_INO[$1]} kind=${P_CARRY[$1]} head="" w n=0 left="" up tmp made="" k wbad="" r p rh="" rw="" h ok
   [ "$(stat -f %i "$from" 2>/dev/null)" = "$ino" ] || { WHY="$from is not the folder the plan read (inode $ino); nothing was moved"; return 1; }
   [ ! -e "$to" ] && [ ! -L "$to" ] || { WHY="$to appeared after the plan; nothing was moved"; return 1; }
   for ((k = 0; k < STOP_TRIES; k++)); do left=$(cwd_under "$from"); [ -n "$left" ] || break; pause 1; done
   [ -z "$left" ] || { WHY="pid $left still works in $from after the stop; nothing was moved"; return 1; }
-  head=$(git -C "$from" rev-parse HEAD 2>/dev/null)
-  while IFS= read -r w; do [ ! -e "$w/.git" ] || wts[${#wts[@]}]=$w; done < <(git -C "$from" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tail -n +2)
+  carry_repos "$from" "$kind" || { WHY="$WHY; nothing was moved"; return 1; }
+  [ "$CARRY_REPOS" = "${P_REPOS[$i]}" ] || { WHY="the clones in $from are not the ones the plan read; nothing was moved"; return 1; }
+  # Each clone's commit before, and its linked worktrees elsewhere that are live: REL TAB HEAD, and REL TAB WORKTREE.
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue; p=$(rpath "$from" "$r")
+    rh=$rh$r$'\t'$(git -C "$p" rev-parse HEAD 2>/dev/null)$'\n'
+    while IFS= read -r w; do [ -z "$w" ] || [ ! -e "$w/.git" ] || { rw=$rw$r$'\t'$w$'\n'; n=$((n+1)); }; done < <(git -C "$p" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | tail -n +2)
+  done <<< "$CARRY_REPOS"
+  [ "$kind" != carry ] || head=$(git -C "$from" rev-parse HEAD 2>/dev/null)
   up=$(dirname "$to")
   if [ "$up" = "$from" ]; then
     tmp=$from.carry-${P_SEAT[$i]}
@@ -439,14 +474,22 @@ carry_folder() { # carry_folder INDEX: with the seat stopped, the clone goes to 
     if [ ! -d "$up" ]; then mkdir -m 755 "$up" || { WHY="could not make $up; nothing was moved"; return 1; }; made=1; fi
     if ! mv "$from" "$to"; then [ -z "$made" ] || rmdir "$up"; WHY="could not move $from to $to; nothing was moved"; return 1; fi
   fi
-  [ "$(stat -f %i "$to" 2>/dev/null)" = "$ino" ] && [ "$(git -C "$to" rev-parse --show-toplevel 2>/dev/null)" = "$to" ] && [ "$(git -C "$to" rev-parse HEAD 2>/dev/null)" = "$head" ] \
-    || { WHY="$to does not read as the same clone after the move"; return 1; }
-  n=${#wts[@]}
-  if [ "$n" -gt 0 ]; then
-    git -C "$to" worktree repair "${wts[@]}" >/dev/null 2>&1
-    for w in "${wts[@]}"; do [ "$(git -C "$w" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$to/.git" ] || wbad="$wbad $w"; done
+  ok=1; [ "$(stat -f %i "$to" 2>/dev/null)" = "$ino" ] || ok=""
+  while IFS=$'\t' read -r r h; do
+    [ -n "$r" ] || continue; p=$(rpath "$to" "$r")
+    [ "$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" = "$p" ] && [ "$(git -C "$p" rev-parse HEAD 2>/dev/null)" = "$h" ] || ok=""
+  done <<< "$rh"
+  [ -n "$ok" ] || { if [ "$kind" = carry ]; then WHY="$to does not read as the same clone after the move"; else WHY="$to does not read as the same folder with the same clones after the move"; fi; return 1; }
+  while IFS=$'\t' read -r r w; do
+    [ -n "$r" ] || continue; p=$(rpath "$to" "$r")
+    git -C "$p" worktree repair "$w" >/dev/null 2>&1
+    [ "$(git -C "$w" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$p/.git" ] || wbad="$wbad $w"
+  done <<< "$rw"
+  if [ "$kind" = carry ]; then
+    echo "CARRIED ${P_SEAT[$i]}: $from to $to, the same folder (inode $ino) at ${head:-no commit}; $n linked worktrees elsewhere repaired${wbad:+, but these still do not reach it:$wbad}"
+  else
+    echo "CARRIED ${P_SEAT[$i]}: $from to $to, the same plain folder (inode $ino) with its $(printf %s "$CARRY_REPOS" | grep -c .) clones, each at the same commit; $n linked worktrees elsewhere repaired${wbad:+, but these still do not reach it:$wbad}"
   fi
-  echo "CARRIED ${P_SEAT[$i]}: $from to $to, the same folder (inode $ino) at ${head:-no commit}; $n linked worktrees elsewhere repaired${wbad:+, but these still do not reach it:$wbad}"
   [ -z "$wbad" ] || CARRY_BAD="$CARRY_BAD ${P_SEAT[$i]}"
   return 0
 }
@@ -549,13 +592,13 @@ launch() { # launch INDEX: the marker goes on before any shell starts
   fi
 }
 
-P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=() P_OLD=() P_CARRY=() P_INO=()
+P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=() P_OLD=() P_CARRY=() P_INO=() P_REPOS=()
 live=0 ok=0 wrong=0 running=0 resume=0 resumed=0 reseat=0 unresolved=0 failed=0
 planned() { # planned SEAT SESSION CWD HARNESS PANE: record what the plan decided
   local n=${#P_SEAT[@]}
   P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID P_OLD[$n]=$OLD_CWD
-  P_CARRY[$n]=$CARRY P_INO[$n]=$CARRY_INO
-  [ -z "$OLD_CWD" ] || echo "MOVE $1: from $OLD_CWD to $3${CARRY:+, carrying the clone while the seat is stopped}"
+  P_CARRY[$n]=$CARRY P_INO[$n]=$CARRY_INO P_REPOS[$n]=$CARRY_REPOS
+  [ -z "$OLD_CWD" ] || echo "MOVE $1: from $OLD_CWD to $3${CARRY:+, carrying the $( [ "$CARRY" = carry-plain ] && echo "plain folder" || echo clone) while the seat is stopped}"
 }
 while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ -n "$seat" ] || continue
@@ -571,16 +614,18 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
     SESSION=$(awk -v s="$seat" '$1==s {print $2}' "$PINS")
     [ -z "$SESSION" ] || [[ "$SESSION" =~ $ID_RE ]] || { echo "UNRESOLVED $seat: bad pin in $PINS"; unresolved=$((unresolved+1)); continue; }
   fi
-  OLD_CWD="" to="" how="" CARRY="" CARRY_INO=""
+  OLD_CWD="" to="" how="" CARRY="" CARRY_INO="" CARRY_REPOS=""
   if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); how=$(awk -v s="$seat" '$1==s {print $3}' "$MOVES"); fi
   if [ -n "$to" ] && [ "$to" != "$cwd" ]; then # once the chart itself says the new folder, the line has nothing left to do
     WHY=""
     if [ "$(awk -v s="$seat" '$1==s' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="more than one line for it in $MOVES"
-    elif [ -n "$how" ] && [ "$how" != carry ]; then WHY="its line in $MOVES ends in '$how', and only carry is known"
+    elif [ -n "$how" ] && [ "$how" != carry ] && [ "$how" != carry-plain ]; then WHY="its line in $MOVES ends in '$how', and only carry and carry-plain are known"
     elif [ -z "$SESSION" ]; then WHY="it moves folder, so $PINS must name its thread"
-    elif [ "$how" = carry ] && [ ! -e "$to" ] && [ ! -L "$to" ]; then carry_ready "$cwd" "$to" && CARRY=1 # once carried, it is an ordinary move
+    elif [ -n "$how" ] && [ ! -e "$to" ] && [ ! -L "$to" ]; then carry_ready "$cwd" "$to" "$how" && CARRY=$how # once carried, it is an ordinary move
     elif [ "$how" = carry ] && { [ "$(git -C "$to" rev-parse --show-toplevel 2>/dev/null)" != "$to" ] || [ "$(git -C "$to" rev-parse --absolute-git-dir 2>/dev/null)" != "$to/.git" ]; }; then
       WHY="$to is there, but it is not a carried clone with its own .git"
+    elif [ "$how" = carry-plain ] && { [ ! -d "$to" ] || [ -L "$to" ] || git -C "$to" rev-parse --git-dir >/dev/null 2>&1; }; then
+      WHY="$to is there, but it is not a carried plain folder outside git"
     else folder_ready "$seat" "$to"; fi
     if [ -n "$WHY" ]; then
       if [ $CHECK -eq 1 ]; then echo "WRONG $seat ($harness): $WHY"; wrong=$((wrong+1)); else echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); fi
