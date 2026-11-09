@@ -10,6 +10,8 @@
 # Each run moves exactly one seat: the one named, which must have exactly one row in structure-moves, the same move in folder-moves and its
 # thread in session-pins. Every step reads first, and refuses unless the state is one of the two it knows: before (the clone at FROM with the
 # inode the row records, nothing at TO) or after (that same folder at TO). Claude seats only: a Codex carry comes with its own rehearsal.
+# A row may end in the sha256 of notes/structure-move-SEAT.txt: one line the seat's note adds, such as the rebuild of its own .venv after
+# the carry. The file must be there with that hash, and with no row hash it must not be there at all.
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd -P)
 STATE=${STATE:-${ZEO_RESCUE_STATE:-$HOME/.local/state/zeo-rescue}}
@@ -35,8 +37,14 @@ ino() { stat -f %i "$1" 2>/dev/null; }
 # Read: the seat's row, and the same move in the two files rescue.sh reads.
 row=$(awk -v s="$seat" '$1==s' "$TABLE" 2>/dev/null)
 [ -n "$row" ] && [ "$(printf '%s\n' "$row" | wc -l | tr -d ' ')" = 1 ] || no "$seat needs exactly one row in structure-moves"
-read -r _ HARNESS TSESS SID FROM TO FINO EXTRA <<< "$row"
-[ -n "$FINO" ] && [ -z "${EXTRA:-}" ] && [[ "$FINO" =~ ^[0-9]+$ ]] && [[ "$FROM" = /* ]] && [[ "$TO" = /* ]] || no "the row for $seat in structure-moves is not SEAT HARNESS TMUX-SESSION SESSION-ID FROM TO FROM-INODE"
+read -r _ HARNESS TSESS SID FROM TO FINO ADDSHA EXTRA <<< "$row"
+[ -n "$FINO" ] && [ -z "${EXTRA:-}" ] && [[ "$FINO" =~ ^[0-9]+$ ]] && [[ "$FROM" = /* ]] && [[ "$TO" = /* ]] && [[ -z "$ADDSHA" || "$ADDSHA" =~ ^[0-9a-f]{64}$ ]] || no "the row for $seat in structure-moves is not SEAT HARNESS TMUX-SESSION SESSION-ID FROM TO FROM-INODE [ADDITION-SHA256]"
+# The seat's own addition to the note (a rebuild its folder needs, say) is pinned by its hash in the row, so the table pins it too.
+ADD=$HERE/notes/structure-move-$seat.txt
+if [ -n "$ADDSHA" ]; then
+  [ "$(sha "$ADD")" = "$ADDSHA" ] || no "notes/structure-move-$seat.txt is not the addition its row pins ($ADDSHA)"
+  [ "$(wc -l < "$ADD" | tr -d " ")" = 1 ] && ! LC_ALL=C grep -q "[{}\\]" "$ADD" || no "notes/structure-move-$seat.txt must be one line, with no brace or backslash"
+elif [ -e "$ADD" ] || [ -L "$ADD" ]; then no "notes/structure-move-$seat.txt is there, but its row pins no addition"; fi
 [ "$HARNESS" = claude ] || no "$seat is a $HARNESS seat, and only a Claude carry is rehearsed"
 [ "$(awk -v s="$seat" '$1==s {print $2 " " $3 " " $4}' "$MOVES")" = "$TO carry " ] || no "folder-moves needs exactly one line: $seat $TO carry"
 [ "$(awk -v s="$seat" '$1==s {print $2}' "$PINS")" = "$SID" ] || no "session-pins needs $seat $SID"
@@ -78,9 +86,10 @@ first)
   grep -q "^RESEAT $seat: claude $SID .* in $TSESS\$" <<< "$plan" && grep -qF "MOVE $seat: from $FROM to $TO" <<< "$plan" || { echo "REFUSED, nothing was run: the plan does not move $seat from $FROM to $TO:"; printf '%s\n' "$plan"; exit 2; }
   (umask 077; mkdir -p "$D") || { echo "FAILED, nothing was run: cannot make $D"; exit 1; }
   note=$D/note.txt
-  sed -e "s#{FROM}#$FROM#g" -e "s#{TO}#$TO#g" -e "s#{OLDMEM}#$PROJECTS/$(key "$FROM")/memory/#g" -e "s#{NEWMEM}#$PROJECTS/$(key "$TO")/memory/#g" "$TEMPLATE" > "$note" \
+  { sed -e "s#{FROM}#$FROM#g" -e "s#{TO}#$TO#g" -e "s#{OLDMEM}#$PROJECTS/$(key "$FROM")/memory/#g" -e "s#{NEWMEM}#$PROJECTS/$(key "$TO")/memory/#g" "$TEMPLATE" | tr -d "\n"
+    if [ -n "$ADDSHA" ]; then printf " "; tr -d "\n" < "$ADD"; fi; echo; } > "$note" \
     && LC_ALL=C grep -qF -e "$PROOF" "$note" && ! grep -q '{[A-Z]*}' "$note" || { echo "FAILED, nothing was run: the note did not render"; exit 1; }
-  echo "the note, from $(basename "$TEMPLATE"): $(sha "$note")"
+  echo "the note, from $(basename "$TEMPLATE")${ADDSHA:+ and $(basename "$ADD")}: $(sha "$note")"
   b=$(stat -f %z "$t")
   { echo "claude $v"; make reseat ARGS="--relaunch --harness claude --seat $seat --note-file $note" && make check ARGS="--seat $seat"; }; rc=$?
   [ "$rc" -eq 0 ] || { echo "STOPPED: the move or its check failed; the note's delivery is not proved. Bring this to zeo-rescue."; exit 1; }

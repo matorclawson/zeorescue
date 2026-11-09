@@ -14,3 +14,7 @@ zeocreator 84bd8e22-bfe4-4e9e-85e4-bbcc3959c34c
 zbs d7fc6540-05c6-43ec-94c5-520b66af4133
 # ducktyper-ops: the first ops seat to move folder, on the Architect's order of 2026-11-07 21:12; its session must be named across the rename.
 ducktyper-ops ca076ba8-7fee-46f0-853b-8182adc3c975
+# The structure carries of 9 Nov: each seat's live session, read from its process and its newest transcript.
+zeocontrolling 17f08d7c-267a-4c9c-adca-d151478611b1
+zeomessenger 573ea388-9dac-4afd-86b0-03f224f43aa1
+zeoconnect b4825478-8383-44f5-8be8-25005fdac7fa
