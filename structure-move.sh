@@ -2,7 +2,7 @@
 # zeo-rescue: one seat's move into the one code structure, on the Architect's order of 8 Nov 22:10Z. reseat-lines.sh runs it, and pins it.
 #
 #   structure-move.sh SEAT trust   adds the Claude trust entry for the seat's new folder, under Claude's own config lock; starts nothing
-#                                  and adds each ask or deny rule on the old folder in its settings.local.json again for the new one
+#                                  and adds each allow, ask or deny rule on the old folder in its settings.local.json again for the new one
 #   structure-move.sh SEAT first   restarts that one seat; rescue.sh carries its clone to the new folder while it is stopped, and moves its
 #                                  project with its memory. Then it proves the note reached the transcript. It runs once, and refuses while
 #                                  the seat is working, or on a Claude nobody rehearsed
@@ -29,10 +29,10 @@ TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
 USER_SETTINGS=${ZEO_RESCUE_USER_SETTINGS:-$HOME/.claude/settings.json}
 # A guard names the old folder when its path, with its leading slashes made one, starts with FROM/, and does not already start with TO/.
 GDEF='def names($f): type == "string" and ((capture("^[^()]+\\((?<a>.*)\\)$").a | sub("^/+"; "/") | startswith($f)) // false);
-def guards($f; $t): [(.permissions.ask // [])[], (.permissions.deny // [])[]] | map(select(names($f) and (names($t) | not)));
+def guards($f; $t): [(.permissions.allow // [])[], (.permissions.ask // [])[], (.permissions.deny // [])[]] | map(select(names($f) and (names($t) | not)));
 def carried($f; $t): (index($f)) as $i | .[:$i] + $t + .[$i + ($f | length):];'
-GADD=' reduce ("ask", "deny") as $k (.; if (.permissions[$k] | type) == "array" then reduce (.permissions[$k][] | select(names($f) and (names($t) | not)) | carried($f; $t)) as $r (.; if (.permissions[$k] | index([$r])) != null then . else .permissions[$k] += [$r] end) else . end)'
-GCOUNT='[(.permissions.ask // [])[], (.permissions.deny // [])[]] | length'
+GADD=' reduce ("allow", "ask", "deny") as $k (.; if (.permissions[$k] | type) == "array" then reduce (.permissions[$k][] | select(names($f) and (names($t) | not)) | carried($f; $t)) as $r (.; if (.permissions[$k] | index([$r])) != null then . else .permissions[$k] += [$r] end) else . end)'
+GCOUNT='[(.permissions.allow // [])[], (.permissions.ask // [])[], (.permissions.deny // [])[]] | length'
 seat=${1:-} step=${2:-}
 case "$step" in trust|first|clear) ;; *) echo "usage: structure-move.sh SEAT trust|first|clear; nothing was run"; exit 2;; esac
 [[ "$seat" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { echo "usage: structure-move.sh SEAT trust|first|clear; nothing was run"; exit 2; }
@@ -64,13 +64,13 @@ t=$PROJECTS/$(key "$FROM")/$SID.jsonl tn=$PROJECTS/$(key "$TO")/$SID.jsonl
 
 case "$step" in
 trust)
-  # The guards, read first: an ask or deny rule on the old folder is added again for the new one, before the stop, so the move neither widens
-  # nor drops a guard (the Architect's ruling of 9 Nov 03:44Z). Rules are only added. Only the seat's own settings.local.json is changed, so a
+  # The guards, read first: an allow, ask or deny rule on the old folder is added again for the new one, before the stop, so the move neither widens
+  # nor drops a guard (rulings of 9 Nov 03:44Z, and Q5 of 04:19Z: allow, ask and deny alike, path for path). Rules are only added. Only the seat's own settings.local.json is changed, so a
   # guard on the old folder in its tracked settings.json or in the shared user settings is refused before anything is written.
   if [ "$at" = before ]; then own=$FROM/.claude; else own=$TO/.claude; fi
   sl=$own/settings.local.json
   for o in "$own/settings.json" "$USER_SETTINGS"; do
-    [ ! -e "$o" ] || [ "$(jq --arg f "$FROM/" --arg t "$TO/" "$GDEF"' guards($f;$t) | length' "$o" 2>/dev/null)" = 0 ] || no "$o has an ask or deny rule on $FROM/ (or cannot be read), and only the seat's settings.local.json is carried. Bring this to zeo-rescue."
+    [ ! -e "$o" ] || [ "$(jq --arg f "$FROM/" --arg t "$TO/" "$GDEF"' guards($f;$t) | length' "$o" 2>/dev/null)" = 0 ] || no "$o has an allow, ask or deny rule on $FROM/ (or cannot be read), and only the seat's settings.local.json is carried. Bring this to zeo-rescue."
   done
   [ ! -L "$sl" ] || no "$sl is a link, so it is not changed"
   [ ! -e "$sl" ] || jq -e 'type == "object"' "$sl" >/dev/null 2>&1 || no "$sl is not a JSON object"
@@ -92,23 +92,23 @@ trust)
   made=""
   echo "ADDED: $TO is trusted, before the folder is there; backup at $BACKUP, mode 600. Tell zeo-rescue: done."; exit 0 ) || exit $?
   fi
-  [ -f "$sl" ] || { echo "GUARDS: there is no $sl, so no ask or deny rule to carry"; exit 0; }
+  [ -f "$sl" ] || { echo "GUARDS: there is no $sl, so no allow, ask or deny rule to carry"; exit 0; }
   gtmp=$sl.zeo; gmade=""
   trap 'rm -f "$gtmp"; [ -z "$gmade" ] || rm -f "$GBACKUP"' EXIT
   was=$(sha "$sl"); [ -n "$was" ] || { echo "FAILED, the guards were not added: cannot read $sl"; exit 1; }
   cp -p "$sl" "$gtmp" && jq --arg f "$FROM/" --arg t "$TO/" "$GDEF$GADD" "$sl" > "$gtmp" || { echo "FAILED, the guards were not added"; exit 1; }
   n=$(( $(jq "$GCOUNT" "$gtmp") - $(jq "$GCOUNT" "$sl") ))
-  [ "$n" -gt 0 ] || { echo "GUARDS: none to add; every ask or deny rule on $FROM/ in $sl stands for $TO/ too"; exit 0; }
+  [ "$n" -gt 0 ] || { echo "GUARDS: none to add; every allow, ask or deny rule on $FROM/ in $sl stands for $TO/ too"; exit 0; }
   # Only added: everything else is as it was, each old list is the start of the new one, and carrying again would add nothing.
-  jq -e --slurpfile o "$sl" --arg f "$FROM/" --arg t "$TO/" "$GDEF$GADD"' as $n | . as $d | $o[0] as $o | ($o | del(.permissions.ask, .permissions.deny)) == ($d | del(.permissions.ask, .permissions.deny))
-    and all("ask", "deny"; . as $k | ($o.permissions[$k] // []) as $a | (($d.permissions[$k] // [])[:($a | length)]) == $a) and $n == $d' "$gtmp" >/dev/null 2>&1 \
+  jq -e --slurpfile o "$sl" --arg f "$FROM/" --arg t "$TO/" "$GDEF$GADD"' as $n | . as $d | $o[0] as $o | ($o | del(.permissions.allow, .permissions.ask, .permissions.deny)) == ($d | del(.permissions.allow, .permissions.ask, .permissions.deny))
+    and all("allow", "ask", "deny"; . as $k | ($o.permissions[$k] // []) as $a | (($d.permissions[$k] // [])[:($a | length)]) == $a) and $n == $d' "$gtmp" >/dev/null 2>&1 \
     || { echo "FAILED, the guards were not added: the carried file is not the old one with rules only added"; exit 1; }
   if [ ! -e "$GBACKUP" ]; then (umask 077; /bin/cat "$sl" > "$GBACKUP") || { echo "FAILED, the guards were not added: no backup"; exit 1; }; gmade=1; fi
   chmod 600 "$GBACKUP" && [ "$(stat -f %Lp "$GBACKUP")" = 600 ] || { echo "FAILED, the guards were not added: the backup is not mode 600"; exit 1; }
   [ "$(sha "$sl")" = "$was" ] || { echo "REFUSED, the guards were not added: $sl changed while they were carried. Bring this to zeo-rescue."; exit 2; }
   mv -f "$gtmp" "$sl" || { echo "FAILED, the guards were not added"; exit 1; }
   gmade=""
-  echo "GUARDS ADDED: $n ask or deny rules on $FROM/ now stand for $TO/ too, in $sl; backup at $GBACKUP, mode 600. Tell zeo-rescue: done."; exit 0;;
+  echo "GUARDS ADDED: $n allow, ask or deny rules on $FROM/ now stand for $TO/ too, in $sl; backup at $GBACKUP, mode 600. Tell zeo-rescue: done."; exit 0;;
 first)
   # Once: after the move the seat reads as right, so only this mark tells a move done from one still to run.
   [ ! -f "$D/first.done" ] || { echo "ALREADY DONE: $seat moved to $TO and its note arrived ($(cat "$D/first.done")). Nothing was run."; exit 0; }
