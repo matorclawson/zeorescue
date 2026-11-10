@@ -74,7 +74,7 @@ cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin 02fbc10e39f6894ba7c96b14bd5c4a8bf98d284d795c8d59af13e6e9b7b7af0e rescue.sh
+pin b5c454700966e152d1152a500ce055e90866093adad413adac044230c8ecd065 rescue.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 0e5a2052fe699fcae9183a4f56d1f1f23ba007d1aa5d70add8d7befd22f1b3bd Makefile
 pin 77e65f82d90598198f21411b15adb98cabfdd9b5f998ca5af12526d341893d4d session-pins
@@ -89,13 +89,13 @@ pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
 pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 pin 710302729c54dffab39ab4809813b6d8bb87516706862fa4f67a22367cb7cbe0 ops-move.sh
 pin 3a18e0a2edae23907b0307dfa842cd645379a300146282ad25e4bc47730e2d1f notes/claude-move-ducktyper-ops-20261108.txt
-pin 1e91d278807a682605e971907ebb135fabb0b2dfcf4f994f7e9be5078200b128 structure-move.sh
+pin fc2c92ea243171a1dd884ee44eca74a53cbd1d51694fcf5359b379521affebcb structure-move.sh
 pin d281a9b8e54d0cfbda53436440e3beb3e9e01e9c93ec38ac0b6e686a7295435c structure-moves
 pin 529956dfa3dd1d9fc65d342eb69730958d18f86408e1bf66cbdf8ca456dee4db structure-batch.sh
 pin f32c08499fb4065d0c84897d872e2151a76c46f58fbe6021d925f6ff46d6b3d4 structure-batches
 pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
 pin b2c88a99e9e11c70bbf32ca4f9c9c2f96ca244736b4c59f89a1c68804452598d notes/structure-move-claude-folder.txt
-pin d57dd0f3b803e6f2cc05ccacdcc740e229b2a247de841dcae87c419e47733092 structure-move-codex.sh
+pin 79b8b07ebcdbd45515ef084f8958eb81f35d2f04589eeb3acd91c73b40bd951a structure-move-codex.sh
 pin f2c752cf45aad5d24dcd48c20b53475131447be4d719fe9f8c80e125cca5ad6f notes/structure-move-codex.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2

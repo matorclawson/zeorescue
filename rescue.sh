@@ -30,7 +30,7 @@
 # in git, holding clones of its own. Each clone in it must be an ordinary one with its own .git, its config must not name the folder, and
 # none may have a linked worktree inside it; a .git file in it is refused. After the rename each clone must read the same, and its linked
 # worktrees elsewhere are repaired.
-# A seat that is down is not carried: the stop must be this run's own.
+# A seat that is down is not carried: the stop must be this run's own. After a crash it is resumed where it is (WAITS), and its carry waits for its line.
 # --check starts nothing and judges every seat: OK or WRONG, with the reason. It reads the running process and a fresh shell in another
 # folder given the process's own settings, not only the snapshot, because Codex uses the snapshot only in the thread's directory and with -lc.
 # It lists what a restart would cut first, as WORK lines, in the plan and again just before --apply stops anything.
@@ -643,6 +643,12 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   fi
   OLD_CWD="" to="" how="" CARRY="" CARRY_INO="" CARRY_REPOS=""
   if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); how=$(awk -v s="$seat" '$1==s {print $3}' "$MOVES"); fi
+  # A seat that is down is never carried, because the stop must be this run's own. After a crash it is resumed where it is, before any check of
+  # the carry: resume, never replace. Its carry waits for its own line, which then finds it up.
+  if [ $CHECK -eq 0 ] && { [ "$how" = carry ] || [ "$how" = carry-plain ]; } && [ -n "$to" ] && [ "$to" != "$cwd" ] && [ ! -e "$to" ] && [ ! -L "$to" ] \
+    && ! "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null; then
+    echo "WAITS $seat: it is down, so it is resumed where it is, in $cwd; its carry to $to waits for its line"; to=""
+  fi
   if [ -n "$to" ] && [ "$to" != "$cwd" ]; then # once the chart itself says the new folder, the line has nothing left to do
     WHY=""
     if [ "$(awk -v s="$seat" '$1==s' "$MOVES" | wc -l | tr -d ' ')" != 1 ]; then WHY="more than one line for it in $MOVES"

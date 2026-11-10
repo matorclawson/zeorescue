@@ -126,7 +126,7 @@ first)
   plan=$(./rescue.sh --reseat --relaunch --harness claude --seat "$seat" 2>&1)
   w=$(grep 'a turn is in progress' <<< "$plan")
   [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when it is idle:"; echo "$w"; exit 2; }
-  ! grep -q "^UNRESOLVED $seat: it is down, and a carry moves only a seat this run stops itself\$" <<< "$plan" || { echo "DOWN, nothing was run: $seat is not running, and a carry moves only a seat it stops itself. Bring this to zeo-rescue."; exit 2; }
+  ! grep -q -e "^UNRESOLVED $seat: it is down, and a carry moves only a seat this run stops itself\$" -e "^WAITS $seat: it is down, so it is resumed where it is" <<< "$plan" || { echo "DOWN, nothing was run: $seat is not running, and a carry moves only a seat it stops itself. Bring this to zeo-rescue."; exit 2; }
   grep -q "^RESEAT $seat: claude $SID .* in $TSESS\$" <<< "$plan" && grep -qF "MOVE $seat: from $FROM to $TO" <<< "$plan" || { echo "REFUSED, nothing was run: the plan does not move $seat from $FROM to $TO:"; printf '%s\n' "$plan"; exit 2; }
   (umask 077; mkdir -p "$D") || { echo "FAILED, nothing was run: cannot make $D"; exit 1; }
   note=$D/note.txt
