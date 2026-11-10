@@ -28,3 +28,5 @@ zeoconnect-ops 24762ded-3983-4e3d-ac57-635859e64b48
 zeroemployee 01a13145-4441-7592-b460-9c749fac6750
 dt-brandedimage-maintainer 01a18e5d-9ea5-7631-8716-08c91cd8d65c
 rasa-bench 01a121da-f744-7513-b32f-cb23acd4a9c5
+# rasa-ops: batch 4, its folder moves.
+rasa-ops ef7575e5-d57f-44c1-a5ad-67644de409fc

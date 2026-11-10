@@ -55,3 +55,8 @@ rasa-bench codex rasa-community-benchmarks-maintainer 01a121da-f744-7513-b32f-cb
 # transcript is untouched since 15:29Z), so the carry holds no clone; only the seat's own tree works in it; dt-animationstudio/worktrees/ is a
 # plain folder outside git, as for profrod-ops; the target and its project key are free.
 ducktyper-ops claude dt-animationstudio-ops ca076ba8-7fee-46f0-853b-8182adc3c975 /Volumes/AIPEMedia1/code/ducktyper-ai/ducktyper-ops /Volumes/AIPEMedia1/code/ducktyper-ai/dt-animationstudio/worktrees/ducktyper-ops 88747264
+# Batch 4, 10 Nov: rasa-ops, an ops seat's plain folder of two clones (fork/, resources/), carried with folder-moves' carry-plain into
+# rasa-community/worktrees/ once rasa is in rasa-community/main (codex1). Read 10 Nov 23:30Z: one transcript, 9 memory files; only its own tree
+# works in it; no rule names its folder; fork/ is partial with 1 stash and 2 prunable worktrees on ZeoWork, left as they are; resources/ has 10
+# local-only commits, which the rename keeps. Until codex1 has run, rasa-community is a clone, so the plan refuses: never into another repository.
+rasa-ops claude rasa-community-ops ef7575e5-d57f-44c1-a5ad-67644de409fc /Volumes/AIPEMedia1/code/zeroemployeeorg/rasa-ops /Volumes/AIPEMedia1/code/rasahq/rasa-community/worktrees/rasa-ops 75178449

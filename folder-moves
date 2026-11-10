@@ -23,3 +23,4 @@ rasa /Volumes/AIPEMedia1/code/rasahq/rasa-community/main carry
 dt-brandedimage-maintainer /Volumes/AIPEMedia1/code/ducktyper-ai/dt-brandedimage/main carry
 rasa-bench /Volumes/AIPEMedia1/code/rasahq/rasa-community-benchmarks/main carry
 ducktyper-ops /Volumes/AIPEMedia1/code/ducktyper-ai/dt-animationstudio/worktrees/ducktyper-ops carry-plain
+rasa-ops /Volumes/AIPEMedia1/code/rasahq/rasa-community/worktrees/rasa-ops carry-plain

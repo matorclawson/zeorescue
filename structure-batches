@@ -32,3 +32,5 @@ codex1 rasa-bench
 # batch3: ducktyper-ops, a plain folder (carry-plain), on the Architect's answer of 12:49Z, item 13. Its chart folder was set at 12:43Z. It is
 # not one of the four seats held while app.zeo.ac goes live (zeoapp, zeoconnect-ops, zeoconnect, profrod-ops: item 14, 15:29Z).
 batch3 ducktyper-ops
+# batch4: rasa-ops (carry-plain), after codex1 has carried rasa to rasa-community/main; before that its plan refuses and nothing moves.
+batch4 rasa-ops
