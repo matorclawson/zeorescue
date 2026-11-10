@@ -1,0 +1,7 @@
+# Batch 4, 10 Nov: rasa-ops alone, an ops seat's plain folder carried whole (carry-plain) from zeroemployeeorg/rasa-ops to
+# rasahq/rasa-community/worktrees/rasa-ops. Run it only AFTER codex1 (Do 446) has moved rasa to rasa-community/main. Before that its plan
+# refuses (rasa-community is still a clone, and nothing is carried into a repository) and the batch stops at it with nothing done.
+# It fast-forwards bootstrap to de389e7f and runs at reseat-lines.sh d2e181d1d5bc56ef94c5bc18c7a917cbeae599eae7d090e41accbee9716559b0. This head holds batch 3 and Do 446 too, at this same hash,
+# so if bootstrap is already here, re-file their lines at d2e181d1d5bc56ef94c5bc18c7a917cbeae599eae7d090e41accbee9716559b0. NNN is the Do number.
+# Expect: trust ADDED for the new folder; moved 1 of 1. A busy or down seat is SKIPPED, and the same line moves it later.
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then h=; cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git switch -q zeo-rescue/seat-bootstrap-20261105 && git merge -q --ff-only de389e7f0f26885c496da602d46bc09d3d0e02ff && h=$(/usr/bin/shasum -a 256 reseat-lines.sh | /usr/bin/cut -d " " -f 1); if [ "$h" = "d2e181d1d5bc56ef94c5bc18c7a917cbeae599eae7d090e41accbee9716559b0" ]; then echo "Do NNN: batch 4: rasa-ops into the one code structure"; ./reseat-lines.sh structure-batch batch4; else echo "Do NNN: HASH MISMATCH, nothing was run: reseat-lines.sh is $h"; fi; else echo "Do NNN: WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
