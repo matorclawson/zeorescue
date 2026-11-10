@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply] [--reseat] [--relaunch] [--restart] [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply] [--reseat] [--relaunch] [--restart] [--upgrade] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
 #
 # For each seat of the chart on this host it decides one of:
 #   LIVE        its tmux session exists                         left alone
@@ -17,6 +17,12 @@
 # A seat with everything right is left alone, so the same line can be run again after a stop.
 # --restart, with --relaunch, exactly one --seat and a --note-file, restarts that seat even when it reads as right, so the note reaches it.
 # Its line must keep itself from running twice; rescue cannot tell a restart done from one still to do.
+# --upgrade, with --relaunch, also restarts a seat rescue started when its process runs a binary other than the one its harness CLI resolves to
+# now, as after `codex update` or `claude update`; the binary is read from the process itself (lsof), not from its command line, which names
+# the unchanged symlink. The seat is told why. A seat already on the installed binary is left alone, so its line can run again.
+# An upgrade never moves or carries a seat, whatever folder-moves says: it restarts a live seat in the folder its process works in now, which
+# must be its chart folder or, once moved, its line's folder; anywhere else is UNRESOLVED. A seat that is down is named DOWN and left to make rescue.
+# --except ID leaves that seat out of the run entirely: the Architect, whose own restart waits for a break the operator chooses.
 # folder-moves holds a line "SEAT /new/folder" for a Codex seat that leaves the chart's folder. The thread stays the seat's: Codex rewrites a
 # thread's folder when it resumes elsewhere, so a seat moves only if session-pins names its thread. Otherwise a later plan would miss the thread.
 # A folder in git needs a trust entry first, or Codex stops at a question nobody may answer. Every move is proved before the next seat starts.
@@ -75,11 +81,12 @@ DEFAULT_MARKER=${ZEO_RESCUE_DEFAULT_MARKER:-master}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+SOCKET=zeo2 HOST_NAME=matormini HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PROMPT="You were restarted: this host's login session was torn down and your session was lost. Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
 
+UPROMPT="You were restarted so that you run the newer harness installed on this host (%s); the one you were running was older. Nothing else changed, and your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
 usage() { sed -n '/^#   rescue.sh/p' "$0" >&2; exit 2; }
 pause() { perl -e "select(undef,undef,undef,$1)"; }
 while [ $# -gt 0 ]; do
@@ -88,6 +95,8 @@ while [ $# -gt 0 ]; do
     --reseat) RESEAT=1; shift;;
     --relaunch) RELAUNCH=1; shift;;
     --restart) RESTART=1; shift;;
+    --upgrade) UPGRADE=1; shift;;
+    --except) [ $# -ge 2 ] || usage; EXCEPT="$EXCEPT$2 "; shift 2;;
     --check) CHECK=1; shift;;
     --harness) [ $# -ge 2 ] || usage; HARNESS=$2; shift 2;;
     --seat) [ $# -ge 2 ] || usage; ONLY="$ONLY$2 "; shift 2;;
@@ -106,6 +115,7 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
 [ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+[ $UPGRADE -eq 0 ] || [ $RELAUNCH -eq 1 ] || usage
 if [ $RESTART -eq 1 ]; then
   [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
   n=0; for w in $ONLY; do n=$((n+1)); done
@@ -120,6 +130,23 @@ fi
 [ -z "$NOTE_FILE" ] || [ -r "$NOTE_FILE" ] || { echo "rescue: cannot read $NOTE_FILE" >&2; exit 2; }
 [[ "$SOCKET" =~ ^[a-z0-9][a-z0-9_-]{0,39}$ ]] || { echo "rescue: bad socket name $SOCKET" >&2; exit 2; }
 for t in "$JQ" "$TMUX_BIN" "$PS_BIN"; do [ -x "$t" ] || { echo "rescue: missing tool $t" >&2; exit 1; }; done
+
+# --upgrade: the binary each harness CLI resolves to now, through every symlink. A seat's process that does not map it runs an older one.
+installed() { /usr/bin/perl -MCwd=abs_path -e 'my $p = abs_path($ARGV[0]); (defined $p && -f $p && -x $p) or exit 1; print $p' "$1"; }
+CUR_codex="" CUR_claude="" RUN_BIN=""
+if [ $UPGRADE -eq 1 ]; then
+  [ -x "$LSOF" ] || { echo "rescue: --upgrade needs lsof to read which binary a seat runs; missing $LSOF" >&2; exit 1; }
+  if [ "$HARNESS" != claude ]; then CUR_codex=$(installed "$CODEX") || { echo "rescue: --upgrade: $CODEX resolves to no executable file" >&2; exit 1; }; fi
+  if [ "$HARNESS" != codex ]; then CUR_claude=$(installed "$CLAUDE") || { echo "rescue: --upgrade: $CLAUDE resolves to no executable file" >&2; exit 1; }; fi
+fi
+runs_binary() { # runs_binary PID PATH: 0 the process maps PATH, 1 it maps another (RUN_BIN, its harness binary), 2 could not tell
+  local out; RUN_BIN=""
+  out=$("$LSOF" -p "$1" -a -d txt -Fn 2>/dev/null) && [ -n "$out" ] || return 2
+  printf '%s\n' "$out" | grep -xF "n$2" >/dev/null && return 0
+  RUN_BIN=$(printf '%s\n' "$out" | sed -n 's/^n//p' | grep -E '/(codex|claude)([^/]*/)*[^/]*$' | head -1)
+  [ -n "$RUN_BIN" ] || return 2
+  return 1
+}
 
 # The chart: the live one when it parses, and it becomes the last good copy; otherwise the last good copy, said out loud.
 seats_of() { "$JQ" -e -r --arg h "$HOST_NAME" '.seats | map(select(.desired_host == $h and (.desired_agent == "claude" or .desired_agent == "codex"))) | if length == 0 then error("no seats") else .[] end | [.seat_id, .mailbox, .desired_agent, .desired_tmux.session, .desired_folder] | map(. // "-") | join("\u001f")' "$1" 2>/dev/null; }
@@ -601,7 +628,9 @@ stop_daemon() { # the shared app-server keeps every attached thread open, so it 
 launch() { # launch INDEX: the marker goes on before any shell starts
   local i=$1 seat=${P_SEAT[$1]} sess=${P_SESS[$1]} cwd=${P_CWD[$1]} harness=${P_HARNESS[$1]} sid=${P_SID[$1]} mark=${P_MARK[$1]} pane=${P_PANE[$1]} pf
   pf=$STATE/prompts/$seat.txt
-  { printf '%s' "$PROMPT"; if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi
+  local cur=CUR_$harness
+  { if [ $UPGRADE -eq 1 ] && [ -n "$pane" ]; then printf "%s" "${UPROMPT/\%s/${!cur}}"; else printf '%s' "$PROMPT"; fi
+    if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi
     if [ -n "${P_OLD[$i]}" ]; then printf ' Your working folder moved from %s to %s by the Architect'"'"'s order. This is the same thread, with your history. Work in the new folder from now on.' "${P_OLD[$i]}" "$cwd"; fi; } > "$pf" || return 1
   if [ -z "$pane" ]; then
     env -u TMUX "$TMUX_BIN" -L "$SOCKET" new-session -d -s "$sess" -c "$cwd" -- sleep 3600 || return 1
@@ -632,6 +661,7 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ "$seat" != zeo-rescue ] || continue # the rescue seat is started by hand and never by itself
   [ "$HARNESS" = all ] || [ "$HARNESS" = "$harness" ] || continue
   [ "$ONLY" = " " ] || case "$ONLY" in *" $seat "*) ;; *) continue;; esac
+  case "$EXCEPT" in *" $seat "*) echo "EXCEPT $seat: left out of this run"; continue;; esac
   if [ "$sess" = "-" ] || [ "$cwd" = "-" ]; then echo "UNRESOLVED $seat: the chart gives no session or folder"; unresolved=$((unresolved+1)); continue; fi
   [[ "$sess" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || { echo "UNRESOLVED $seat: bad session name $sess"; unresolved=$((unresolved+1)); continue; }
   [ "$mailbox" = "$seat" ] || { echo "UNRESOLVED $seat: mailbox is $mailbox, not the seat id; the identity map must say which it starts as"; unresolved=$((unresolved+1)); continue; }
@@ -643,6 +673,16 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   fi
   OLD_CWD="" to="" how="" CARRY="" CARRY_INO="" CARRY_REPOS=""
   if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); how=$(awk -v s="$seat" '$1==s {print $3}' "$MOVES"); fi
+  if [ $UPGRADE -eq 1 ]; then # an upgrade restarts a live seat in the folder its process works in now, and never moves, carries or resumes one
+    "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null || { echo "DOWN $seat: an upgrade restarts only live seats; a seat that is down is resumed by its own line"; unresolved=$((unresolved+1)); continue; }
+    find_pane "$sess" zeo-rescue-upgrade-no-session
+    if [ "$PANE_STATE" = done ]; then
+      pc=$("$LSOF" -a -p "$PANE_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+      if [ -n "$to" ] && [ -n "$pc" ] && [ "$pc" = "$to" ]; then cwd=$to
+      elif [ -z "$pc" ] || [ "$pc" != "$cwd" ]; then echo "UNRESOLVED $seat: pid $PANE_PID works in ${pc:-a folder lsof cannot read}, which is not its chart folder $cwd${to:+ nor the folder of its line, $to}, so an upgrade does not restart it"; unresolved=$((unresolved+1)); continue; fi
+    fi
+    to="" how=""
+  fi
   # A seat that is down is never carried, because the stop must be this run's own. After a crash it is resumed where it is, before any check of
   # the carry: resume, never replace. Its carry waits for its own line, which then finds it up.
   if [ $CHECK -eq 0 ] && { [ "$how" = carry ] || [ "$how" = carry-plain ]; } && [ -n "$to" ] && [ "$to" != "$cwd" ] && [ ! -e "$to" ] && [ ! -L "$to" ] \
@@ -686,7 +726,13 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
         case "$(ps_line "$PANE_PID")" in *"$SID"*) ;; *) echo "UNRESOLVED $seat: its pane does not hold $SID"; unresolved=$((unresolved+1)); continue;; esac
         check_settings "$PANE" "$PANE_PID"
         case "$SET_WHY" in ""|*"no seat settings"*) ;; *) echo "UNRESOLVED $seat: $SET_WHY; a restart would not change that"; unresolved=$((unresolved+1)); continue;; esac
-        if [ $RESTART -eq 0 ] && [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
+        STALE=""
+        if [ $UPGRADE -eq 1 ]; then
+          cur=CUR_$harness; runs_binary "$PANE_PID" "${!cur}"; rc=$?
+          [ $rc -le 1 ] || { echo "UNRESOLVED $seat: could not read which binary pid $PANE_PID runs, so it is not restarted for the upgrade"; unresolved=$((unresolved+1)); continue; }
+          [ $rc -eq 0 ] || { STALE=1; echo "UPGRADE $seat: pid $PANE_PID runs $RUN_BIN; installed now is ${!cur}"; }
+        fi
+        if [ $RESTART -eq 0 ] && [ -z "$STALE" ] && [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
       none) echo "UNRESOLVED $seat: no pane in $sess holds $SID"; unresolved=$((unresolved+1)); continue;;
     esac
     marker_of "$harness" "$SID"

@@ -36,7 +36,7 @@ exit 0
 S
 cat > "$T/bin/lsof" <<S
 #!/bin/bash
-case "\$1" in -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; -Fn) cat "$T/lsof.daemon" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
+case "\$1" in -p) cat "$T/lsof.txt" 2>/dev/null ;; -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; -Fn) cat "$T/lsof.daemon" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
 S
 cat > "$T/bin/kill" <<S
 #!/bin/bash
@@ -473,6 +473,43 @@ out=$(R --reseat --relaunch --restart --seat cx 2>&1); [ $? -eq 2 ] && ! echo "$
 out=$(R --reseat --restart --seat cx --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && ! echo "$out" | grep -q '^RESEAT' && ok "and only with --relaunch" || bad "restart no relaunch: $out"
 out=$(R --reseat --relaunch --restart --seat cx --seat cl --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && echo "$out" | grep -q 'needs exactly one --seat' && ok "and for exactly one seat" || bad "restart two: $out"
 out=$(R --reseat --relaunch --restart --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && echo "$out" | grep -q 'needs exactly one --seat' && ok "never for every seat" || bad "restart all: $out"
+echo "-- --upgrade restarts a seat whose process runs an older binary than the one installed"
+mkdir -p "$T/inst/new" "$T/inst/old"; printf '#!/bin/sh\n' > "$T/inst/new/codex"; printf '#!/bin/sh\n' > "$T/inst/new/claude"; chmod +x "$T/inst/new/codex" "$T/inst/new/claude"
+ln -sfn "$T/inst/new/codex" "$T/codexlink"; ln -sfn "$T/inst/new/claude" "$T/claudelink"
+NEWCX=$(/usr/bin/perl -MCwd=abs_path -e 'print abs_path(shift)' "$T/inst/new/codex"); NEWCL=$(/usr/bin/perl -MCwd=abs_path -e 'print abs_path(shift)' "$T/inst/new/claude")
+U() { ZEO_RESCUE_CODEX=$T/codexlink ZEO_RESCUE_CLAUDE=$T/claudelink R "$@"; }
+printf 'p800\nfcwd\nn%s/w/cx\n' "$T" > "$T/lsof.out"
+printf 'p800\nftxt\nn%s/inst/old/codex\nftxt\nn/usr/lib/dyld\n' "$T" > "$T/lsof.txt"
+out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -qxF "UPGRADE cx: pid 800 runs $T/inst/old/codex; installed now is $NEWCX" && echo "$out" | grep -q '^RESEAT cx:' && ok "a seat on an older binary is restarted, and the plan says which binary it runs" || bad "upgrade stale: $out"
+grep -q '^OK cx: started by rescue, right already' <<< "$(U --reseat --relaunch --seat cx 2>&1)" && ok "without --upgrade the binary is not looked at, so earlier lines keep their meaning" || bad "no upgrade: $(U --reseat --relaunch --seat cx 2>&1)"
+printf 'p800\nftxt\nn%s\nftxt\nn/usr/lib/dyld\n' "$NEWCX" > "$T/lsof.txt"
+out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -q '^OK cx: started by rescue, right already' && ! echo "$out" | grep -q '^UPGRADE' && ok "a seat already on the installed binary is left alone, so the line can run again" || bad "upgrade current: $out"
+: > "$T/lsof.txt"; out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -q '^UNRESOLVED cx: could not read which binary pid 800 runs' && ! echo "$out" | grep -q '^RESEAT' && ok "a binary that cannot be read is UNRESOLVED, never a guess" || bad "upgrade unread: $out"
+printf 'p800\nftxt\nn/usr/lib/dyld\n' > "$T/lsof.txt"; out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -q '^UNRESOLVED cx: could not read which binary' && ok "and so is a process that maps no harness binary" || bad "upgrade no harness: $out"
+out=$(U --reseat --upgrade --seat cx 2>&1); [ $? -eq 2 ] && ! echo "$out" | grep -q '^RESEAT' && ok "--upgrade needs --relaunch" || bad "upgrade no relaunch: $out"
+out=$(ZEO_RESCUE_CODEX=$T/nowhere ZEO_RESCUE_CLAUDE=$T/claudelink R --reseat --relaunch --upgrade --seat cx 2>&1); [ $? -eq 1 ] && echo "$out" | grep -q 'resolves to no executable file' && ok "a harness CLI that resolves to nothing stops the run before any seat" || bad "upgrade no cli: $out"
+out=$(ZEO_RESCUE_CODEX=$T/nowhere ZEO_RESCUE_CLAUDE=$T/claudelink R --reseat --relaunch --upgrade --harness claude --seat cl 2>&1); echo "$out" | grep -q 'resolves to no executable file' && bad "claude-only run read the codex cli: $out" || ok "a run of one harness reads only that harness's CLI"
+out=$(ZEO_RESCUE_LSOF=$T/no-lsof U --reseat --relaunch --upgrade --seat cx 2>&1); [ $? -eq 1 ] && echo "$out" | grep -q 'needs lsof' && ok "--upgrade with no lsof stops the run" || bad "upgrade no lsof: $out"
+printf 'p800\nftxt\nn%s/inst/old/codex\n' "$T" > "$T/lsof.txt"
+out=$(U --reseat --relaunch --upgrade --except cx 2>&1)
+echo "$out" | grep -qxF 'EXCEPT cx: left out of this run' && ! echo "$out" | grep -q 'RESEAT cx\|UPGRADE cx' && ok "--except leaves a seat out of the run" || bad "except: $out"
+out=$(U --check --except cx 2>&1); echo "$out" | grep -qE "^(OK|WRONG) cx " && bad "check judged an excepted seat: $out" || ok "and out of a check"
+printf 'cx %s carry\n' "$T/w/new" > "$T/moves"; printf 'p800\nftxt\nn%s/inst/old/codex\n' "$T" > "$T/lsof.txt"
+out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -q '^RESEAT cx:' && ! echo "$out" | grep -q '^MOVE\|carry' && ok "an upgrade never moves or carries a seat, whatever folder-moves says" || bad "upgrade move: $out"
+printf 'p800\nfcwd\nn%s/w/elsewhere\n' "$T" > "$T/lsof.out"; out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -q "^UNRESOLVED cx: pid 800 works in $T/w/elsewhere, which is not its chart folder $T/w/cx nor the folder of its line, $T/w/new" && ! echo "$out" | grep -q '^RESEAT' && ok "a seat working outside its chart folder and its line's is not restarted" || bad "upgrade elsewhere: $out"
+: > "$T/lsof.out"; out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
+echo "$out" | grep -q "^UNRESOLVED cx: pid 800 works in a folder lsof cannot read" && ok "nor one whose folder cannot be read" || bad "upgrade cwd unread: $out"
+: > "$T/moves"; printf 'p800\nfcwd\nn%s/w/cx\n' "$T" > "$T/lsof.out"
+grep -v '^cx-maintainer$' "$T/live" > "$T/live.x"; cp "$T/live" "$T/live.keep"; mv "$T/live.x" "$T/live"
+out=$(U --reseat --relaunch --upgrade --seat cx 2>&1); rc=$?
+echo "$out" | grep -q '^DOWN cx: an upgrade restarts only live seats' && ! echo "$out" | grep -q '^RESUME' && [ $rc -eq 3 ] && ok "a seat that is down is named DOWN, not resumed, and the run exits 3" || bad "upgrade down: $rc $out"
+mv "$T/live.keep" "$T/live"
 printf 'cx %s\n' "$T/w/new" > "$T/moves"
 out=$(R --reseat --relaunch --seat cx 2>&1)
 echo "$out" | grep -q '^RESEAT cx:' && echo "$out" | grep -q '^MOVE cx' && ok "a right seat in the old folder is restarted to move" || bad "to move: $out"
