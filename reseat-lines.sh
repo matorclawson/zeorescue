@@ -50,7 +50,7 @@ CLAUDE_PROOF="Read and write memories only in the new memory folder, never in th
 ZEOCREATOR_NOTE=notes/zeocreator-memory-20261108.txt
 ZEOCREATOR_PROOF="Read and write memories only there, never in the old folder, and never create it."
 ZEOCREATOR_TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
-CLAUDE_REHEARSED=2.1.319
+CLAUDE_REHEARSED=2.1.322
 CLAUDE_BIN=${ZEO_RESCUE_CLAUDE:-$HOME/.local/bin/claude}
 CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
 PROJECTS=${ZEO_RESCUE_PROJECTS:-$HOME/.claude/projects}
@@ -89,13 +89,13 @@ pin 6a147cb60ea844dd1f8047746fde29aeb2c942e7b861074454fdd73eab11f659 zbs-move.sh
 pin 4730fece0bc70f05e4abcae5428866a7831f45f4e98eb31351df0e9de52df0f1 notes/zeocreator-memory-20261108.txt
 pin 710302729c54dffab39ab4809813b6d8bb87516706862fa4f67a22367cb7cbe0 ops-move.sh
 pin 3a18e0a2edae23907b0307dfa842cd645379a300146282ad25e4bc47730e2d1f notes/claude-move-ducktyper-ops-20261108.txt
-pin 4a78352d7cc68a8dba86f22dae6d2845c797f27373cf8287e2a29a87c8f29c75 structure-move.sh
+pin 1e91d278807a682605e971907ebb135fabb0b2dfcf4f994f7e9be5078200b128 structure-move.sh
 pin d281a9b8e54d0cfbda53436440e3beb3e9e01e9c93ec38ac0b6e686a7295435c structure-moves
 pin 529956dfa3dd1d9fc65d342eb69730958d18f86408e1bf66cbdf8ca456dee4db structure-batch.sh
 pin f32c08499fb4065d0c84897d872e2151a76c46f58fbe6021d925f6ff46d6b3d4 structure-batches
 pin 6bd9457575544ab5ffda80bdf305807009356cbee7f528b4d56fb1b1e3d720c0 notes/structure-move-claude.txt
 pin b2c88a99e9e11c70bbf32ca4f9c9c2f96ca244736b4c59f89a1c68804452598d notes/structure-move-claude-folder.txt
-pin 3966231423200b3504058d303aee17a70d74beb6636450b5e5225933c79040df structure-move-codex.sh
+pin d57dd0f3b803e6f2cc05ccacdcc740e229b2a247de841dcae87c419e47733092 structure-move-codex.sh
 pin f2c752cf45aad5d24dcd48c20b53475131447be4d719fe9f8c80e125cca5ad6f notes/structure-move-codex.txt
 # END PINS
 [ $bad -eq 0 ] || exit 2

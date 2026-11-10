@@ -1,0 +1,62 @@
+== the shape, copied read-only
+lines already holding the note's words, from the seat's 8 Nov move: 2
+transcript 84414387 bytes; memory 4 files; its saved prompt names: file-based memory at `/Users/rodbot/.claude/projects/-Volumes-AIPEMedia1-code-zeroemployeeorg-ducktyper-ops/memory/`
+plain folder at <P>/w/org/dop, inode 343984093, empty; the target's repository has 2 worktrees listed
+== the seat starts in its folder on 2.1.319
+FIRST SEAT OK rdo: own identity, marker master, git on
+rescue: live 0, ok 0, running 0, to resume 1, to reseat 0, resumed 1, unresolved 0, failed 0
+running 2.1.319, pid 97264, in <P>/w/org/dop
+  projects after a wake: <P>-w-org-dop
+== the lines go in: structure-moves, folder-moves and session-pins as the commit has them
+WRONG rdo (claude): <P>/w/org/dta/worktrees/dop has no trusted entry in <P>/cfg/.claude.json, so Claude would stop at a question nobody may answer
+check: ok 0, wrong 1
+the Claude that will run: 2.1.319; rehearsed on 2.1.322
+REFUSED, nothing was changed: Claude is 2.1.319 and the rehearsal ran on 2.1.322. Bring this to zeo-rescue.
+== structure-trust, then structure-first on 2.1.322
+ADDED: <P>/w/org/dta/worktrees/dop is trusted, before the folder is there; backup at <P>/state/claude-json.before-rdo, mode 600. Tell zeo-rescue: done.
+GUARDS: there is no <P>/w/org/dop/.claude/settings.local.json, so no allow, ask or deny rule to carry
+the Claude that will run: 2.1.322; rehearsed on 2.1.322
+the note, from structure-move-claude-folder.txt: 6724976a54a6a41abfdd5b5f7dd94d407a18f126ec18e36181fa0f05e4ec0f7d
+claude 2.1.322
+RESEAT rdo: claude ffffffff-7fee-46f0-853b-8182adc3c975 (--permission-mode auto; marker master, no record, default) in rdo-s
+MOVE rdo: from <P>/w/org/dop to <P>/w/org/dta/worktrees/dop, carrying the plain folder while the seat is stopped
+work: 0 of 1 seats show running work
+CARRIED rdo: <P>/w/org/dop to <P>/w/org/dta/worktrees/dop, the same plain folder (inode 343984093) with its 0 clones, each at the same commit; 0 linked worktree
+RESUMED rdo: claude ffffffff-7fee-46f0-853b-8182adc3c975 (--permission-mode auto; marker master, no record, default) in rdo-s
+FIRST SEAT OK rdo: own identity, marker master, git on
+MOVED OK rdo: session ffffffff-7fee-46f0-853b-8182adc3c975, one transcript, one process, in <P>/w/org/dta/worktrees/dop
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 1, unresolved 0, failed 0
+OK rdo (claude)
+check: ok 1, wrong 0
+NOTE DELIVERED rdo: its words are in session ffffffff-7fee-46f0-853b-8182adc3c975 under <P>/w/org/dta/worktrees/dop, after byte 84675480; a second run says ALRE
+seconds through the restart: 7.3
+running 2.1.322, pid 907, a new process: yes, in <P>/w/org/dta/worktrees/dop
+processes naming the session:
+  907 /Users/rodbot/.local/bin/claude --resume ffffffff-7fee-46f0-853b-8182adc3c975 --permission-mode auto You
+== what the model would receive after the move
+the note reached it: 1; its words on the memory folder: 1; the memory index read from the new key: 1
+the memory path its saved prompt names: file-based memory at `<P>/cfg/projects/<P>-w-org-dop/memory/`
+the working directory the harness tells it last: orking directory: <P>/w/org/dta/worktrees/dop
+the turn before the move reached it: 1
+the moved seat is still up after a wake
+== on disk and in git
+the same folder at the target: yes; still empty: yes; the old path gone: yes; the target outside git: yes; the repository's worktree list unchanged: yes
+old project gone: yes; transcripts for the session: 1; an old-key folder made again: no
+memory in the new project: 4 files, the same bytes as the real memory (its MEMORY.md without the marker): yes
+the note's words in the transcript after the restart: 3; trust for the new folder: true
+   9 ffffffff-7fee-46f0-853b-8182adc3c975	<P>/w/org/dta/worktrees/dop
+OK rdo (claude)
+check: ok 1, wrong 0
+== structure-clear, then second runs
+DELETED: the backup of <P>/cfg/.claude.json is gone, and any of the seat's settings.local.json. Tell zeo-rescue: done.
+the backup gone: yes
+NOTHING TO ADD: <P>/w/org/dta/worktrees/dop is already trusted; nothing was changed
+GUARDS: there is no <P>/w/org/dta/worktrees/dop/.claude/settings.local.json, so no allow, ask or deny rule to carry
+ALREADY DONE: rdo moved to <P>/w/org/dta/worktrees/dop and its note arrived (2026-11-10T22:47:34Z). Nothing was run.
+NOTHING TO DELETE: there is no backup
+the same process is still up
+OK rdo: started by rescue, right already
+the real seat, its folder, its memory, the real config and the org's panes are the same as before this ran
+./rehearsal/structure-move-plain.sh: line 28: 97146 Terminated: 15          perl "$HERE/capture.pl" "$port" "$P/cap"
+rc=0
+     639

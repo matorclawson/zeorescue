@@ -96,6 +96,8 @@ fi
 echo "thread $sid, rollout $(stat -f %z "$roll") bytes; clone inode $ino0 at $head0; worktrees: $(git -C "$OLD" worktree list | wc -l | tr -d ' ') listed, $(git -C "$OLD" worktree list --porcelain | grep -c '^prunable') prunable"
 # The copies of the operator's scripts: the seat is rcx, the socket and folders private; checked before anything starts.
 cp "$R0/seat-exec.sh" "$R0/Makefile" "$R0/structure-move.sh" "$R0/structure-move-codex.sh" "$P/run/"; cp "$R0/notes/structure-move-codex.txt" "$R0/notes/structure-move-claude.txt" "$P/run/notes/"
+# The copy says "rehearsed on" the installed Codex, because this run is that rehearsal; the real script changes only after it passes.
+sed -i '' "s/^REHEARSED=.*/REHEARSED=$VERSION/" "$P/run/structure-move-codex.sh"
 sed -e "s/^SOCKET=zeo2 HOST_NAME=matormini /SOCKET=$S HOST_NAME=h /" "$R0/rescue.sh" > "$P/run/rescue.sh"
 sed -e '/^pin [0-9a-f]\{64\} /d' -e "s/-L zeo2/-L $S/g" "$R0/reseat-lines.sh" > "$P/run/reseat-lines.sh"
 chmod +x "$P/run/rescue.sh" "$P/run/reseat-lines.sh" "$P/run/structure-move.sh" "$P/run/structure-move-codex.sh"

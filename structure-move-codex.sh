@@ -23,7 +23,7 @@ MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 TEMPLATE=$HERE/notes/structure-move-codex.txt
 PROOF="This is a planned move, not a fault: make nothing at the old path, and never create it again."
-REHEARSED=0.164.0
+REHEARSED=0.167.1
 TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 seat=${1:-} step=${2:-}

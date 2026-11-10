@@ -1,0 +1,63 @@
+== the shape, made private
+== the thread, made by the real Codex 0.167.1 in the clone
+thread 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2, rollout 32657 bytes; clone inode 344034173 at 15e434c717bf7a1935475c6f31d21b67622b6ba9; worktrees: 3 listed, 1 prunable
+== the seat starts in its clone
+RESUME rcx: codex 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2 (-a never -s danger-full-access; marker master, no record, default) in rcx-s
+RESUMED rcx: codex 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2 (-a never -s danger-full-access; marker master, no record, default) in rcx-s
+FIRST SEAT OK rcx: own identity, marker master, git on
+rescue: live 0, ok 0, running 0, to resume 1, to reseat 0, resumed 1, unresolved 0, failed 0
+running codex, pid 70937, in <P>/w/org/cx
+OK rcx (codex)
+check: ok 1, wrong 0
+== the lines go in: structure-moves, folder-moves and session-pins as a commit would have them
+WRONG rcx (codex): <P>/w/org/cx/main has no trusted entry in <P>/codexhome/config.toml, so Codex would stop at a question nobody may answer
+check: ok 0, wrong 1
+the Codex that will run: 0.167.1; rehearsed on 0.167.1
+REFUSED, nothing was run: the plan does not move rcx from <P>/w/org/cx to <P>/w/org/cx/main:
+== structure-trust, then structure-first
+ADDED: <P>/w/org/cx/main is trusted in <P>/codexhome/config.toml, before the folder is there; backup at <P>/state/codex-config.before-rcx, mode 600. Tell zeo-rescue: done
+the config is the old one with exactly the entry added: yes
+Codex reads the new config
+idle 9 s after the trust step; requests it had sent the model: 3
+the Codex that will run: 0.167.1; rehearsed on 0.167.1
+the note, from structure-move-codex.txt: 439231b494180f87bc82136747c405576ad10075e290afd6e7530adcc90ad598
+codex 0.167.1
+RESEAT rcx: codex 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2 (-a never -s danger-full-access; marker master, recorded) in rcx-s
+MOVE rcx: from <P>/w/org/cx to <P>/w/org/cx/main, carrying the clone while the seat is stopped
+work: 0 of 1 seats show running work
+CARRIED rcx: <P>/w/org/cx to <P>/w/org/cx/main, the same folder (inode 344034173) at 15e434c717bf7a1935475c6f31d21b67622b6ba9; 1 linked worktrees elsewhere repaired
+RESUMED rcx: codex 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2 (-a never -s danger-full-access; marker master, recorded) in rcx-s
+FIRST SEAT OK rcx: own identity, marker master, git on
+MOVED OK rcx: thread 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2, one rollout, one writer, in <P>/w/org/cx/main
+rescue: live 0, ok 0, running 0, to resume 0, to reseat 1, resumed 1, unresolved 0, failed 0
+OK rcx (codex)
+check: ok 1, wrong 0
+NOTE DELIVERED rcx: its words and the folder <P>/w/org/cx/main are in thread 01a1c7ab-4c5b-7f01-9f4b-85f09fe910d2's rollout after byte 41406; Codex's thread record says <
+seconds through the restart: 7.6
+running codex, pid 80767, a new process: yes, in <P>/w/org/cx/main
+processes naming the thread:
+80767 /Users/rodbot/.local/bin/codex resume -a never -s danger-full-access -C <P>/w/or
+== what the model would receive after the move
+the note reached it: 1; its proof words: 1; the first turn before the move: 1; the folder in its environment context: <cwd><P>/w/org/cx/main</cwd>
+== on disk, in git and in Codex's records
+the same folder at main: yes; HEAD the same: yes; untracked and ignored files with it: yes; the old path holds only main: yes, mode 755
+the linked worktree reaches it: yes; git status works there: yes; the prunable entry left as it was: yes
+rollouts for the thread: 1; the same rollout file: yes; new threads in either folder: 0
+after the restart, in the rollout: the note's words 2, turns in the new folder 4, turns in the old one 0; the thread record's folder: <P>/w/org/cx/main
+the daemon stub was asked to kill: nothing
+OK rcx (codex)
+check: ok 1, wrong 0
+== structure-clear, then second runs
+DELETED: the backup of <P>/codexhome/config.toml is gone. Tell zeo-rescue: done.
+the backup gone: yes
+NOTHING TO ADD: <P>/w/org/cx/main is already trusted; nothing was changed
+ALREADY DONE: rcx moved to <P>/w/org/cx/main and its note arrived (2026-11-10T22:54:47Z). Nothing was run.
+NOTHING TO DELETE: there is no backup
+the same process is still up
+OK rcx: started by rescue, right already
+the real Codex config, the rescue state, the daemons and the org's panes are the same as before this ran
+rehearsal/structure-move-codex.sh: line 24: 68409 Terminated: 15          perl -e 'use IO::Socket::INET; my ($port,$dir)=@ARGV; my $s=IO::Socket::INET->new(LocalAddr=>"127.0.0.1",LocalPort=>$port,Listen=>16,ReuseAddr=>1) or die; my $n=0;
+  while (my $c=$s->accept) { my $h=""; while(<$c>){ $h.=$_; last if /^\r?\n$/ } my ($l)=$h=~/content-length: *(\d+)/i; my $b=""; if($l){ my $r=0; while($r<$l){ my $k=read($c,$b,$l-$r,$r); last unless $k; $r+=$k } }
+  $n++; if($h=~/^POST \S*responses/){ open F,">","$dir/req.$n"; binmode F; print F $b; close F } my $e=q({"error":{"type":"invalid_request_error","message":"rehearsal","code":"rehearsal"}});
+  print $c "HTTP/1.1 400 Bad Request\r\ncontent-type: application/json\r\ncontent-length: ".length($e)."\r\nconnection: close\r\n\r\n$e"; close $c }' "$port" "$P/cap"
+rc=0

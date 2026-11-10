@@ -24,7 +24,7 @@ MOVES=${ZEO_RESCUE_MOVES:-$HERE/folder-moves}
 PINS=${ZEO_RESCUE_PINS:-$HERE/session-pins}
 TEMPLATE=$HERE/notes/structure-move-claude.txt
 PROOF="Read and write memories only in the new memory folder, never in the old one, and never create the old one."
-REHEARSED=2.1.319
+REHEARSED=2.1.322
 TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
 USER_SETTINGS=${ZEO_RESCUE_USER_SETTINGS:-$HOME/.claude/settings.json}
 # A guard names the old folder when its path, with its leading slashes made one, starts with FROM/, and does not already start with TO/.
@@ -121,7 +121,8 @@ first)
   [ "$v" = "$REHEARSED" ] || no "Claude is ${v:-unknown} and the rehearsal ran on $REHEARSED. Bring this to zeo-rescue."
   [ -f "$t" ] || t=$tn # a run stopped after the project's rename
   [ -f "$t" ] || { echo "NOT READY, nothing was run: no transcript for $seat under either folder"; exit 2; }
-  ! LC_ALL=C grep -qF -e "$PROOF" "$t" || no "the note's words are already in $t, so the proof could not tell this run's from an earlier one. Bring this to zeo-rescue."
+  # The proof is the note's words in the same line as this move's own "from FROM to TO": a seat moved before holds the words from that earlier note.
+  ! { LC_ALL=C grep -F -e "$PROOF" "$t" | LC_ALL=C grep -qF -e "from $FROM to $TO"; } || no "this move's note is already in $t, so the proof could not tell this run's from an earlier one. Bring this to zeo-rescue."
   plan=$(./rescue.sh --reseat --relaunch --harness claude --seat "$seat" 2>&1)
   w=$(grep 'a turn is in progress' <<< "$plan")
   [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when it is idle:"; echo "$w"; exit 2; }
@@ -131,12 +132,12 @@ first)
   note=$D/note.txt
   { sed -e "s#{FROM}#$FROM#g" -e "s#{TO}#$TO#g" -e "s#{OLDMEM}#$PROJECTS/$(key "$FROM")/memory/#g" -e "s#{NEWMEM}#$PROJECTS/$(key "$TO")/memory/#g" "$TEMPLATE" | tr -d "\n"
     if [ -n "$ADDSHA" ]; then printf " "; tr -d "\n" < "$ADD"; fi; echo; } > "$note" \
-    && LC_ALL=C grep -qF -e "$PROOF" "$note" && ! grep -q '{[A-Z]*}' "$note" || { echo "FAILED, nothing was run: the note did not render"; exit 1; }
+    && LC_ALL=C grep -qF -e "$PROOF" "$note" && LC_ALL=C grep -qF -e "from $FROM to $TO" "$note" && ! grep -q '{[A-Z]*}' "$note" || { echo "FAILED, nothing was run: the note did not render"; exit 1; }
   echo "the note, from $(basename "$TEMPLATE")${ADDSHA:+ and $(basename "$ADD")}: $(sha "$note")"
   b=$(stat -f %z "$t")
   { echo "claude $v"; make reseat ARGS="--relaunch --harness claude --seat $seat --note-file $note" && make check ARGS="--seat $seat"; }; rc=$?
   [ "$rc" -eq 0 ] || { echo "STOPPED: the move or its check failed; the note's delivery is not proved. Bring this to zeo-rescue."; exit 1; }
-  i=0; until [ "$(tail -c +$((b+1)) "$tn" 2>/dev/null | LC_ALL=C grep -cF -e "$PROOF")" -ge 1 ]; do
+  i=0; until [ "$(tail -c +$((b+1)) "$tn" 2>/dev/null | LC_ALL=C grep -F -e "$PROOF" | LC_ALL=C grep -cF -e "from $FROM to $TO")" -ge 1 ]; do
     i=$((i+1)); [ $i -lt "$TRIES" ] || { echo "NOT DELIVERED: the note's words are not in $tn after the restart. Bring this to zeo-rescue."; exit 1; }; perl -e 'select(undef,undef,undef,1)'; done
   date -u +%Y-%m-%dT%H:%M:%SZ > "$D/first.done"
   echo "NOTE DELIVERED $seat: its words are in session $SID under $TO, after byte $b; a second run says ALREADY DONE. Tell zeo-rescue: done.";;

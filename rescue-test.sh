@@ -834,7 +834,9 @@ case " \$* " in
   *" --check "*) if [ -f "$T/sm/wrong" ]; then echo "WRONG sa (claude): stub"; exit 1; fi; echo "OK sa (claude)"; echo "check: ok 1, wrong 0";;
   *" --apply "*) [ ! -f "$T/sm/fail" ] || { echo "STOPPED: stub"; exit 1; }
     if [ ! -e "$SMT" ]; then mv "$SMF" "$SMF.c" && mkdir "$SMF" && mv "$SMF.c" "$SMT"; fi; [ ! -d "$smo" ] || mv "$smo" "$smn"; echo "MOVED OK sa: stub"
-    [ ! -f "$T/sm/deliver" ] || printf '{"type":"user","message":{"content":"Correction. %s"}}\n' "$sw" >> "$smn/$ssid.jsonl";;
+    # an empty deliver file gives this move's note; one with words in it gives only the note's words, as an earlier move's note would
+    if [ -f "$T/sm/deliver" ] && [ ! -s "$T/sm/deliver" ]; then printf '{"type":"user","message":{"content":"Correction. Your clone was moved whole from %s to %s. %s"}}\n' "$SMF" "$SMT" "$sw" >> "$smn/$ssid.jsonl"
+    elif [ -f "$T/sm/deliver" ]; then printf '{"type":"user","message":{"content":"Correction. %s"}}\n' "$sw" >> "$smn/$ssid.jsonl"; fi;;
   *) cat "$T/sm/plan";;
 esac
 S
@@ -886,8 +888,11 @@ echo "2.1.999 (Claude Code)" > "$T/ver"; out=$(SM structure-first sa); rc=$?; ec
 [ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: Claude is 2.1.999 and the rehearsal ran on $rv" <<< "$out" && [ ! -e "$T/sm/calls" ] && ok "structure-first refuses a Claude nobody rehearsed" || bad "sm version: $rc $out"
 out=$(SM structure-first sa); rc=$?; [ $rc -eq 2 ] && grep -q '^NOT READY, nothing was run: no transcript for sa' <<< "$out" && ok "it needs the seat's transcript" || bad "sm transcript: $rc $out"
 mkdir -p "$smo/memory"; echo '{"type":"user","message":{"content":"before"}}' > "$smo/$ssid.jsonl"; cp "$smo/$ssid.jsonl" "$T/sm/tr.keep"
-printf '{"type":"user","message":{"content":"%s"}}\n' "$sw" >> "$smo/$ssid.jsonl"; out=$(SM structure-first sa); rc=$?; cp "$T/sm/tr.keep" "$smo/$ssid.jsonl"
-[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: the note's words are already in" <<< "$out" && ok "it refuses when the note's words are already there" || bad "sm words: $rc $out"
+printf '{"type":"user","message":{"content":"moved whole from %s to %s. %s"}}\n' "$SMF" "$SMT" "$sw" >> "$smo/$ssid.jsonl"; out=$(SM structure-first sa); rc=$?; cp "$T/sm/tr.keep" "$smo/$ssid.jsonl"
+[ $rc -eq 2 ] && grep -q "^REFUSED, nothing was changed: this move's note is already in" <<< "$out" && ok "it refuses when this move's note is already there" || bad "sm words: $rc $out"
+# a seat moved before (ducktyper-ops, 8 Nov) holds the same words in an earlier move's note: that is no reason to refuse
+printf '{"type":"user","message":{"content":"moved whole from %s to %s. %s"}}\n' "$T/sm/w/elsewhere" "$SMF" "$sw" >> "$smo/$ssid.jsonl"; printf 'WORK sa: a turn is in progress on its screen\n' >> "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan; cp "$T/sm/tr.keep" "$smo/$ssid.jsonl"
+[ $rc -eq 2 ] && grep -q '^BUSY, nothing was run' <<< "$out" && ok "an earlier move's note with the same words does not stop it" || bad "sm words earlier: $rc $out"
 printf 'WORK sa: a turn is in progress on its screen\n' >> "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
 [ $rc -eq 2 ] && grep -q '^BUSY, nothing was run' <<< "$out" && ! grep -q -- '--apply' "$T/sm/calls" && ok "it refuses while the seat is working" || bad "sm busy: $rc $out"
 printf 'UNRESOLVED sa: it is down, and a carry moves only a seat this run stops itself\n' > "$T/sm/plan"; out=$(SM structure-first sa); rc=$?; smplan
@@ -898,6 +903,8 @@ sed -i '' 's/ in sa-s$/ in other-s/' "$T/sm/plan"; out=$(SM structure-first sa);
 [ $rc -eq 2 ] && grep -q '^REFUSED, nothing was run: the plan does not move' <<< "$out" && ok "or one in another tmux session" || bad "sm sess: $rc $out"
 cp "$T/run/notes/structure-move-claude.txt" "$T/sm/tpl.keep"; echo "{NOPE}" >> "$T/run/notes/structure-move-claude.txt"; pinf notes/structure-move-claude.txt; : > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; cp "$T/sm/tpl.keep" "$T/run/notes/structure-move-claude.txt"; pinf notes/structure-move-claude.txt
 [ $rc -eq 1 ] && grep -q "^FAILED, nothing was run: the note did not render" <<< "$out" && ! grep -q -- "--apply" "$T/sm/calls" && ok "a note with a placeholder left in it runs nothing" || bad "sm placeholder: $rc $out"
+perl -pi -e 's/from {FROM} to {TO}/from {FROM}, to {TO}/' "$T/run/notes/structure-move-claude.txt"; pinf notes/structure-move-claude.txt; : > "$T/sm/calls"; out=$(SM structure-first sa); rc=$?; cp "$T/sm/tpl.keep" "$T/run/notes/structure-move-claude.txt"; pinf notes/structure-move-claude.txt
+[ $rc -eq 1 ] && grep -q "^FAILED, nothing was run: the note did not render" <<< "$out" && ! grep -q -- "--apply" "$T/sm/calls" && ok "and so does a note without this move's from and to, which the proof looks for" || bad "sm no mark: $rc $out"
 # the seat's own addition to its note, pinned by its hash in the row
 sma=$T/run/notes/structure-move-sa.txt; smrowa() { printf 'sa claude sa-s %s %s %s %s %s\n' "$ssid" "$SMF" "$SMT" "$(stat -f %i "$SMF")" "$1" > "$T/sm/table"; }
 echo "Rebuild your .venv with uv sync --frozen." > "$sma"; smah=$(/usr/bin/shasum -a 256 "$sma" | cut -d " " -f 1)
@@ -921,6 +928,8 @@ grep -qF "from $SMF to $SMT." "$note" && grep -qF "$T/sm/proj/$(enc2 "$SMT")/mem
 mv "$SMT" "$SMF.back"; rmdir "$SMF"; mv "$SMF.back" "$SMF"; [ ! -d "$smn" ] || mv "$smn" "$smo"
 out=$(SM structure-first sa); rc=$?
 [ $rc -eq 1 ] && grep -q '^NOT DELIVERED: ' <<< "$out" && [ ! -e "$T/state/structure-move-sa/first.done" ] && ok "a transcript that never shows the note says NOT DELIVERED and marks nothing" || bad "sm undelivered: $rc $out"
+echo words > "$T/sm/deliver"; out=$(SM structure-first sa); rc=$?; rm -f "$T/sm/deliver"
+[ $rc -eq 1 ] && grep -q '^NOT DELIVERED: ' <<< "$out" && [ ! -e "$T/state/structure-move-sa/first.done" ] && [ "$(LC_ALL=C grep -cF -e "$sw" "$smn/$ssid.jsonl")" -ge 1 ] && ok "nor do the note's words alone, without this move's from and to" || bad "sm words only: $rc $out"
 grep -qF "MOVE sa: from $SMF to $SMT" <<< "$(cat "$T/sm/plan")" && : > "$T/sm/calls"; : > "$T/sm/deliver"; sed -i '' 's/, carrying the clone while the seat is stopped$//' "$T/sm/plan"
 out=$(SM structure-first sa); rc=$?
 [ $rc -eq 0 ] && grep -q "^NOTE DELIVERED sa: its words are in session $ssid under $SMT" <<< "$out" && [ -s "$T/state/structure-move-sa/first.done" ] && ok "after a carry whose start failed, a rerun starts it in the new folder, proves the note and marks itself done" || bad "sm deliver: $rc $out"
