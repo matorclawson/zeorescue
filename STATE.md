@@ -2,13 +2,34 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-09 16:30 GMT, by `zeo-rescue`: Do 446 (allow-carry, batch2, codex1) held until app.zeo.ac is live; batch 3 (ducktyper-ops) waits for the Architect on zeo-rescue/structure-batch3-20261109.
+Last updated: 2026-11-11 00:00 GMT, by `zeo-rescue`: batch 3 (Do 460 refused on the version) rebuilt and rehearsed on Claude 2.1.322 / Codex 0.167.1; crash-resume gap fixed; batch 4 and the stub-log line ready; the seat-layout program report filed. All wait for the Architect on zeo-rescue/structure-batch3b-20261110.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 
+
+**00:00 GMT, 11 Nov: four lines and two reports wait for the Architect, on zeo-rescue/structure-batch3b-20261110 (pushed). Nothing ran on any seat.**
+- (a) **Orders read:** ANSWER-zeo-rescue-batch3-and-queue-2026-11-10.md (sections 1 to 8; the deletion tool went to zeocontrolling, so do not build it), and the 22:20Z addendum of the after-allow-carry answer (Do 460 refused: Claude 2.1.321, rehearsed on 2.1.319). Do 446 has not run.
+- (b) **Built and tested** (rescue-test 494 ok, tmux-test PASS):
+  - rehearsal/structure-move-plain.sh, batch 3's exact shape, all yes on Claude 2.1.322 (the seat starts on 2.1.319);
+  - the proof now needs this move's own "from FROM to TO": ducktyper-ops' transcript holds the words from its 8 Nov note;
+  - both Codex rehearsals pass on 0.167.1, but the real-rollout one cannot show the model request, because 0.167.1 compacts long history first and the 400 listener fails the compaction;
+  - **the crash-resume gap:** a down seat with a pending carry is now resumed where it is (WAITS). Before this, 8 seats with lines on bootstrap would have stayed down after a crash;
+  - batch 4 (rasa-ops; it refuses until codex1 has run);
+  - junk-stub-logs.sh, with its line.
+- (c) **The lines**, each tested in bash and zsh:
+  - batch3 and do446 in notes/structure-lines-*-20261110.txt, at 056676f9 and reseat-lines.sh e9f3aa10;
+  - batch4 at de389e7f and d2e181d1;
+  - notes/junk-lines-stub-logs-20261110.txt.
+- (d) **Reports in /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/:** REPORT-zeo-rescue-do460-and-versions-2026-11-10.md and REPORT-zeo-rescue-seat-layout-program-2026-11-10.md, plus the three inventories.
+- (e) **Next:**
+  - kind 3 (the rehome) for zeo-ledger, once the Architect rules on the shared memory folder (layout report 4(c));
+  - then kind 4, then kind 5 (cross-volume Codex, 24 seats), then zeorescue, then the Architect;
+  - the version-follow proposal (A) waits for the Architect's word.
+- (f) **Worktrees:** 11 clean scratch worktrees removed, and every branch is on the fork. b3 (this branch) is the only one left in /private/tmp; the rest are made under zeorescue/worktrees/ after zeorescue's own move.
+- (g) **Disclosed:** I ran a real `structure-move.sh rasa-ops first` from scratch. It refused at its plan step and changed nothing. Real steps run only on stubs from now on.
 **16:30 GMT, 9 Nov: Do 446 is HELD (Architect, 15:29Z) until app.zeo.ac is live: nothing in it runs, and nothing before then touches zeoapp, zeoconnect-ops, zeoconnect or profrod-ops. Batch 3 (ducktyper-ops) waits for the Architect's read.**
 - (a) **Batch 3** on zeo-rescue/structure-batch3-20261109: code commit e545b631 (reseat-lines.sh 45ed1e08); line in notes/structure-lines-batch3-20261109.txt, which fast-forwards bootstrap to e545b631 itself. rescue-test 486 ok, tmux-test PASS. Do 446's three batches run unchanged at that head, at the new hash.
 - (b) **The rest of item 13:**
