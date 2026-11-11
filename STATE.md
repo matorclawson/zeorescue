@@ -2,9 +2,11 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-11 16:20 GMT, by `zeo-rescue` (session 7296534d): pomar on ENG-UK is on Codex 0.163.0 and dead to its model (model_not_found 13:31Z, 16:08Z); its one-seat upgrade line waits for the Architect. tldw retirement approved: build its deletion line on the Do 537 v6 guards; it waits for zeomessenger. dt-clipping move done (line 2 cleared). zeoreviewer and batch3b still open.
+Last updated: 2026-11-11 18:20 GMT, by `zeo-rescue` (session 7296534d): pomar on ENG-UK answers again (re-login line 17:31Z: ANSWERED; pid 33725 on 0.167.1; turns to 18:10Z with no error). Cause: the ENG-UK Codex login (13:31 to 17:01), not the version. tldw retirement approved: build its deletion line on the Do 537 v6 guards; it waits for zeomessenger. zeoreviewer and batch3b still open.
 
 ## Do next, in this order
+
+**18:20 GMT, 11 Nov: pomar answers. The re-login line ran at 17:31Z: ANSWERED 1 of 1. pid 33725 runs 0.167.1; turns at 17:37, 17:41 and 18:10Z, none failed. A second run at about 18:15Z read ALREADY DONE. Report section 8. Next: the tldw deletion line, zeoreviewer line 2, batch3b (merge no-loader with --upgrade, so ENG-UK needs no hand-built line next time).**
 
 **17:20 GMT, 11 Nov: the operator re-logged Codex on ENG-UK (auth.json 17:01:36Z); pomar pid 3065 (started 16:23:46Z) kept the old token, so its 17:02Z turn failed (token could not be refreshed). ENG-POMAR-RELOGIN-2026-11-11.sh (487a889a…, branch eng-uk-pomar-upgrade at a65c0e3, rig 19 ok) restarts it once more; it waits for the Architect. Report section 7.**
 
