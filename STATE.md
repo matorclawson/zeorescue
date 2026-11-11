@@ -2,13 +2,19 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-11 03:40 GMT, by `zeo-rescue` (session 7296534d): upgrade 48 of 49 on the Mac mini, each answered (zeoreviewer left); ENG-UK has no restart path yet; the dt-clipping normalise line waits for the Architect. Batch3b still needs its rebase.
+Last updated: 2026-11-11 04:15 GMT, by `zeo-rescue` (session 7296534d): dt-clipping normalised; its move line waits for the Architect on zeo-rescue/dt-clipping-move-20261111; upgrade 48 of 49 on the Mac mini, each answered (zeoreviewer left); ENG-UK has no restart path yet; the dt-clipping normalise line waits for the Architect. Batch3b still needs its rebase.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 
+
+**04:15 GMT, 11 Nov: dt-clipping normalised (the operator ran it at 03:50Z, after kill 73361). The seat's move line waits for the Architect's read: REPORT-zeo-rescue-dt-clipping-move-line-2026-11-11.md. The lessons went to zeo-rt as a HANDOFF file, because there is no mailbox.**
+- (a) Branch zeo-rescue/dt-clipping-move-20261111: code 72203e28, lines 6749462 (notes/dt-clipping-move-lines-20261111.txt). It is made from bootstrap 24844f94, with its own dt-clipping-move.moves and .pins files, so bootstrap's pins are untouched. dt-clipping-move-test.sh 19 ok; rescue-test PASS.
+- (b) tmux-test fails on and off ("old way", "tx still holds its rollout") on unchanged bootstrap too, with load at about 8. It is a timing flake: fix it in the batch3b work.
+- (c) After the move, bootstrap's check reads dt-clipping-maintainer WRONG until the batch3b rebase merges its line and pin. The chart's codex-seats.json still names the tldw folder. Then the tldw clone is retired by a listing and a deletion line.
+- (d) Next: the move lines on the Architect's read, then read line 1's output and give line 2 (clear); zeoreviewer line 2; the batch3b rebase (WORK recheck, PENDING, no-loader for ENG-UK, the dt-clipping line and pin, the tmux-test flake).
 
 **03:40 GMT, 11 Nov: on the Mac mini 48 of 49 seats are upgraded and each answered; only zeoreviewer is left (line 2, at an idle moment). The Architect is done by /restart (no line 4). Reported in REPORT-zeo-rescue-upgrade-answers-eng-uk-dt-clipping-line-2026-11-11.md.**
 - (a) Answers: line 1 1/1, line 2 32/32, line 3 6/6, line 2 again 1/1 (zeoapp), line 3 again 1/1 (zeoarchitect). zeo-ledger's pane is fine.
