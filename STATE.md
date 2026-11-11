@@ -6,6 +6,8 @@ Last updated: 2026-11-11 16:20 GMT, by `zeo-rescue` (session 7296534d): pomar on
 
 ## Do next, in this order
 
+**17:20 GMT, 11 Nov: the operator re-logged Codex on ENG-UK (auth.json 17:01:36Z); pomar pid 3065 (started 16:23:46Z) kept the old token, so its 17:02Z turn failed (token could not be refreshed). ENG-POMAR-RELOGIN-2026-11-11.sh (487a889a…, branch eng-uk-pomar-upgrade at a65c0e3, rig 19 ok) restarts it once more; it waits for the Architect. Report section 7.**
+
 **16:30 GMT, 11 Nov: the pomar line ran (16:23Z): pomar is pid 3065 on 0.167.1, check ok 1, but its model is still refused (model_not_found). The version was not the cause. ENG-UK auth.json was written at 13:31, the minute of the first error; the mini's on 9 Nov. Likely cause: the ENG-UK Codex login; that is the operator's (a credential). Report section 6.**
 
 **16:20 GMT, 11 Nov: pomar (ENG-UK) upgrade line built, for the Architect. Read: REPORT-zeo-rescue-eng-uk-pomar-upgrade-line-2026-11-11.md.**
