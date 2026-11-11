@@ -2,9 +2,15 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-11 04:35 GMT, by `zeo-rescue` (session 7296534d): dt-clipping-maintainer moved and answering; line 2 (clear) may run; the tldw retirement listing waits for the Architect; upgrade 48 of 49 on the Mac mini, each answered (zeoreviewer left); ENG-UK has no restart path yet; the dt-clipping normalise line waits for the Architect. Batch3b still needs its rebase.
+Last updated: 2026-11-11 16:20 GMT, by `zeo-rescue` (session 7296534d): pomar on ENG-UK is on Codex 0.163.0 and dead to its model (model_not_found 13:31Z, 16:08Z); its one-seat upgrade line waits for the Architect. tldw retirement approved: build its deletion line on the Do 537 v6 guards; it waits for zeomessenger. dt-clipping move done (line 2 cleared). zeoreviewer and batch3b still open.
 
 ## Do next, in this order
+
+**16:20 GMT, 11 Nov: pomar (ENG-UK) upgrade line built, for the Architect. Read: REPORT-zeo-rescue-eng-uk-pomar-upgrade-line-2026-11-11.md.**
+- (a) pomar pid 25890 runs Codex 0.163.0; installed is 0.167.1 (link changed 10 Nov 22:35). Its turns at 13:31Z (the Architect's signed-feed-date mail) and 16:08Z ended in model_not_found. Idle, sole holder of its rollout. pomar-cc not affected. The staged runtime-pomar-resume-20261107 files all match.
+- (b) The staged af7405e2 has --no-loader but neither --upgrade nor --restart, and merging no-loader into bootstrap conflicts (batch3b). So the line is ENG-POMAR-UPGRADE-2026-11-11.sh (b6081acc…, in zeo-evidence/zeo-rescue and on branch zeo-rescue/eng-uk-pomar-upgrade-20261111 at abc9661, with mk.sh, body.sh, note eef4c666, rig-test.sh 17 ok). It checks, stops the session or pid, waits for no rollout holder, then runs 7 Nov line 2 with the upgrade note, --check, and model-answered.sh 600.
+- (c) Also read: ANSWER-zeo-rescue-dt-clipping-move-cleared (lessons forwarded to zeo-rt by the Architect) and ANSWER-zeo-rescue-tldw-retirement-approved (build the deletion line on the Do 537 v6 guard pattern, /Volumes/ZeoWork/tmp/claude-architect/do537-v6-*; it waits for zeomessenger's codex-seats.json update; then the Architect's and zeoreviewer's read).
+- (d) Next: the operator's pomar output, then read the answer; build the tldw deletion line; zeoreviewer line 2; batch3b.
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
