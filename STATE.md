@@ -2,13 +2,19 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-11 03:30 GMT, by `zeo-rescue` (session 7296534d): dt-clipping reported (a ruling on its code is needed before the move); lines 1 and 2 ran (33 Codex seats ANSWERED); line 3 waits for the Architect. Batch3b still needs its rebase onto 24844f94.
+Last updated: 2026-11-11 03:40 GMT, by `zeo-rescue` (session 7296534d): upgrade 48 of 49 on the Mac mini, each answered (zeoreviewer left); ENG-UK has no restart path yet; the dt-clipping normalise line waits for the Architect. Batch3b still needs its rebase.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 
+
+**03:40 GMT, 11 Nov: on the Mac mini 48 of 49 seats are upgraded and each answered; only zeoreviewer is left (line 2, at an idle moment). The Architect is done by /restart (no line 4). Reported in REPORT-zeo-rescue-upgrade-answers-eng-uk-dt-clipping-line-2026-11-11.md.**
+- (a) Answers: line 1 1/1, line 2 32/32, line 3 6/6, line 2 again 1/1 (zeoapp), line 3 again 1/1 (zeoarchitect). zeo-ledger's pane is fine.
+- (b) ENG-UK (read over SSH; nothing written there): pomar runs Codex 0.163.0 and works. pomar-cc runs Claude 2.1.280, which is the installed version (Homebrew, owned by riverar). No tool can restart a live ENG-UK seat: the staged rescue.sh has --no-loader but not --upgrade, and bootstrap is the reverse. Advice: merge no-loader in the batch3b rebase. pomar-cc's prompt holds unsent text, "grant the PR permission".
+- (c) dt-clipping ruling C (fresh zeo-native code; no tldw code or history; tldw stays a third-party fork). normalise-clone.sh at 704f94b4 (d8caae03), with normalise-test.sh 21 ok. Line in notes/normalise-dt-clipping-line-20261111.txt (21dca96); it uses git show and switches no branch. It waits for the Architect's read, and for the operator to close ttys051 (its gitstatusd, pid 73361, holds the folder).
+- (d) Next: the dt-clipping line; zeoreviewer; the lessons to zeo-rt; then the batch3b rebase with WORK-recheck, PENDING, no-loader and the dt-clipping move.
 
 **03:30 GMT, 11 Nov: dt-clipping (the Architect's ANSWER-zeo-rescue-normalise-dt-clipping-2026-11-11.md, first in the layout queue). Reported in REPORT-zeo-rescue-dt-clipping-normalise-2026-11-11.md; nothing built or run.**
 - (a) The new clone ducktyper-ai/dt-clipping holds README only (be40b69), with origin the fork. The operator's zsh (pid 58338, ttys051) works inside it.
