@@ -2,12 +2,59 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-09 13:05 GMT, by `zeo-rescue`: three lines (allow-carry, batch2, codex1) wait for the Architect on zeo-rescue/structure-codex-batch-20261109; make check ok 50, wrong 0 at 11:40.
+Last updated: 2026-11-11 00:30 GMT, by `zeo-rescue` (session 7296534d): the harness upgrade built and tested; four lines wait for the Architect on zeo-rescue/harness-upgrade-on-bootstrap-20261110. Batch 3, Do 446 and batch 4 still wait on zeo-rescue/structure-batch3b-20261110, and need a rebase after the upgrade.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
+
+
+**00:30 GMT, 11 Nov: THE HARNESS UPGRADE comes first. Four lines wait for the Architect's read, on zeo-rescue/harness-upgrade-on-bootstrap-20261110 (5c9196d). Nothing ran on any seat.**
+- (a) **Order:** /Volumes/ZeoWorkCS/zeo-evidence/architect/threads/ANSWER-zeo-rescue-harness-upgrade-restart-2026-11-10.md (22:45Z). Every Codex request fails ("The 'gpt-6.1-sol' model requires a newer version of Codex"). The Architect installed Codex 0.167.1 and Claude 2.1.322; running seats still hold the old binaries.
+- (b) **Found:** `make check` ok 50, wrong 0, so identity is right everywhere, but `--reseat --relaunch` planned 0 restarts: a seat rescue started reads as right, and nothing compared binaries. lsof shows each process's real binary: 35 Codex on 0.164.0, 4 Claude on 2.1.318 (the Architect among them), 10 on 2.1.319. 5 panes showed the error (org-reviewer, pomar, rasa-community, zeoapp, zeoruntime); every Codex seat fails at its next request.
+- (c) **Built,** on bootstrap e545b63 (the head Do 460 ran at), not on batch3b, so the Architect reads only this diff:
+  - `rescue.sh --upgrade` (with --relaunch): restarts a live seat whose process maps a binary other than the one the CLI resolves to now. Can run again.
+  - An upgrade **never moves or carries** a seat. folder-moves holds 20 lines, including Do 446's held carries, and plain --relaunch would carry any not yet moved. It restarts in the folder the process works in now; anywhere else is UNRESOLVED, and a down seat is DOWN.
+  - It tells the seat it was restarted for a newer harness, not that the login session was torn down.
+  - `--except ID` leaves the Architect out.
+  - `model-answered.sh` proves each restarted seat got an answer from its model (ANSWERED / ERROR shown / WAITING), because a process that is up proves nothing here. Tried read-only on zeo-rt's real rollout: it shows the exact error.
+  - Tests: rescue-test 516 ok, tmux-test PASS.
+- (d) **Real plan with this build** (starts nothing): to reseat 49, unresolved 0, work 0. For all 49, the planned session = the one the process holds, the mode = its command line, and the marker = the pane's @zeo_seat now.
+- (e) **Lines:** notes/upgrade-lines-20261110.txt. 1 upgrade-proof (zeo-rt), 2 upgrade-codex (34), 3 upgrade-claude (14, not the Architect), 4 upgrade-architect at the operator's break. At 24844f94 and reseat-lines.sh 3112e4a8, tested in bash and zsh with verify in place of each step.
+- (f) **Knock-on:** after line 1, bootstrap is at 24844f94. Batch 3, Do 446 and batch 4 (on batch3b, b684fc4) fast-forward to 056676f9/de389e7f, which do not descend from it, so they refuse until batch3b is rebased onto it and re-pinned. Do that after the upgrade.
+- (g) **ENG-UK:** the chart puts 3 seats there: pomar (codex), zeo-rt-seats (codex), pomar-cc (**claude**). So a Claude seat does run there by the chart, on Homebrew Claude 2.1.280, which the Architect could not update (admin-owned). These lines cover this Mac mini only, because rescue.sh is per host. ENG-UK needs its own run there (rescue.sh --host ENG-UK, over SSH) after the mini, and the Claude update there is the admin account's. Not read from ENG-UK by this seat.
+- (h) **Next:** run the lines as the Architect clears them; between lines, read the result and the mail. Then send zeo-rt the lessons for the runtime upgrade verb (report section 6). Then rebase batch3b.
+- (i) **This session** is d2296737's successor (7296534d), started fresh by the operator in tmux -L zeo-rescue. The previous one is not running.
+
+
+**00:00 GMT, 11 Nov: four lines and two reports wait for the Architect, on zeo-rescue/structure-batch3b-20261110 (pushed). Nothing ran on any seat.**
+- (a) **Orders read:** ANSWER-zeo-rescue-batch3-and-queue-2026-11-10.md (sections 1 to 8; the deletion tool went to zeocontrolling, so do not build it), and the 22:20Z addendum of the after-allow-carry answer (Do 460 refused: Claude 2.1.321, rehearsed on 2.1.319). Do 446 has not run.
+- (b) **Built and tested** (rescue-test 494 ok, tmux-test PASS):
+  - rehearsal/structure-move-plain.sh, batch 3's exact shape, all yes on Claude 2.1.322 (the seat starts on 2.1.319);
+  - the proof now needs this move's own "from FROM to TO": ducktyper-ops' transcript holds the words from its 8 Nov note;
+  - both Codex rehearsals pass on 0.167.1, but the real-rollout one cannot show the model request, because 0.167.1 compacts long history first and the 400 listener fails the compaction;
+  - **the crash-resume gap:** a down seat with a pending carry is now resumed where it is (WAITS). Before this, 8 seats with lines on bootstrap would have stayed down after a crash;
+  - batch 4 (rasa-ops; it refuses until codex1 has run);
+  - junk-stub-logs.sh, with its line.
+- (c) **The lines**, each tested in bash and zsh:
+  - batch3 and do446 in notes/structure-lines-*-20261110.txt, at 056676f9 and reseat-lines.sh e9f3aa10;
+  - batch4 at de389e7f and d2e181d1;
+  - notes/junk-lines-stub-logs-20261110.txt.
+- (d) **Reports in /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/:** REPORT-zeo-rescue-do460-and-versions-2026-11-10.md and REPORT-zeo-rescue-seat-layout-program-2026-11-10.md, plus the three inventories.
+- (e) **Next:**
+  - kind 3 (the rehome) for zeo-ledger, once the Architect rules on the shared memory folder (layout report 4(c));
+  - then kind 4, then kind 5 (cross-volume Codex, 24 seats), then zeorescue, then the Architect;
+  - the version-follow proposal (A) waits for the Architect's word.
+- (f) **Worktrees:** 11 clean scratch worktrees removed, and every branch is on the fork. b3 (this branch) is the only one left in /private/tmp; the rest are made under zeorescue/worktrees/ after zeorescue's own move.
+- (g) **Disclosed:** I ran a real `structure-move.sh rasa-ops first` from scratch. It refused at its plan step and changed nothing. Real steps run only on stubs from now on.
+**16:30 GMT, 9 Nov: Do 446 is HELD (Architect, 15:29Z) until app.zeo.ac is live: nothing in it runs, and nothing before then touches zeoapp, zeoconnect-ops, zeoconnect or profrod-ops. Batch 3 (ducktyper-ops) waits for the Architect's read.**
+- (a) **Batch 3** on zeo-rescue/structure-batch3-20261109: code commit e545b631 (reseat-lines.sh 45ed1e08); line in notes/structure-lines-batch3-20261109.txt, which fast-forwards bootstrap to e545b631 itself. rescue-test 486 ok, tmux-test PASS. Do 446's three batches run unchanged at that head, at the new hash.
+- (b) **The rest of item 13:**
+  - rasa-ops waits for codex1.
+  - zeo-ledger (org-ledger) needs the rehome kind and its rehearsal: not built yet. Its branch is on upstream at its tip, not on origin; org main's origin is still https.
+  - zeo-rt-sched, zeoconnect-ui and zeoerp are Codex seats. The zeo-rt-sched store under org-zeroemployeeorg/worktrees/ is no seat's folder (the seat works in /Volumes/ZeoWork/zeo-rt-sched/zero-employee). zeoconnect-ui and zeoerp are on /Volumes/ZeoWork, another volume, so a rename cannot carry them. Questions are with the Architect.
+- (c) **Filed:** the 549 stub logs, as /Volumes/ZeoWorkCS/zeo-evidence/zeo-rescue/STUB-LOGS-zeo-rescue-state-2026-11-09.{md,tsv}. Report: REPORT-zeo-rescue-batch3-and-queue-2026-11-09.md there.
 **2. The reseat: DONE on 6 Nov, ended clean, see the first block below; the rest of this paragraph is the record.** **CLEARED by the Architect at 10f408f (all seven hashes matched; F1 to F4 closed; the zeoarchitect-first line agreed).** Line 1 ran clean at 15:15 GMT: `check: ok 1, wrong 0`, the first real run of this launch path. Line 2 is next, and it is the operator's: it restarts a live seat. Ending A: take a fresh `make reseat-plan` read, show the operator the WORK lines, and line 3 is cleared (the Architect's checkpoint is written). Ending B or C: stop, do not run line 3, and bring the output to the Architect through the operator. Any change to a pinned file means a new read. After line 3, write the `make check` result here. What follows is the record of what the Architect read: Every seat is still wrong (`make check`: ok 0, wrong 50). **Nothing runs until the Architect has read this section and the operator has seen it here** (the Architect's word, relayed through the operator's prompt in this session). No seat has been touched in this session. When both are done, the operator runs the three lines below in order, in the rescue seat's prompt with `! ` so the output lands here, or in the rodbot terminal on the Mac mini. Between lines, read the result and the mail.
 
 **13:05 GMT, 9 Nov: one head, three lines waiting for the Architect's read: branch zeo-rescue/structure-codex-batch-20261109 (reseat-lines.sh 63984b27). Bootstrap fast-forwards to it.**
