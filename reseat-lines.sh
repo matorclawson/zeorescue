@@ -30,6 +30,11 @@
 #   reseat-lines.sh structure-clear SEAT  deletes the backup its trust step made; only once the seat checks right
 #   reseat-lines.sh structure-batch BATCH  each seat of that batch (structure-batches) in order: trust, first, then clear when its check is OK;
 #                                skips a busy or down seat and goes on; stops at any other refusal (structure-batch.sh)
+#   reseat-lines.sh upgrade-proof    restarts zeo-rt alone on the harness installed now (rescue.sh --upgrade), and waits for its model to answer
+#   reseat-lines.sh upgrade-codex    then every other Codex seat on an older binary; a seat with a turn in progress is skipped, and the same line takes it later
+#   reseat-lines.sh upgrade-claude   then every Claude seat on an older binary but the Architect, the same way
+#   reseat-lines.sh upgrade-architect  the Architect alone, last, at a break the operator chooses; refuses while it is working
+#                                Each restarts a seat in place, in its own session, mode and marker, never moves one, touches no mail, and can run again.
 set -uo pipefail
 WANT=rodbot@Mac-mini
 BEFORE=202611050511
@@ -66,15 +71,20 @@ CLAUDE_READY_MARK=$STATE/ops-move-$CLAUDE_SEAT/folder.done
 CLAUDE_FIRST_DONE=$STATE/ops-move-$CLAUDE_SEAT/first.done
 CLAUDE_TRIES=${ZEO_RESCUE_PROOF_TRIES:-60}
 ZEOCREATOR_DONE=$STATE/zeocreator-note-20261108.done
+# The harness upgrade of 10 Nov (the Architect, 22:45Z): Codex 0.164 could no longer reach the model; 0.167.1 and Claude 2.1.322 are installed.
+UPGRADE_PROOF=zeo-rt
+UPGRADE_ARCHITECT=architect
+ANSWER_WAIT=${ZEO_RESCUE_ANSWER_WAIT:-600}
 step=${1:-}
-case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back|structure-trust|structure-first|structure-clear|structure-batch) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back|structure-trust SEAT|structure-first SEAT|structure-clear SEAT|structure-batch BATCH; nothing was run"; exit 2;; esac
+case "$step" in verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back|structure-trust|structure-first|structure-clear|structure-batch|upgrade-proof|upgrade-codex|upgrade-claude|upgrade-architect) ;; *) echo "usage: reseat-lines.sh verify|zeoarchitect|proof|all|lic|trust|codex-first|codex-rest|codex-untrust|zbs-repo|zbs-folder|zbs-folder-abs|ops-folder|claude-trust|claude-first|ops-old|zeocreator-note|claude-clear|claude-back|structure-trust SEAT|structure-first SEAT|structure-clear SEAT|structure-batch BATCH|upgrade-proof|upgrade-codex|upgrade-claude|upgrade-architect; nothing was run"; exit 2;; esac
 place="$(id -un)@$(hostname -s)"
 [ "$place" = "$WANT" ] || { echo "WRONG PLACE, nothing was run: you are $place. Open the rodbot terminal on the Mac mini."; exit 2; }
 cd "$HERE" || exit 2
 bad=0
 pin() { local h; h=$(/usr/bin/shasum -a 256 "$2" 2>/dev/null | /usr/bin/cut -d " " -f 1); if [ "$h" != "$1" ]; then echo "HASH MISMATCH, nothing was run: $2 is ${h:-missing}"; bad=1; fi; }
 # PINS
-pin 02fbc10e39f6894ba7c96b14bd5c4a8bf98d284d795c8d59af13e6e9b7b7af0e rescue.sh
+pin 771a5dc1e4dd9f0d2d392508feebadc8c0f77362be2507f9058655336bd967d7 rescue.sh
+pin ec8a6f65e245aac98a2c34ef84ecd2f8926b041b150bbdaac83f32fdc5d925d1 model-answered.sh
 pin 9350ecf29e596aa0c3e3c3cc0578780a954842d4f9020c0e351a3ac9cab51810 seat-exec.sh
 pin 0e5a2052fe699fcae9183a4f56d1f1f23ba007d1aa5d70add8d7befd22f1b3bd Makefile
 pin 77e65f82d90598198f21411b15adb98cabfdd9b5f998ca5af12526d341893d4d session-pins
@@ -119,6 +129,13 @@ not_busy() { # a restart cuts a turn in progress, so a turn on any seat this ste
   local w; w=$(./rescue.sh --reseat --relaunch --harness codex --before $BEFORE "$@" 2>&1 | /usr/bin/grep 'a turn is in progress')
   [ -z "$w" ] || { echo "BUSY, nothing was run. Try again when these are idle:"; echo "$w"; exit 2; }
 }
+# The upgrade: a seat with a turn in progress or a working child is left out of this run (BUSY, and EX as --except words); a quiet result is what can be seen.
+upgrade_busy() {
+  BUSY=$(./rescue.sh --reseat --relaunch --upgrade "$@" 2>/dev/null | /usr/bin/awk '/^WORK [^ ]+: / && $2 != "daemon," {s=$2; sub(/:$/, "", s); print s}' | /usr/bin/sort -u | /usr/bin/paste -sd' ' -)
+  EX=""; for s in $BUSY; do EX="$EX --except $s"; done
+}
+proof_done() { ./rescue.sh --reseat --relaunch --upgrade --harness codex --seat "$UPGRADE_PROOF" 2>/dev/null | /usr/bin/grep -xF "OK $UPGRADE_PROOF: started by rescue, right already" >/dev/null; }
+
 log=$STATE/reseat-lines-$step-$(date +%Y%m%d-%H%M%S).log
 case "$step" in structure-*)
   [[ "${2:-}" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { echo "usage: reseat-lines.sh $step $( [ "$step" = structure-batch ] && echo BATCH || echo SEAT ); nothing was run"; exit 2; }
@@ -187,6 +204,24 @@ case "$step" in
   ops-old) STATE="$STATE" ./ops-move.sh "$CLAUDE_SEAT" old 2>&1 | tee "$log";;
   structure-trust|structure-first|structure-clear) STATE="$STATE" ./structure-move.sh "${2:-}" "${step#structure-}" 2>&1 | tee "$log";;
   structure-batch) STATE="$STATE" ./structure-batch.sh "${2:-}" 2>&1 | tee "$log";;
+  upgrade-proof)
+    upgrade_busy --harness codex --seat "$UPGRADE_PROOF"
+    [ -z "$BUSY" ] || { echo "BUSY, nothing was run: $UPGRADE_PROOF has a turn in progress. Try again when it is idle."; exit 2; }
+    { make reseat ARGS="--relaunch --upgrade --harness codex --seat $UPGRADE_PROOF" && make check ARGS="--seat $UPGRADE_PROOF" && ./model-answered.sh "$log" "$ANSWER_WAIT"; } 2>&1 | tee "$log";;
+  upgrade-codex)
+    proof_done || { echo "OUT OF ORDER, nothing was run: $UPGRADE_PROOF is not on the installed Codex yet. Run the upgrade-proof line first."; exit 2; }
+    upgrade_busy --harness codex
+    { [ -z "$BUSY" ] || echo "SKIPPED, a turn in progress; the same line takes them later: $BUSY"
+      make reseat ARGS="--relaunch --upgrade --harness codex$EX" && make check && ./model-answered.sh "$log" "$ANSWER_WAIT"; } 2>&1 | tee "$log";;
+  upgrade-claude)
+    proof_done || { echo "OUT OF ORDER, nothing was run: $UPGRADE_PROOF is not on the installed Codex yet. Run the upgrade-proof line first."; exit 2; }
+    upgrade_busy --harness claude --except "$UPGRADE_ARCHITECT"
+    { [ -z "$BUSY" ] || echo "SKIPPED, a turn in progress; the same line takes them later: $BUSY"
+      make reseat ARGS="--relaunch --upgrade --harness claude --except $UPGRADE_ARCHITECT$EX" && make check && ./model-answered.sh "$log" "$ANSWER_WAIT"; } 2>&1 | tee "$log";;
+  upgrade-architect)
+    upgrade_busy --harness claude --seat "$UPGRADE_ARCHITECT"
+    [ -z "$BUSY" ] || { echo "BUSY, nothing was run: $UPGRADE_ARCHITECT has a turn in progress. Run it at the break you choose."; exit 2; }
+    { make reseat ARGS="--relaunch --upgrade --harness claude --seat $UPGRADE_ARCHITECT" && make check ARGS="--seat $UPGRADE_ARCHITECT" && ./model-answered.sh "$log" "$ANSWER_WAIT"; } 2>&1 | tee "$log";;
   claude-trust)
     claude_ready
     if [ "$(jq -r --arg d "$CLAUDE_NEW" '.projects[$d].hasTrustDialogAccepted // false' "$CLAUDE_JSON")" = true ]; then echo "NOTHING TO ADD: $CLAUDE_NEW is already trusted; nothing was changed"; exit 0; fi

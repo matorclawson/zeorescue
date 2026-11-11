@@ -699,14 +699,14 @@ echo "-- the operator's runner"
 pl="$(id -un)@$(hostname -s)"
 mkdir -p "$T/run/notes"
 L() { "$T/run/reseat-lines.sh" "$@"; }
-fill() { for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt notes/structure-move-claude-folder.txt structure-batch.sh structure-batches structure-move-codex.sh notes/structure-move-codex.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
+fill() { for f in rescue.sh model-answered.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt notes/structure-move-claude-folder.txt structure-batch.sh structure-batches structure-move-codex.sh notes/structure-move-codex.txt; do cp "$HERE/$f" "$T/run/$f"; done; }
 fill; sed "s/^WANT=.*/WANT=nobody@nowhere/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 out=$(L verify 2>&1); rc=$?
 [ $rc -eq 2 ] && echo "$out" | grep -q '^WRONG PLACE, nothing was run: you are ' && ok "the wrong place refuses in plain words" || bad "place: $rc $out"
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"
 L nonsense >/dev/null 2>&1; [ $? -eq 2 ] && ok "an unknown step runs nothing" || bad "step"
 out=$(L verify 2>&1); [ $? -eq 0 ] && echo "$out" | grep -q '^verified:' && ok "the pins match the files in this checkout" || bad "pins are stale: $out"
-for f in rescue.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt notes/structure-move-claude-folder.txt structure-batch.sh structure-batches structure-move-codex.sh notes/structure-move-codex.txt; do
+for f in rescue.sh model-answered.sh seat-exec.sh Makefile session-pins notes/reseat-20261105.txt notes/zeoarchitect-resume.txt notes/lic-test-20261106.txt notes/codex-relaunch-20261106.txt notes/claude-move-zbs-20261107.txt notes/zeocreator-memory-20261108.txt notes/claude-move-ducktyper-ops-20261108.txt zbs-move.sh ops-move.sh folder-moves zshenv-lines.sh structure-move.sh structure-moves notes/structure-move-claude.txt notes/structure-move-claude-folder.txt structure-batch.sh structure-batches structure-move-codex.sh notes/structure-move-codex.txt; do
   echo >> "$T/run/$f"; out=$(L proof 2>&1); rc=$?
   [ $rc -eq 2 ] && echo "$out" | grep -q "^HASH MISMATCH, nothing was run: $f is" && ok "a change to $f refuses" || bad "pin $f: $rc $out"
   cp "$HERE/$f" "$T/run/$f"
@@ -1301,6 +1301,46 @@ grep -q '^ALREADY DONE: .* was removed' <<< "$(OM ducktyper-ops old)" && ok "a s
 sed "s/^WANT=.*/WANT=$pl/" "$HERE/reseat-lines.sh" > "$T/run/reseat-lines.sh"; chmod +x "$T/run/reseat-lines.sh"; fill
 printf '#!/bin/bash\necho "STUB $* STATE=$STATE"\n' > "$T/run/ops-move.sh"; chmod +x "$T/run/ops-move.sh"; pinf ops-move.sh
 grep -q '^STUB ducktyper-ops folder STATE' <<< "$(L ops-folder 2>&1)" && grep -q '^STUB ducktyper-ops old STATE' <<< "$(L ops-old 2>&1)" && ok "ops-folder and ops-old run ops-move.sh for the seat moving" || bad "ops wire: $(L ops-folder 2>&1)"
+echo "-- the upgrade lines"
+cp "$HERE/rescue.sh" "$T/rescue.keep"
+printf '#!/bin/bash\ncase " $* " in *" --apply "*|*" --check "*) echo "ARGS $*";; *) cat "%s/rstub.out" 2>/dev/null;; esac\nexit 0\n' "$T" > "$T/run/rescue.sh"; chmod +x "$T/run/rescue.sh"; pinf rescue.sh
+UL() { ZEO_RESCUE_ANSWER_WAIT=0 L "$@" 2>&1; }
+: > "$T/rstub.out"; out=$(UL upgrade-proof)
+echo "$out" | grep -qxF 'ARGS --reseat --apply --relaunch --upgrade --harness codex --seat zeo-rt' && echo "$out" | grep -qxF 'ARGS --check --seat zeo-rt' && echo "$out" | grep -q 'no answer to wait for' && ok "upgrade-proof restarts zeo-rt alone, checks it, and asks for its model's answer" || bad "upgrade-proof: $out"
+echo 'WORK zeo-rt: a turn is in progress on its screen' > "$T/rstub.out"; out=$(UL upgrade-proof); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run: zeo-rt' && ! echo "$out" | grep -q '^ARGS' && ok "it refuses while zeo-rt is working" || bad "upgrade-proof busy: $rc $out"
+: > "$T/rstub.out"; out=$(UL upgrade-codex); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER, nothing was run: zeo-rt is not on the installed Codex yet' && ! echo "$out" | grep -q '^ARGS' && ok "upgrade-codex refuses until zeo-rt is on the installed Codex" || bad "upgrade-codex order: $rc $out"
+out=$(UL upgrade-claude); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^OUT OF ORDER' && ok "and so does upgrade-claude" || bad "upgrade-claude order: $rc $out"
+printf 'OK zeo-rt: started by rescue, right already\nWORK pomar: a turn is in progress on its screen\nWORK pomar: 77 0:01 git push\nWORK daemon, in /x: 9 codex\n' > "$T/rstub.out"; out=$(UL upgrade-codex)
+echo "$out" | grep -qxF 'SKIPPED, a turn in progress; the same line takes them later: pomar' && echo "$out" | grep -qxF 'ARGS --reseat --apply --relaunch --upgrade --harness codex --except pomar' && echo "$out" | grep -qxF 'ARGS --check' && ok "after it, every other Codex seat but a busy one, which is named" || bad "upgrade-codex: $out"
+out=$(UL upgrade-claude)
+echo "$out" | grep -qxF 'ARGS --reseat --apply --relaunch --upgrade --harness claude --except architect --except pomar' && ok "upgrade-claude leaves the Architect out" || bad "upgrade-claude: $out"
+echo 'WORK architect: a turn is in progress on its screen' > "$T/rstub.out"; out=$(UL upgrade-architect); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q '^BUSY, nothing was run: architect' && ok "upgrade-architect refuses while the Architect is working" || bad "upgrade-architect busy: $rc $out"
+: > "$T/rstub.out"; out=$(UL upgrade-architect)
+echo "$out" | grep -qxF 'ARGS --reseat --apply --relaunch --upgrade --harness claude --seat architect' && echo "$out" | grep -qxF 'ARGS --check --seat architect' && ok "and restarts it alone when it is not" || bad "upgrade-architect: $out"
+cp "$T/rescue.keep" "$T/run/rescue.sh"; pinf rescue.sh
 cp "$HERE/ops-move.sh" "$T/run/ops-move.sh"
+
+echo "-- model-answered.sh: an answer, not a process, proves a restart"
+MA=$T/ma; mkdir -p "$MA/s/2026/11/10" "$MA/p/-k"
+MR() { ZEO_RESCUE_CODEX_SESSIONS="$MA/s" ZEO_RESCUE_PROJECTS="$MA/p" ZEO_RESCUE_ANSWER_PAUSE=0 "$HERE/model-answered.sh" "$@" 2>&1; }
+printf 'RESUMED cxa: codex aaaa-1 (x) in a\nRESUMED cxe: codex aaaa-2 (x) in e\nRESUMED cla: claude bbbb-1 (x) in c\n' > "$MA/run.log"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"response_item","payload":{"type":"message","role":"assistant"}}\n' > "$MA/s/2026/11/10/rollout-2026-11-10T00-00-00-aaaa-1.jsonl"
+printf '{"timestamp":"2000-01-01T00:00:00.000Z","type":"response_item","payload":{"type":"message","role":"assistant"}}\n{"timestamp":"2099-01-01T00:00:01.000Z","type":"event_msg","payload":{"type":"task_complete","error":{"message":"Error running remote compact task: {\\"type\\":\\"error\\",\\"status\\":400,\\"error\\":{\\"message\\":\\"The \x27gpt-6.1-sol\x27 model requires a newer version of Codex.\\"}}"}}}\n' > "$MA/s/2026/11/10/rollout-2026-11-10T00-00-00-aaaa-2.jsonl"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","message":{}}\n' > "$MA/p/-k/bbbb-1.jsonl"
+out=$(MR "$MA/run.log"); rc=$?
+echo "$out" | grep -qxF 'ANSWERED cxa (codex)' && echo "$out" | grep -qxF 'ANSWERED cla (claude)' && ok "an assistant message after the restart is an answer, for both harnesses" || bad "answered: $out"
+echo "$out" | grep -qxF "ERROR cxe (codex): The 'gpt-6.1-sol' model requires a newer version of Codex." && [ $rc -eq 1 ] && ok "a turn that ended in an error is shown, an answer from before the restart does not count, and it exits 1" || bad "error: $rc $out"
+printf '{"timestamp":"2000-01-01T00:00:00.000Z","type":"assistant","message":{}}\n' > "$MA/p/-k/bbbb-1.jsonl"; printf 'RESUMED cla: claude bbbb-1 (x) in c\n' > "$MA/one.log"
+out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -qxF 'WAITING cla (claude)' && ok "no record since the restart is WAITING, exit 2" || bad "waiting: $rc $out"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","isApiErrorMessage":true,"message":{"content":[{"text":"API Error: 400"}]}}\n' >> "$MA/p/-k/bbbb-1.jsonl"
+out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 1 ] && echo "$out" | grep -q '^ERROR cla (claude)' && ok "a Claude API error message is an ERROR, not an answer" || bad "claude api error: $rc $out"
+printf 'RESUMED gone: codex cccc-9 (x) in g\n' > "$MA/gone.log"; out=$(MR "$MA/gone.log"); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q '^NO RECORD gone' && ok "a seat with no record found exits 3" || bad "no record: $rc $out"
+printf 'OK x: started by rescue, right already\n' > "$MA/none.log"; out=$(MR "$MA/none.log"); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q 'no answer to wait for' && ok "a run that restarted nothing has nothing to wait for" || bad "none: $rc $out"
 
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }
