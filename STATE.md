@@ -2,13 +2,19 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-11 02:50 GMT, by `zeo-rescue` (session 7296534d): lines 1 and 2 ran (33 Codex seats ANSWERED); line 3 waits for the Architect. Batch3b still needs its rebase onto 24844f94.
+Last updated: 2026-11-11 03:30 GMT, by `zeo-rescue` (session 7296534d): dt-clipping reported (a ruling on its code is needed before the move); lines 1 and 2 ran (33 Codex seats ANSWERED); line 3 waits for the Architect. Batch3b still needs its rebase onto 24844f94.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 
+
+**03:30 GMT, 11 Nov: dt-clipping (the Architect's ANSWER-zeo-rescue-normalise-dt-clipping-2026-11-11.md, first in the layout queue). Reported in REPORT-zeo-rescue-dt-clipping-normalise-2026-11-11.md; nothing built or run.**
+- (a) The new clone ducktyper-ai/dt-clipping holds README only (be40b69), with origin the fork. The operator's zsh (pid 58338, ttys051) works inside it.
+- (b) The seat's code is tldw (LongCut, upstream ducktyper-ai/tldw), in /Volumes/ZeoWork/dt-clipping-maintainer/tldw. That clone is clean and has no worktrees. A move now would put the seat in an empty folder. A ruling A, B or C on the code is asked for.
+- (c) Steps 1 and 2 are to be built as normalise-clone.sh, run from a fixed commit with a hash check, so bootstrap stays at 24844f94 and upgrade lines 3 and 4 keep their pins. Worktree branch: dt-clipping-maintainer/home.
+- (d) Step 3 is the plain Codex move (folder-moves line, session pin, trust step, one-seat restart), not kind 5. It comes after the seat has brought its code across.
 
 **02:50 GMT, 11 Nov: upgrade lines 1 and 2 ran. Line 3 waits for the Architect's read of REPORT-zeo-rescue-upgrade-line2-and-line3-2026-11-11.md.**
 - (a) Line 1 (02:11Z): zeo-rt ANSWERED. Line 2 (02:28Z): 32 restarted. The chain stopped at `make check` (8 WRONG), so I ran model-answered.sh myself: 32 of 32 ANSWERED. zeoapp and zeoreviewer were SKIPPED as busy; both still run 0.164.0 and work.
