@@ -1,0 +1,12 @@
+# dt-clipping normalise, 11 Nov 2026, on the Architect's ruling C (ANSWER-zeo-rescue-dt-clipping-ruling-C-2026-11-11.md): one line, for the Architect's read.
+# It runs normalise-clone.sh from commit 704f94b4 (sha256 d8caae039408b86cf576635d5d59c005d2029e5c350ee8802a780dc871580d14), copied to
+# ~/.local/state/zeo-rescue first. It does not switch or move any branch of zeorescue, so upgrade lines 2 and 3 keep their pins. It moves no seat.
+# Before it: close the terminal on ttys051. Its zsh (pid 58338) was inside dt-clipping at 03:16Z, and its gitstatusd (pid 73361) still holds the folder.
+# The line refuses while your shell is inside dt-clipping, and the script refuses while any process works in it.
+# Expect: READ dt-clipping: main at be40b69, origin git@github.com:matorclawson/dt-clipping.git, gold main at be40b69
+#         MOVED dt-clipping: .../ducktyper-ai/dt-clipping is now .../ducktyper-ai/dt-clipping/main (the same folder)
+#         REMOTES dt-clipping: upstream git@github.com:rodriveracom/dt-clipping.git (push DISABLED), origin ... (push default), main tracks upstream/main
+#         WORKTREE dt-clipping-maintainer: .../dt-clipping/worktrees/dt-clipping-maintainer on dt-clipping-maintainer/home at be40b69
+#         NORMALISED dt-clipping: the seat is not moved; its move into ... comes by its own line
+# A second run prints ALREADY DONE. REFUSED means nothing was changed: bring its words to zeo-rescue.
+if [ "$(id -un)@$(hostname -s)" = "rodbot@Mac-mini" ]; then case "$(pwd -P)/" in /Volumes/AIPEMedia1/code/ducktyper-ai/dt-clipping/*) echo "normalise: WRONG PLACE, nothing was run: your shell is inside /Volumes/AIPEMedia1/code/ducktyper-ai/dt-clipping. Run cd ~ and then the line again.";; *) h=; f=$HOME/.local/state/zeo-rescue/normalise-clone-d8caae03.sh; cd /Volumes/AIPEMedia1/code/zeroemployeeorg/zeorescue && git show 704f94b4e5ee5a98706c162668cb31e67f2218b8:normalise-clone.sh > "$f" && h=$(/usr/bin/shasum -a 256 "$f" | /usr/bin/cut -d " " -f 1); if [ "$h" = "d8caae039408b86cf576635d5d59c005d2029e5c350ee8802a780dc871580d14" ]; then echo "normalise dt-clipping"; /bin/bash "$f" 2>&1 | tee "$HOME/.local/state/zeo-rescue/normalise-dt-clipping-$(date -u +%Y%m%d-%H%M%S).log"; else echo "normalise: HASH MISMATCH, nothing was run: the script is ${h:-missing}"; fi;; esac; else echo "normalise: WRONG PLACE, nothing was run: you are $(id -un)@$(hostname -s). Open the rodbot terminal on the Mac mini."; fi
