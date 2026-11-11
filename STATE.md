@@ -6,6 +6,8 @@ Last updated: 2026-11-11 16:20 GMT, by `zeo-rescue` (session 7296534d): pomar on
 
 ## Do next, in this order
 
+**16:30 GMT, 11 Nov: the pomar line ran (16:23Z): pomar is pid 3065 on 0.167.1, check ok 1, but its model is still refused (model_not_found). The version was not the cause. ENG-UK auth.json was written at 13:31, the minute of the first error; the mini's on 9 Nov. Likely cause: the ENG-UK Codex login; that is the operator's (a credential). Report section 6.**
+
 **16:20 GMT, 11 Nov: pomar (ENG-UK) upgrade line built, for the Architect. Read: REPORT-zeo-rescue-eng-uk-pomar-upgrade-line-2026-11-11.md.**
 - (a) pomar pid 25890 runs Codex 0.163.0; installed is 0.167.1 (link changed 10 Nov 22:35). Its turns at 13:31Z (the Architect's signed-feed-date mail) and 16:08Z ended in model_not_found. Idle, sole holder of its rollout. pomar-cc not affected. The staged runtime-pomar-resume-20261107 files all match.
 - (b) The staged af7405e2 has --no-loader but neither --upgrade nor --restart, and merging no-loader into bootstrap conflicts (batch3b). So the line is ENG-POMAR-UPGRADE-2026-11-11.sh (b6081acc…, in zeo-evidence/zeo-rescue and on branch zeo-rescue/eng-uk-pomar-upgrade-20261111 at abc9661, with mk.sh, body.sh, note eef4c666, rig-test.sh 17 ok). It checks, stops the session or pid, waits for no rollout holder, then runs 7 Nov line 2 with the upgrade note, --check, and model-answered.sh 600.
