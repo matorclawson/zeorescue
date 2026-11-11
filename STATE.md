@@ -2,13 +2,18 @@
 
 This is the seat's memory. Update it before you stop, and commit it. Newest state first; the history at the end only grows.
 
-Last updated: 2026-11-11 04:15 GMT, by `zeo-rescue` (session 7296534d): dt-clipping normalised; its move line waits for the Architect on zeo-rescue/dt-clipping-move-20261111; upgrade 48 of 49 on the Mac mini, each answered (zeoreviewer left); ENG-UK has no restart path yet; the dt-clipping normalise line waits for the Architect. Batch3b still needs its rebase.
+Last updated: 2026-11-11 04:35 GMT, by `zeo-rescue` (session 7296534d): dt-clipping-maintainer moved and answering; line 2 (clear) may run; the tldw retirement listing waits for the Architect; upgrade 48 of 49 on the Mac mini, each answered (zeoreviewer left); ENG-UK has no restart path yet; the dt-clipping normalise line waits for the Architect. Batch3b still needs its rebase.
 
 ## Do next, in this order
 
 **1. Read the mail first.** The first rescue handed the operator a command one minute before the Architect's stop arrived, and did not re-check. It happened again in a smaller way: the Architect rejected the 13:55 lines at 13:57, three minutes before handover, and that reply went to the `zeoarchitect` mailbox, so handover said "no answer yet". Until `zeo-rescue` has a mailbox, ask the operator, look at the Architect's pane (`tmux -L zeo2 capture-pane -p -t '=architect:'`), and read the end of their transcript.
 
 
+
+**04:35 GMT, 11 Nov: dt-clipping-maintainer is moved (line 1 at 04:21Z: MOVED OK, check ok, ANSWERED; it committed d45c2f3 in the worktree). Line 2 (clear) may run. The tldw retirement listing waits for the Architect: LISTING-zeo-rescue-tldw-clone-retirement-2026-11-11.md.**
+- (a) Retire only /Volumes/ZeoWork/dt-clipping-maintainer/tldw: main at cd7dbfb, which is on upstream/main; clean; no stash or worktree. Keep zeoruntime-fork-protect-20261111 beside it, which is the seat's live SOW-715 work.
+- (b) The live codex-seats.json still names tldw as the seat's folder. Its owner updates it before the deletion line. The deletion line also removes the Codex trust entry for tldw (config.toml line 90).
+- (e) Next: line 2 (clear); build the retirement line on the Architect's read; zeoreviewer line 2; then the batch3b rebase.
 
 **04:15 GMT, 11 Nov: dt-clipping normalised (the operator ran it at 03:50Z, after kill 73361). The seat's move line waits for the Architect's read: REPORT-zeo-rescue-dt-clipping-move-line-2026-11-11.md. The lessons went to zeo-rt as a HANDOFF file, because there is no mailbox.**
 - (a) Branch zeo-rescue/dt-clipping-move-20261111: code 72203e28, lines 6749462 (notes/dt-clipping-move-lines-20261111.txt). It is made from bootstrap 24844f94, with its own dt-clipping-move.moves and .pins files, so bootstrap's pins are untouched. dt-clipping-move-test.sh 19 ok; rescue-test PASS.
