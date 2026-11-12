@@ -4,7 +4,11 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply] [--reseat] [--relaunch] [--restart] [--upgrade] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply [--break-stale-lock]] [--reseat] [--relaunch] [--restart] [--upgrade] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#
+# --apply runs alone: it holds $STATE/apply.lock from before the plan to the end, and a second --apply refuses while the first runs. A lock
+# whose holder is gone is reported, never broken silently; --break-stale-lock breaks that one lock. A run kills only a tmux session its own
+# new-session created, and just before each start it reads the seat again (the plan is minutes old by then), leaving it alone if it changed.
 #
 # The host is --host, else ZEO_RESCUE_HOST, else the first line of $STATE/host-name, else hostname -s: the name the chart's desired_host uses.
 #
@@ -85,7 +89,7 @@ CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE=""
+SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0
 PINS=${ZEO_RESCUE_PINS:-$STATE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$STATE/folder-moves}
 MARKERS=${ZEO_RESCUE_MARKERS:-$STATE/seat-markers}
@@ -97,6 +101,7 @@ pause() { perl -e "select(undef,undef,undef,$1)"; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift;;
+    --break-stale-lock) BREAK_STALE=1; shift;;
     --reseat) RESEAT=1; shift;;
     --relaunch) RELAUNCH=1; shift;;
     --restart) RESTART=1; shift;;
@@ -120,6 +125,7 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
 [ $CHECK -eq 0 ] || { [ $APPLY -eq 0 ] && [ $RESEAT -eq 0 ]; } || usage
 [ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+[ $BREAK_STALE -eq 0 ] || [ $APPLY -eq 1 ] || usage
 [ $UPGRADE -eq 0 ] || [ $RELAUNCH -eq 1 ] || usage
 if [ $RESTART -eq 1 ]; then
   [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
@@ -156,6 +162,48 @@ runs_binary() { # runs_binary PID PATH: 0 the process maps PATH, 1 it maps anoth
 # The chart: the live one when it parses, and it becomes the last good copy; otherwise the last good copy, said out loud.
 seats_of() { "$JQ" -e -r --arg h "$HOST_NAME" '.seats | map(select(.desired_host == $h and (.desired_agent == "claude" or .desired_agent == "codex"))) | if length == 0 then error("no seats") else .[] end | [.seat_id, .mailbox, .desired_agent, .desired_tmux.session, .desired_folder] | map(. // "-") | join("\u001f")' "$1" 2>/dev/null; }
 mkdir -p "$STATE/prompts" && chmod 700 "$STATE" "$STATE/prompts" || { echo "rescue: cannot use $STATE" >&2; exit 1; }
+
+# One --apply at a time. Two runs that planned the same dead seat would start it twice, or one would stop the other's seat. The lock is a
+# folder under STATE, taken atomically by mkdir before the plan and held to the end of the run. Its holder file names the pid and that
+# pid's start time, so a later process with the same number is not taken for the holder. A lock whose holder is gone is never broken
+# silently: the run refuses and says so, and --break-stale-lock breaks exactly that lock, after the operator has seen no rescue runs.
+LOCK=$STATE/apply.lock LOCKED=0
+started_at() { /bin/ps -o lstart= -p "$1" 2>/dev/null | sed -e 's/^ *//' -e 's/ *$//'; }
+take_lock() {
+  local me holder pid when aside
+  me="$$ $(started_at $$)"
+  if mkdir "$LOCK" 2>/dev/null; then
+    printf '%s\n' "$me" > "$LOCK/holder" || { rmdir "$LOCK" 2>/dev/null; echo "rescue: cannot write $LOCK/holder" >&2; return 1; }
+    LOCKED=1; return 0
+  fi
+  holder=$(head -n 1 "$LOCK/holder" 2>/dev/null)
+  [ -n "$holder" ] || { pause 1; holder=$(head -n 1 "$LOCK/holder" 2>/dev/null); } # a run that took it this instant writes its holder next
+  pid=${holder%% *} when=${holder#* }
+  if [ -z "$holder" ] || ! [[ "$pid" =~ ^[0-9]+$ ]]; then
+    echo "LOCKED, nothing was done: $LOCK names no holder; if no rescue runs, run again with --break-stale-lock"; return 1
+  fi
+  if kill -0 "$pid" 2>/dev/null && [ "$(started_at "$pid")" = "$when" ]; then
+    echo "LOCKED, nothing was done: another rescue --apply is running (pid $pid, started $when). Run again once it has ended."; return 1
+  fi
+  [ $BREAK_STALE -eq 1 ] || { echo "STALE LOCK, nothing was done: $LOCK names pid $pid (started $when), which no longer runs. If no rescue is running, run again with --break-stale-lock."; return 1; }
+  aside=$LOCK.stale-$(date +%Y%m%d%H%M%S)-$$
+  mv "$LOCK" "$aside" 2>/dev/null || { echo "LOCKED, nothing was done: could not move the stale lock aside"; return 1; }
+  if [ "$(head -n 1 "$aside/holder" 2>/dev/null)" != "$holder" ]; then
+    mv "$aside" "$LOCK" 2>/dev/null; echo "LOCKED, nothing was done: the lock changed while it was being broken"; return 1
+  fi
+  echo "STALE LOCK BROKEN: pid $pid (started $when) no longer runs; its lock is kept at $aside"
+  mkdir "$LOCK" 2>/dev/null && printf '%s\n' "$me" > "$LOCK/holder" || { echo "LOCKED, nothing was done: another run took the lock first"; return 1; }
+  LOCKED=1
+}
+release_lock() {
+  [ $LOCKED -eq 1 ] || return 0
+  [ "$(head -n 1 "$LOCK/holder" 2>/dev/null)" = "$$ $(started_at $$)" ] && rm -f "$LOCK/holder" && rmdir "$LOCK"
+  LOCKED=0
+}
+if [ $APPLY -eq 1 ]; then
+  take_lock || exit 1
+  trap release_lock EXIT; trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+fi
 GOOD=$STATE/ORG-CHART.last-good.json
 if rows=$(seats_of "$CHART"); then
   tmp=$(mktemp "$STATE/.chart.XXXXXX") && cp "$CHART" "$tmp" && mv -f "$tmp" "$GOOD"
@@ -624,9 +672,9 @@ unseat() { # unseat INDEX: a seat that failed must not stay up wrong, and must n
   if [ -n "$pane" ]; then
     "$TMUX_BIN" -L "$SOCKET" respawn-pane -k -t "$pane" -c "${P_CWD[$i]}" -- sleep 3600 2>/dev/null || echo "WARNING: could not stop ${P_SEAT[$i]}: stop it before anything else runs"
     "$TMUX_BIN" -L "$SOCKET" set-option -pu -t "$pane" @zeo_rescue 2>/dev/null
-  else # it was dead when this run began, so the session is this run's own, and a later run resumes the seat only once it is gone
+  elif [ -n "${P_CREATED[$i]:-}" ]; then # this run's own new-session made the session, so it goes, and a later run resumes the seat
     "$TMUX_BIN" -L "$SOCKET" kill-session -t "=${P_SESS[$i]}" 2>/dev/null
-  fi
+  fi # a session this run did not create is never killed: something else started it, and it is left alone
 }
 
 recovery() { # recovery FROM: after a run that stopped, say what is down and what brings it back
@@ -669,6 +717,20 @@ stop_daemon() { # the shared app-server keeps every attached thread open, so it 
   done
 }
 
+still_free() { # still_free INDEX: the plan read every seat at the start of the run, and with the stagger a late seat starts minutes after
+  # that. So just before its start this reads it again, and sets WHY if it is no longer the seat the plan saw: a process now holds its
+  # session, or, for a seat that was down, its session or a harness process in its folder appeared. A check that cannot be read stops too.
+  local i=$1 rc
+  holds "${P_SID[$i]}"; rc=$?
+  [ $rc -ne 0 ] || { WHY="a process holds its session ${P_SID[$i]} now, which the plan did not see; it is left alone"; return 1; }
+  [ $rc -eq 1 ] || { WHY="the process list cannot be read just before the start"; return 1; }
+  [ -z "${P_PANE[$i]}" ] || return 0
+  ! "$TMUX_BIN" -L "$SOCKET" has-session -t "=${P_SESS[$i]}" 2>/dev/null || { WHY="its session ${P_SESS[$i]} appeared after the plan: something else started it, and it is left alone"; return 1; }
+  PSOUT=$("$PS_BIN" -axo pid=,command=) || { WHY="the process list cannot be read just before the start"; return 1; }
+  running_in "${P_HARNESS[$i]}" "${P_CWD[$i]}"; rc=$?
+  [ $rc -ne 0 ] || { WHY="a ${P_HARNESS[$i]} process runs in ${P_CWD[$i]} now, which the plan did not see; it is left alone"; return 1; }
+  [ $rc -eq 1 ] || { WHY="whether a process runs in ${P_CWD[$i]} cannot be read just before the start"; return 1; }
+}
 launch() { # launch INDEX: the marker goes on before any shell starts
   local i=$1 seat=${P_SEAT[$1]} sess=${P_SESS[$1]} cwd=${P_CWD[$1]} harness=${P_HARNESS[$1]} sid=${P_SID[$1]} mark=${P_MARK[$1]} pane=${P_PANE[$1]} pf
   pf=$STATE/prompts/$seat.txt
@@ -676,8 +738,13 @@ launch() { # launch INDEX: the marker goes on before any shell starts
   { if [ $UPGRADE -eq 1 ] && [ -n "$pane" ]; then printf "%s" "${UPROMPT/\%s/${!cur}}"; else printf '%s' "$PROMPT"; fi
     if [ -n "$NOTE_FILE" ]; then printf ' '; cat "$NOTE_FILE"; fi
     if [ -n "${P_OLD[$i]}" ]; then printf ' Your working folder moved from %s to %s by the Architect'"'"'s order. This is the same thread, with your history. Work in the new folder from now on.' "${P_OLD[$i]}" "$cwd"; fi; } > "$pf" || return 1
+  LAUNCH_WHY="tmux could not start it"
   if [ -z "$pane" ]; then
-    env -u TMUX "$TMUX_BIN" -L "$SOCKET" new-session -d -s "$sess" -c "$cwd" -- sleep 3600 || return 1
+    if ! env -u TMUX "$TMUX_BIN" -L "$SOCKET" new-session -d -s "$sess" -c "$cwd" -- sleep 3600; then
+      ! "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null || LAUNCH_WHY="its session $sess exists already: something else started it after the check, and it is left alone"
+      return 1
+    fi
+    P_CREATED[$i]=1
     pane=$(panes_of "$sess" | head -1 | cut -d'|' -f1)
     [ -n "$pane" ] || return 1
   fi
@@ -811,19 +878,20 @@ if [ $APPLY -eq 1 ]; then
   proved_codex=0 proved_claude=0
   for ((i = 0; i < n; i++)); do
     seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
+    [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER" # first, so every check below is as fresh as the start
     if [ "${P_HARNESS[$i]}" = codex ] && ! rollout_free "${P_ROLL[$i]}"; then
       case "$HOLD_WHY" in pid*) echo "FAILED $seat: $HOLD_WHY, so it was not started: that would be two writers";; *) echo "FAILED $seat: $HOLD_WHY, so it was not started: it could be a second writer";; esac
       failed=$((failed+1)); continue
     fi
-    [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER"
+    if ! still_free "$i"; then echo "FAILED $seat: $WHY; it was not started"; failed=$((failed+1)); continue; fi
     if [ -n "${P_CARRY[$i]}" ] && ! carry_folder "$i"; then echo "FAILED $seat: $WHY; it was not started"; failed=$((failed+1)); continue; fi
     if [ "${P_HARNESS[$i]}" = claude ] && [ -n "${P_OLD[$i]}" ]; then
       if ! move_project "${P_OLD[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then echo "FAILED $seat: $WHY; it was not started"; failed=$((failed+1)); continue; fi
       claude_size=$(stat -f %z "$PROJECTS/$(project_key "${P_CWD[$i]}")/${P_SID[$i]}.jsonl")
     fi
     since=$(date +%s)
-    if ! launch "$i"; then echo "FAILED $seat: tmux could not start it"; unseat "$i"; failed=$((failed+1)); continue; fi
-    echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]}"; resumed=$((resumed+1))
+    if ! launch "$i"; then echo "FAILED $seat: $LAUNCH_WHY"; unseat "$i"; failed=$((failed+1)); continue; fi
+    echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]} at $(TZ=UTC date -r "$since" +%Y-%m-%dT%H:%M:%SZ)"; resumed=$((resumed+1))
     if [ "${P_HARNESS[$i]}" = codex ] && [ $proved_codex -eq 0 ]; then
       prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
       proved_codex=1

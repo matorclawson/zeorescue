@@ -13,10 +13,10 @@ cat > "$T/bin/tmux" <<S
 #!/bin/bash
 echo "\$*" >> "$T/tmux.log"
 case "\$3" in
-  has-session) grep -qxF "\${5#=}" "$T/live" 2>/dev/null ;;
-  new-session) printf '%s\n' "\$*" >> "$T/launched"; echo "\$6" >> "$T/live" ;;
+  has-session) c="$T/has.\${5#=}"; n=\$(( \$(cat "\$c" 2>/dev/null || echo 0) + 1 )); echo "\$n" > "\$c"; [ "\$n" -ne 2 ] || [ ! -f "$T/onhas2" ] || bash "$T/onhas2"; grep -qxF "\${5#=}" "$T/live" 2>/dev/null ;;
+  new-session) if [ -f "$T/newsess-taken" ]; then echo "\$6" >> "$T/live"; exit 1; fi; printf '%s\n' "\$*" >> "$T/launched"; echo "\$6" >> "$T/live" ;;
   list-panes)  s=\${6#=}; if grep -q "^\$s|" "$T/panes" 2>/dev/null; then grep "^\$s|" "$T/panes" | cut -d'|' -f2-; else echo "%\$s|9|1|sleep"; fi ;;
-  set-option)  printf '%s\n' "\$*" >> "$T/opts" ;;
+  set-option)  [ ! -f "$T/optfail" ] || exit 1; printf '%s\n' "\$*" >> "$T/opts" ;;
   show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) cat "$T/screen" 2>/dev/null ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
@@ -211,9 +211,10 @@ printf 'export ZEO_TMUX_SEAT=inactive\nexport ZMAIL_INSTANCE=cx\nexport GIT_ALLO
 grep -q 'STOPPED: cx lacks marker master' <<< "$(R --apply --seat cx 2>&1)" && ok "a missing marker stops the run" || bad "marker gate"
 reset_live; rm -f "$T/snapwrite"
 grep -q 'STOPPED: no shell snapshot for cx' <<< "$(R --apply --seat cx 2>&1)" && ok "no snapshot stops the run" || bad "no snapshot gate"
-reset_live; printf 'ZMAIL_INSTANCE=other-seat HOME=/x' > "$T/psE.out"
+# the gate runs above killed the sessions they made; the stub keeps their fake processes, which a real kill would have ended
+reset_live; : > "$T/ps.out"; printf 'ZMAIL_INSTANCE=other-seat HOME=/x' > "$T/psE.out"
 grep -q 'STOPPED: cl did not get its own identity' <<< "$(R --apply --seat cl 2>&1)" && ok "a claude seat with another identity stops the run" || bad "claude gate"
-reset_live; printf 'ZEO_TMUX_SEAT=inactive ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=file HOME=/x' > "$T/psE.out"
+reset_live; : > "$T/ps.out"; printf 'ZEO_TMUX_SEAT=inactive ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=file HOME=/x' > "$T/psE.out"
 grep -q 'STOPPED: cl lacks marker master' <<< "$(R --apply --seat cl 2>&1)" && ok "a claude seat without its marker stops the run" || bad "claude marker gate"
 
 : > "$T/psE.out"
@@ -255,6 +256,44 @@ echo "$out" | grep -q '^OK cxn: started by rescue' && ok "a seat rescue started 
 sed -i '' 's/^800 x$/801 x/' "$T/ps.out"
 out=$(R --reseat --seat cx --stagger 0 2>&1); echo "$out" | grep -q '^UNRESOLVED cx: no pane in cx-maintainer holds' && ok "a seat whose pane does not hold its thread is not touched" || bad "no holder: $out"
 { echo "800 /x/codex resume 44444444-4444-4444-8444-444444444444"; } > "$T/ps.out"
+echo "-- one --apply at a time, and a run kills only a session it made"
+mkdir -p "$T/keep"; for f in ps.out psE.out lsof.out; do cp "$T/$f" "$T/keep/$f" 2>/dev/null || : > "$T/keep/$f"; done # put back below
+LK=$T/state/apply.lock; ME="$$ $(/bin/ps -o lstart= -p $$ | sed -e 's/^ *//' -e 's/ *$//')"
+CLE='ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=acct ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x'
+reset_live; : > "$T/ps.out"; printf '%s' "$CLE" > "$T/psE.out"; mkdir "$LK"; echo "$ME" > "$LK/holder"
+out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q "^LOCKED, nothing was done: another rescue --apply is running (pid $$, " && [ ! -s "$T/launched" ] && [ "$(cat "$LK/holder")" = "$ME" ] && ok "a second --apply refuses while the first holds the lock, and starts nothing" || bad "lock: $rc $out"
+echo "$(R --seat cl 2>&1)" | grep -q '^RESUME cl' && ok "a plan, which starts nothing, still runs beside it" || bad "plan under lock"
+out=$(R --apply --break-stale-lock --seat cl 2>&1); [ $? -eq 1 ] && echo "$out" | grep -q '^LOCKED, nothing' && [ "$(cat "$LK/holder")" = "$ME" ] && ok "--break-stale-lock never breaks a lock whose holder runs" || bad "break live: $out"
+echo "999999 Thu Jan  1 00:00:00 2026" > "$LK/holder"
+out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^STALE LOCK, nothing was done: .* names pid 999999 .*--break-stale-lock' && [ ! -s "$T/launched" ] && [ -d "$LK" ] && ok "a lock whose holder is gone is reported and refused, never broken silently" || bad "stale: $rc $out"
+R --seat cl --break-stale-lock >/dev/null 2>&1; [ $? -eq 2 ] && ok "--break-stale-lock goes only with --apply" || bad "break usage"
+rm -f "$T"/has.*; printf 'cp "%s" "%s"\n' "$LK/holder" "$T/held" > "$T/onhas2"
+out=$(R --apply --break-stale-lock --seat cl 2>&1); rm -f "$T/onhas2"
+echo "$out" | grep -q '^STALE LOCK BROKEN: pid 999999 ' && echo "$out" | grep -q '^RESUMED cl: .* at [0-9]\{4\}-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$' && ls -d "$LK".stale-* >/dev/null 2>&1 \
+  && ok "--break-stale-lock breaks exactly that lock, keeps it aside, and the run goes on; RESUMED says when the seat was started" || bad "break: $out"
+h=$(cut -d' ' -f1 "$T/held" 2>/dev/null); [ -n "$h" ] && [ "$h" != 999999 ] && [ "$h" != $$ ] && [ ! -e "$LK" ] && ok "the run held its own lock while it started the seat, and let it go at the end" || bad "held: $(cat "$T/held" 2>/dev/null) $(ls "$T/state")"
+reset_live; : > "$T/ps.out"; rm -f "$T"/has.*; touch "$T/newsess-taken"
+out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/newsess-taken"
+[ $rc -eq 1 ] && echo "$out" | grep -q '^FAILED cl: its session cl-maintainer exists already: something else started it after the check, and it is left alone' && ! grep -q kill-session "$T/tmux.log" \
+  && ok "a session that exists when the run starts the seat is not the run's own, so it is never killed" || bad "taken: $rc $out $(grep kill "$T/tmux.log")"
+reset_live; : > "$T/ps.out"; touch "$T/optfail"
+out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/optfail"
+[ $rc -eq 1 ] && echo "$out" | grep -q '^FAILED cl: tmux could not start it' && grep -q 'kill-session -t =cl-maintainer' "$T/tmux.log" && ok "a session the run made itself and could not finish is killed, so the next run resumes the seat" || bad "own kill: $rc $out"
+
+echo "-- just before its start a seat is read again: with the stagger the plan is minutes old"
+reset_live; : > "$T/ps.out"; rm -f "$T"/has.*; printf 'echo cl-maintainer >> "%s"\n' "$T/live" > "$T/onhas2"
+out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/onhas2"
+[ $rc -eq 1 ] && echo "$out" | grep -q '^FAILED cl: its session cl-maintainer appeared after the plan' && ! grep -qE 'new-session|kill-session' "$T/tmux.log" && ok "a session that appeared after the plan is left alone: not started again, not killed" || bad "appeared: $rc $out"
+reset_live; : > "$T/ps.out"; rm -f "$T"/has.*; printf 'echo "4242 claude" > "%s"; printf "p4242\\nfcwd\\nn%s\\n" > "%s"\n' "$T/ps.out" "$T/w/cl" "$T/lsof.out" > "$T/onhas2"
+out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/onhas2"; : > "$T/ps.out"; : > "$T/lsof.out"
+[ $rc -eq 1 ] && echo "$out" | grep -q "^FAILED cl: a claude process runs in $T/w/cl now" && ! grep -q new-session "$T/tmux.log" && ok "so is a seat whose harness started in its folder after the plan" || bad "running now: $rc $out"
+reset_live; printf '9 /x/claude --resume 22222222-2222-4222-8222-222222222222\n' > "$T/ps.out"
+out=$(R --apply --seat cl 2>&1); rc=$?; : > "$T/ps.out"
+[ $rc -eq 1 ] && echo "$out" | grep -q '^FAILED cl: a process holds its session 22222222-2222-4222-8222-222222222222 now' && ! grep -q new-session "$T/tmux.log" && ok "and so is a seat whose session a process holds at its start" || bad "held now: $rc $out"
+for f in ps.out psE.out lsof.out; do cp "$T/keep/$f" "$T/$f"; done; reset_live
+
 echo "-- a stuck process and the daemon"
 reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
 out=$(R --reseat --apply --seat cx 2>&1); rc=$?
@@ -738,23 +777,34 @@ rm -f "$T/state/ORG-CHART.last-good.json"; R --chart "$T/gone.json" >/dev/null 2
 "$HERE/rescue.sh" --socket '../x' >/dev/null 2>&1; [ $? -eq 2 ] && ok "a bad socket name is usage" || bad "bad socket"
 "$HERE/rescue.sh" --check --apply >/dev/null 2>&1; [ $? -eq 2 ] && ok "--check never combines with --apply" || bad "check apply"
 
-echo "-- model-answered.sh: an answer, not a process, proves a restart"
+echo "-- model-answered.sh: an answer from the model after the seat's own start, not a process, proves a restart"
 MA=$T/ma; mkdir -p "$MA/s/2026/11/10" "$MA/p/-k"
 MR() { ZEO_RESCUE_CODEX_SESSIONS="$MA/s" ZEO_RESCUE_PROJECTS="$MA/p" ZEO_RESCUE_ANSWER_PAUSE=0 "$HERE/model-answered.sh" "$@" 2>&1; }
-printf 'RESUMED cxa: codex aaaa-1 (x) in a\nRESUMED cxe: codex aaaa-2 (x) in e\nRESUMED cla: claude bbbb-1 (x) in c\n' > "$MA/run.log"
+AT=' at 2050-01-01T00:00:00Z' CL='"model":"claude-test"'
+printf 'RESUMED cxa: codex aaaa-1 (x) in a%s\nRESUMED cxe: codex aaaa-2 (x) in e%s\nRESUMED cla: claude bbbb-1 (x) in c%s\n' "$AT" "$AT" "$AT" > "$MA/run.log"
 printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"response_item","payload":{"type":"message","role":"assistant"}}\n' > "$MA/s/2026/11/10/rollout-2026-11-10T00-00-00-aaaa-1.jsonl"
-printf '{"timestamp":"2000-01-01T00:00:00.000Z","type":"response_item","payload":{"type":"message","role":"assistant"}}\n{"timestamp":"2099-01-01T00:00:01.000Z","type":"event_msg","payload":{"type":"task_complete","error":{"message":"Error running remote compact task: {\\"type\\":\\"error\\",\\"status\\":400,\\"error\\":{\\"message\\":\\"The \x27gpt-6.1-sol\x27 model requires a newer version of Codex.\\"}}"}}}\n' > "$MA/s/2026/11/10/rollout-2026-11-10T00-00-00-aaaa-2.jsonl"
-printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","message":{}}\n' > "$MA/p/-k/bbbb-1.jsonl"
+printf '{"timestamp":"2000-01-01T00:00:00.000Z","type":"response_item","payload":{"type":"message","role":"assistant"}}\n{"timestamp":"2099-01-01T00:00:01.000Z","type":"event_msg","payload":{"type":"task_complete","error":{"message":"Error running remote compact task: {\\"detail\\":\\"The \x27gpt-6.1-sol\x27 model requires a newer version of Codex.\\"}"}}}\n' > "$MA/s/2026/11/10/rollout-2026-11-10T00-00-00-aaaa-2.jsonl"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","message":{%s}}\n' "$CL" > "$MA/p/-k/bbbb-1.jsonl"
 out=$(MR "$MA/run.log"); rc=$?
-echo "$out" | grep -qxF 'ANSWERED cxa (codex)' && echo "$out" | grep -qxF 'ANSWERED cla (claude)' && ok "an assistant message after the restart is an answer, for both harnesses" || bad "answered: $out"
-echo "$out" | grep -qxF "ERROR cxe (codex): The 'gpt-6.1-sol' model requires a newer version of Codex." && [ $rc -eq 1 ] && ok "a turn that ended in an error is shown, an answer from before the restart does not count, and it exits 1" || bad "error: $rc $out"
-printf '{"timestamp":"2000-01-01T00:00:00.000Z","type":"assistant","message":{}}\n' > "$MA/p/-k/bbbb-1.jsonl"; printf 'RESUMED cla: claude bbbb-1 (x) in c\n' > "$MA/one.log"
-out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -qxF 'WAITING cla (claude)' && ok "no record since the restart is WAITING, exit 2" || bad "waiting: $rc $out"
-printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","isApiErrorMessage":true,"message":{"content":[{"text":"API Error: 400"}]}}\n' >> "$MA/p/-k/bbbb-1.jsonl"
+echo "$out" | grep -qxF 'ANSWERED cxa (codex)' && echo "$out" | grep -qxF 'ANSWERED cla (claude)' && ok "an assistant message after the seat's start is an answer, for both harnesses" || bad "answered: $out"
+echo "$out" | grep -qxF "ERROR cxe (codex): The 'gpt-6.1-sol' model requires a newer version of Codex." && [ $rc -eq 1 ] && ok "a turn that ended in an error is shown, an answer from before the start does not count, and it exits 1" || bad "error: $rc $out"
+printf 'RESUMED cla: claude bbbb-1 (x) in c%s\n' "$AT" > "$MA/one.log"
+printf '{"timestamp":"2050-01-01T00:00:00.900Z","type":"assistant","message":{%s}}\n' "$CL" > "$MA/p/-k/bbbb-1.jsonl"
+out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -qxF 'WAITING cla (claude)' && ok "a record in the start's own second is not taken for an answer: the old process may have written it" || bad "same second: $rc $out"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","message":{"model":"<synthetic>","content":[{"text":"No response requested."}]}}\n' > "$MA/p/-k/bbbb-1.jsonl"
+out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 2 ] && echo "$out" | grep -qxF 'WAITING cla (claude)' && ok "Claude's own synthetic message is not an answer from the model" || bad "synthetic: $rc $out"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","isApiErrorMessage":true,"message":{"model":"<synthetic>","content":[{"text":"API Error: 400"}]}}\n' > "$MA/p/-k/bbbb-1.jsonl"
 out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 1 ] && echo "$out" | grep -q '^ERROR cla (claude)' && ok "a Claude API error message is an ERROR, not an answer" || bad "claude api error: $rc $out"
-printf 'RESUMED gone: codex cccc-9 (x) in g\n' > "$MA/gone.log"; out=$(MR "$MA/gone.log"); rc=$?
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","message":{%s}}\n{"timestamp":"2099-01-01T00:00:09.000Z","type":"assistant","isApiErrorMessage":true,"message":{"model":"<synthetic>","content":[{"text":"API Error: 401"}]}}\n' "$CL" > "$MA/p/-k/bbbb-1.jsonl"
+out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 1 ] && echo "$out" | grep -q '^ERROR cla (claude)' && ok "an error after an answer wins: the newest verdict counts" || bad "later error: $rc $out"
+printf '{"timestamp":"2099-01-01T00:00:01.000Z","type":"assistant","isApiErrorMessage":true,"message":{"model":"<synthetic>"}}\n{"timestamp":"2099-01-01T00:00:09.000Z","type":"assistant","message":{%s}}\n' "$CL" > "$MA/p/-k/bbbb-1.jsonl"
+out=$(MR "$MA/one.log"); rc=$?; [ $rc -eq 0 ] && echo "$out" | grep -qxF 'ANSWERED cla (claude)' && ok "and an answer after an error wins too" || bad "later answer: $rc $out"
+printf 'RESUMED cla: claude bbbb-1 (x) in c%s\nSTOPPED: cla: its process says another session; no other seat was started\n' "$AT" > "$MA/stop.log"
+out=$(MR "$MA/stop.log"); rc=$?; [ $rc -eq 1 ] && echo "$out" | grep -q '^STOPPED cla (claude): the run stopped it again' && ! echo "$out" | grep -q '^ANSWERED' && ok "a seat the run stopped again after its start is STOPPED, not ANSWERED, and exits 1" || bad "stopped: $rc $out"
+printf 'RESUMED cla: claude bbbb-1 (x) in c\n' > "$MA/old.log"; out=$(MR "$MA/old.log"); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q '^NO START TIME cla' && ! echo "$out" | grep -q '^ANSWERED' && ok "a RESUMED line with no start time is never judged" || bad "no time: $rc $out"
+printf 'RESUMED gone: codex cccc-9 (x) in g%s\n' "$AT" > "$MA/gone.log"; out=$(MR "$MA/gone.log"); rc=$?
 [ $rc -eq 3 ] && echo "$out" | grep -q '^NO RECORD gone' && ok "a seat with no record found exits 3" || bad "no record: $rc $out"
 printf 'OK x: started by rescue, right already\n' > "$MA/none.log"; out=$(MR "$MA/none.log"); rc=$?
 [ $rc -eq 0 ] && echo "$out" | grep -q 'no answer to wait for' && ok "a run that restarted nothing has nothing to wait for" || bad "none: $rc $out"
-
 echo; [ $fails -eq 0 ] && echo "PASS" || { echo "$fails FAILED"; exit 1; }
