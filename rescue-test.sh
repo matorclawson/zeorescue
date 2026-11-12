@@ -37,9 +37,9 @@ exit 0
 S
 cat > "$T/bin/lsof" <<S
 #!/bin/bash
-# A failure, when a test asks for one: exit with the status on the first line of the file, its other lines on stderr, nothing on stdout.
-case " \$* " in *" -t "*) f="$T/lsof.fail-t";; *" -Fpn "*) f="$T/lsof.fail-cwd";; *) f="";; esac
-if [ -n "\$f" ] && [ -f "\$f" ]; then sed -n "2,\\\$p" "\$f" >&2; exit "\$(head -1 "\$f")"; fi
+# A failure, when a test asks for one: exit with the status on the first line of the file, its other lines on stderr, and on stdout only what FILE.out holds.
+case " \$* " in *" -d cwd -Fn -p "*) f="$T/lsof.fail-run";; *" -t "*) f="$T/lsof.fail-t";; *" -Fpn "*) f="$T/lsof.fail-cwd";; *) f="";; esac
+if [ -n "\$f" ] && [ -f "\$f" ]; then [ ! -f "\$f.out" ] || cat "\$f.out"; sed -n "2,\\\$p" "\$f" >&2; exit "\$(head -1 "\$f")"; fi
 case "\$1" in -p) cat "$T/lsof.txt" 2>/dev/null ;; -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; -Fn) cat "$T/lsof.daemon" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
 S
 cat > "$T/bin/kill" <<S
@@ -292,6 +292,26 @@ out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/onhas2"; : > "$T/ps.out"; : > 
 reset_live; printf '9 /x/claude --resume 22222222-2222-4222-8222-222222222222\n' > "$T/ps.out"
 out=$(R --apply --seat cl 2>&1); rc=$?; : > "$T/ps.out"
 [ $rc -eq 1 ] && echo "$out" | grep -q '^FAILED cl: a process holds its session 22222222-2222-4222-8222-222222222222 now' && ! grep -q new-session "$T/tmux.log" && ok "and so is a seat whose session a process holds at its start" || bad "held now: $rc $out"
+echo "-- whether a harness works in a seat's folder: lsof's answer counts, never its silence or its failure"
+# a live Claude is in cl's folder; lsof cannot say so
+for f in '1' '1\nlsof: can not read a process' '2'; do
+  reset_live; echo "4242 claude" > "$T/ps.out"; printf "$f\n" > "$T/lsof.fail-run"
+  out=$(R --apply --seat cl 2>&1); rc=$?; w=$(printf "$f" | sed -n 2p)
+  [ $rc -eq 3 ] && echo "$out" | grep -qF "UNRESOLVED cl: could not tell whether a process runs in $T/w/cl (lsof exited $(printf "$f" | head -1) with no output${w:+: $w}), so it is not started this run" && ! grep -q new-session "$T/tmux.log" \
+    && ok "a live Claude with lsof exiting $(printf "$f" | head -1) and no output${w:+, with stderr} is never doubled: no start" || bad "run fail $f: $rc $out"
+done
+reset_live; echo "4242 claude" > "$T/ps.out"; printf '1\n' > "$T/lsof.fail-run"; printf 'p4242\nfcwd\nn%s\n' "$T/w/cl" > "$T/lsof.fail-run.out"
+echo "$(R --seat cl 2>&1)" | grep -q "^RUNNING cl: a claude process is in $T/w/cl" && ok "lsof's exit 1 with output (a listed pid just exited) still answers: the seat is RUNNING" || bad "just exited, here"
+printf 'p4242\nfcwd\nn/elsewhere\n' > "$T/lsof.fail-run.out"
+echo "$(R --seat cl 2>&1)" | grep -q '^RESUME cl' && ok "and when that answer puts the process elsewhere, the seat is planned" || bad "just exited, elsewhere"
+rm -f "$T/lsof.fail-run" "$T/lsof.fail-run.out"
+reset_live; echo "4343 codex" > "$T/ps.out"; printf 'p4343\nfcwd\nn%s\n' "$T/w/cl" > "$T/lsof.out"
+out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q "^FAILED cl: a claude or codex process works in $T/w/cl just before the start; it was not started" && ! grep -q new-session "$T/tmux.log" && ok "the last check before a Claude start finds any harness in its folder, Codex too: no start" || bad "final guard: $rc $out"
+reset_live; printf '1\nlsof: can not read a process\n' > "$T/lsof.fail-run"
+out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/lsof.fail-run"
+[ $rc -eq 1 ] && echo "$out" | grep -qF "FAILED cl: whether a claude or codex process works in $T/w/cl cannot be read just before the start (lsof exited 1 with no output: lsof: can not read a process); it was not started" && ! grep -q new-session "$T/tmux.log" && ok "and if lsof cannot say, there is no start either" || bad "final guard fail: $rc $out"
+: > "$T/ps.out"; : > "$T/lsof.out"
 for f in ps.out psE.out lsof.out; do cp "$T/keep/$f" "$T/$f"; done; reset_live
 
 echo "-- a stuck process and the daemon"

@@ -215,13 +215,23 @@ fi
 
 PSOUT=$("$PS_BIN" -axo pid=,command=) || { echo "rescue: ps failed" >&2; exit 1; }
 ps_line() { printf '%s\n' "$PSOUT" | awk -v p="$1" '$1==p'; }
-running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell
-  local pids
-  pids=$(printf '%s\n' "$PSOUT" | awk -v h="$1" '{n=split($2,p,"/"); if (p[n]==h || $2 ~ ("/" h "/versions/")) print $1}' | paste -sd, -)
+RUN_ERR=""
+running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell (RUN_ERR says why). HARNESS is claude, codex, or any for both.
+  # lsof's answer is used on exit 0, and on exit 1 with output: lsof -p exits 1 when one listed pid has just exited, and still prints
+  # the others. Exit 1 with no output, or any other exit, is "could not tell", never "nobody here": a seat that is really empty is
+  # picked up by the next run, and a live seat is never started twice. lsof's stderr is kept, and its first line goes into RUN_ERR.
+  local pids e out rc
+  RUN_ERR=""
+  pids=$(printf '%s\n' "$PSOUT" | awk -v h="$1" '{n=split($2,p,"/"); b=p[n]
+    if (h == "any") { if (b == "claude" || b == "codex" || $2 ~ /\/(claude|codex)\/versions\//) print $1 }
+    else if (b == h || $2 ~ ("/" h "/versions/")) print $1 }' | paste -sd, -)
   [ -n "$pids" ] || return 1
-  local out rc; out=$("$LSOF" -a -d cwd -Fn -p "$pids" 2>/dev/null); rc=$?
-  [ $rc -le 1 ] || return 2
-  printf '%s\n' "$out" | grep -xF "n$2" >/dev/null
+  e=$(mktemp "${TMPDIR:-/tmp}/zeo-lsof.XXXXXX") || { RUN_ERR="could not make a file for lsof's errors"; return 2; }
+  out=$("$LSOF" -a -d cwd -Fn -p "$pids" 2>"$e"); rc=$?
+  RUN_ERR=$(head -n 1 "$e"); rm -f "$e"
+  if [ $rc -eq 0 ] || { [ $rc -eq 1 ] && [ -n "$out" ]; }; then RUN_ERR=""; printf '%s\n' "$out" | grep -xF "n$2" >/dev/null; return $?; fi
+  RUN_ERR="lsof exited $rc$( [ -n "$out" ] || printf ' with no output')${RUN_ERR:+: $RUN_ERR}"
+  return 2
 }
 holds() { # holds SID: does a harness process hold this session? 0 yes, 1 no, 2 the process list could not be read.
   # Only harness binaries count: a tmux server keeps the command line of its first client as its title, for life.
@@ -729,7 +739,7 @@ still_free() { # still_free INDEX: the plan read every seat at the start of the 
   PSOUT=$("$PS_BIN" -axo pid=,command=) || { WHY="the process list cannot be read just before the start"; return 1; }
   running_in "${P_HARNESS[$i]}" "${P_CWD[$i]}"; rc=$?
   [ $rc -ne 0 ] || { WHY="a ${P_HARNESS[$i]} process runs in ${P_CWD[$i]} now, which the plan did not see; it is left alone"; return 1; }
-  [ $rc -eq 1 ] || { WHY="whether a process runs in ${P_CWD[$i]} cannot be read just before the start"; return 1; }
+  [ $rc -eq 1 ] || { WHY="whether a process runs in ${P_CWD[$i]} cannot be read just before the start ($RUN_ERR)"; return 1; }
 }
 launch() { # launch INDEX: the marker goes on before any shell starts
   local i=$1 seat=${P_SEAT[$1]} sess=${P_SESS[$1]} cwd=${P_CWD[$1]} harness=${P_HARNESS[$1]} sid=${P_SID[$1]} mark=${P_MARK[$1]} pane=${P_PANE[$1]} pf
@@ -850,7 +860,7 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   [ -z "$CARRY" ] || { echo "UNRESOLVED $seat: it is down, and a carry moves only a seat this run stops itself"; unresolved=$((unresolved+1)); continue; }
   running_in "$harness" "$cwd"; rc=$?
   [ $rc -eq 0 ] && { echo "RUNNING $seat: a $harness process is in $cwd"; running=$((running+1)); continue; }
-  [ $rc -eq 2 ] && { echo "UNRESOLVED $seat: could not tell whether a process runs in $cwd"; unresolved=$((unresolved+1)); continue; }
+  [ $rc -eq 2 ] && { echo "UNRESOLVED $seat: could not tell whether a process runs in $cwd ($RUN_ERR), so it is not started this run"; unresolved=$((unresolved+1)); continue; }
   [ -d "$cwd" ] || { echo "UNRESOLVED $seat: no directory $cwd"; unresolved=$((unresolved+1)); continue; }
   if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
   if ! marker_of "$harness" "$SID" "$seat"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
@@ -888,6 +898,12 @@ if [ $APPLY -eq 1 ]; then
     if [ "${P_HARNESS[$i]}" = claude ] && [ -n "${P_OLD[$i]}" ]; then
       if ! move_project "${P_OLD[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then echo "FAILED $seat: $WHY; it was not started"; failed=$((failed+1)); continue; fi
       claude_size=$(stat -f %z "$PROJECTS/$(project_key "${P_CWD[$i]}")/${P_SID[$i]}.jsonl")
+    fi
+    if [ "${P_HARNESS[$i]}" = claude ]; then # the last word before a Claude start: no claude or codex process may work in its folder
+      if ! PSOUT=$("$PS_BIN" -axo pid=,command=); then echo "FAILED $seat: the process list cannot be read just before the start; it was not started"; failed=$((failed+1)); continue; fi
+      running_in any "${P_CWD[$i]}"; rc=$?
+      if [ $rc -eq 0 ]; then echo "FAILED $seat: a claude or codex process works in ${P_CWD[$i]} just before the start; it was not started"; failed=$((failed+1)); continue; fi
+      if [ $rc -ne 1 ]; then echo "FAILED $seat: whether a claude or codex process works in ${P_CWD[$i]} cannot be read just before the start ($RUN_ERR); it was not started"; failed=$((failed+1)); continue; fi
     fi
     since=$(date +%s)
     if ! launch "$i"; then echo "FAILED $seat: $LAUNCH_WHY"; unseat "$i"; failed=$((failed+1)); continue; fi
