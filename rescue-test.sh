@@ -30,12 +30,16 @@ cat > "$T/bin/ps" <<S
 #!/bin/bash
 case "\$1" in
   -Ewwp) if [ -s "$T/psE.out" ]; then cat "$T/psE.out"; else echo "$GOOD"; fi ;;
+  -axo) [ ! -f "$T/ps.fail" ] || exit 2; cat "$T/ps.out" 2>/dev/null ;;
   *) cat "$T/ps.out" 2>/dev/null ;;
 esac
 exit 0
 S
 cat > "$T/bin/lsof" <<S
 #!/bin/bash
+# A failure, when a test asks for one: exit with the status on the first line of the file, its other lines on stderr, nothing on stdout.
+case " \$* " in *" -t "*) f="$T/lsof.fail-t";; *" -Fpn "*) f="$T/lsof.fail-cwd";; *) f="";; esac
+if [ -n "\$f" ] && [ -f "\$f" ]; then sed -n "2,\\\$p" "\$f" >&2; exit "\$(head -1 "\$f")"; fi
 case "\$1" in -p) cat "$T/lsof.txt" 2>/dev/null ;; -t) echo "\$*" >> "$T/lsof.args"; if [ -f "$T/heldlate" ]; then rm -f "$T/heldlate"; else cat "$T/lsof.held" 2>/dev/null; fi ;; -Fn) cat "$T/lsof.daemon" 2>/dev/null ;; *) cat "$T/lsof.out" 2>/dev/null ;; esac
 S
 cat > "$T/bin/kill" <<S
@@ -100,17 +104,19 @@ export ZEO_RESCUE_PINS="$T/no-pins" ZEO_RESCUE_STATE="$T/state" ZEO_RESCUE_PROJE
   ZEO_RESCUE_SQLITE="$T/bin/sqlite3" ZEO_RESCUE_PS="$T/bin/ps" ZEO_RESCUE_LSOF="$T/bin/lsof" ZEO_RESCUE_KILL="$T/bin/kill" ZEO_RESCUE_CLAUDE=/x/claude ZEO_RESCUE_CODEX=/x/codex \
   ZEO_RESCUE_PROOF_TRIES=2 ZEO_RESCUE_PROOF_PAUSE=0 ZEO_RESCUE_STOP_TRIES=2 ZEO_RESCUE_DAEMON_WAIT=0
 : > "$T/db" # the stub answers the SQL; the database file is only copied (db_read)
+# The per-seat git markers the Architect would name for seats whose snapshots record none (every Claude seat): nothing defaults.
+printf 'cl master\ncxw inactive\ncxn master\nka master\n' > "$T/state/seat-markers"
 R() { "$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart.json" "$@"; }
 
 echo "-- the plan"
 out=$(R 2>&1); rc=$?
 [ ! -e "$T/launched" ] && ok "a plan starts nothing" || bad "a plan started something"
 [ $rc -eq 3 ] && ok "UNRESOLVED seats exit 3" || bad "exit $rc, want 3"
-echo "$out" | grep -q '^RESUME cl: claude 22222222-2222-4222-8222-222222222222 (--permission-mode auto; marker master, no record, default) in cl-maintainer' && ok "newest transcript, its recorded mode, the chart's session label" || bad "claude plan: $out"
+echo "$out" | grep -q '^RESUME cl: claude 22222222-2222-4222-8222-222222222222 (--permission-mode auto; marker master, named in seat-markers) in cl-maintainer' && ok "newest transcript, its recorded mode, the chart's session label, the marker its seat-markers line names" || bad "claude plan: $out"
 echo "$out" | grep -q '^RESUME cx: codex 44444444-4444-4444-8444-444444444444 (-a never -s danger-full-access; marker master, recorded)' && ok "a codex seat gets its own recorded mode and marker" || bad "codex plan: $out"
-echo "$out" | grep -q '^RESUME cxw: codex 55555555-5555-4555-8555-555555555555 (-a never -s workspace-write; no marker, no record, workspace-write)' && ok "a workspace-write seat with no record gets no marker" || bad "workspace-write: $out"
+echo "$out" | grep -q '^RESUME cxw: codex 55555555-5555-4555-8555-555555555555 (-a never -s workspace-write; no marker, named inactive in seat-markers)' && ok "a seat named inactive in seat-markers gets no marker" || bad "workspace-write: $out"
 echo "$out" | grep -q '^RESUME cxi: .*no marker, recorded inactive' && ok "a seat recorded inactive stays inactive" || bad "inactive: $out"
-echo "$out" | grep -q '^RESUME cxn: .*marker master, no record, default' && ok "a full-access seat with no record gets the default" || bad "default: $out"
+echo "$out" | grep -q '^RESUME cxn: .*marker master, named in seat-markers' && ok "a seat with no snapshot record gets the marker its seat-markers line names" || bad "default: $out"
 echo "$out" | grep -q '^UNRESOLVED nomode: transcript records no permission mode' && ok "no recorded mode is UNRESOLVED, never a default" || bad "no-mode seat"
 echo "$out" | grep -q '^UNRESOLVED alias: mailbox is other' && ok "a mailbox that is not the seat id is not guessed" || bad "alias"
 echo "$out" | grep -q '^UNRESOLVED nothread: no Codex thread' && ok "no thread is UNRESOLVED" || bad "no thread"
@@ -118,6 +124,23 @@ echo "$out" | grep -q 'elsewhere' && bad "another host's seat was planned" || ok
 echo "$out" | grep -q 'disposable' && bad "a seat with no agent was planned" || ok "a seat with no agent is left out"
 echo "$out" | grep -q 'zeo-rescue' && bad "the rescue seat planned itself" || ok "the rescue seat never starts itself"
 [ -f "$T/state/ORG-CHART.last-good.json" ] && ok "the last good chart is kept" || bad "no last good chart"
+
+echo "-- the git marker is the seat's own record or its explicit line, never a default"
+MK() { ZEO_RESCUE_MARKERS="$1" R "${@:2}" 2>&1; }
+out=$(MK "$T/no-markers" --seat cl); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q '^UNRESOLVED cl: no recorded git marker' && ! echo "$out" | grep -q '^RESUME cl' && ok "a Claude seat with no seat-markers line is UNRESOLVED, not given master" || bad "no marker line: $rc $out"
+n0=$(cat "$T/launched" 2>/dev/null | wc -l | tr -d ' '); out=$(MK "$T/no-markers" --apply --seat cl); rc=$?
+[ $rc -eq 3 ] && [ "$(cat "$T/launched" 2>/dev/null | wc -l | tr -d ' ')" = "$n0" ] && ! grep -q 'set-option.*@zeo_seat' "$T/opts" 2>/dev/null && ok "and --apply starts nothing and sets no marker for it" || bad "no marker apply: $rc $out"
+out=$(MK "$T/no-markers" --seat cxw); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q '^UNRESOLVED cxw: no recorded git marker' && ok "a workspace-write sandbox is not taken as a marker either" || bad "sandbox inferred: $rc $out"
+printf 'cl admin\n' > "$T/bad-markers"; out=$(MK "$T/bad-markers" --seat cl)
+echo "$out" | grep -q "^UNRESOLVED cl: its line in .* names 'admin'" && ok "an unknown marker in seat-markers is UNRESOLVED" || bad "bad marker: $out"
+printf 'cl master extra\n' > "$T/bad-markers"; out=$(MK "$T/bad-markers" --seat cl)
+echo "$out" | grep -q "^UNRESOLVED cl: its line in .* names 'master ?'" && ok "so is a line with more than a seat and a marker" || bad "long line: $out"
+printf 'cl master\ncl inactive\n' > "$T/bad-markers"; out=$(MK "$T/bad-markers" --seat cl)
+echo "$out" | grep -q '^UNRESOLVED cl: more than one line for it' && ok "two lines for one seat are UNRESOLVED" || bad "two lines: $out"
+printf 'cx inactive\n' > "$T/bad-markers"; out=$(MK "$T/bad-markers" --seat cx)
+echo "$out" | grep -q '^RESUME cx: .*marker master, recorded' && ok "the seat's own snapshot record comes before its seat-markers line" || bad "snapshot first: $out"
 
 echo "-- naming the session"
 grep -q '^RESUME cl: claude 11111111-1111-4111-8111-111111111111 (--permission-mode plan' <<< "$(R --seat cl --session 11111111-1111-4111-8111-111111111111 2>&1)" && ok "--session beats the newest transcript, with that session's own mode" || bad "--session"
@@ -242,7 +265,7 @@ cat > "$T/bin/ps" <<S
 #!/bin/bash
 case "\$1" in
   -Ewwp) if [ -s "$T/psE.out" ]; then cat "$T/psE.out"; else echo "$GOOD"; fi; exit 0;;
-  -axo) case "\$2" in *ppid*) cat "$T/ps.tree" 2>/dev/null; exit 0;; esac ;;
+  -axo) [ ! -f "$T/ps.fail" ] || exit 2; case "\$2" in *ppid*) cat "$T/ps.tree" 2>/dev/null; exit 0;; esac ;;
 esac
 if [ -f "$T/ps.seen" ]; then cat "$T/ps.after"; else touch "$T/ps.seen"; cat "$T/ps.out"; fi
 exit 0
@@ -295,6 +318,21 @@ rm -f "$T/ps.seen"; reset_live
 out=$(R --apply --seat cx 2>&1)
 echo "$out" | grep -q '^FAILED cx: pid 900 still holds' && ! grep -q new-session "$T/launched" && ok "a dead seat is held to the same test" || bad "held dead seat: $out"
 rm -f "$T/lsof.held" "$T/ps.seen"
+
+echo "-- an inspection that fails is never read as idle: no start, no carry"
+# lsof's exit 1 with nothing anywhere is its own "no match"; any other exit, or anything on stderr, is a failed question.
+for f in '2' '1\nlsof: status error on the rollout'; do
+  rm -f "$T/ps.seen"; reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
+  printf "$f\n" > "$T/lsof.fail-t"; out=$(R --reseat --apply --seat cx 2>&1); rc=$?
+  echo "$out" | grep -q '^FAILED cx: who holds its rollout cannot be read (lsof exited [12].*), so it was not started' && [ $rc -eq 1 ] && ! grep -q 'seat-exec.sh' "$T/launched" \
+    && ok "an lsof that fails ($(printf "$f" | head -1 | sed 's/^/exit /')) with no holder printed starts nothing" || bad "lsof fail $f: $rc $out"
+done
+rm -f "$T/ps.seen"; reset_live; printf '2\n' > "$T/lsof.fail-t"; out=$(R --apply --seat cx 2>&1)
+echo "$out" | grep -q '^FAILED cx: who holds its rollout cannot be read' && ! grep -q new-session "$T/launched" && ok "a dead seat is held to the same test" || bad "lsof fail dead: $out"
+rm -f "$T/lsof.fail-t" "$T/ps.seen"; reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
+printf 'touch %s\n' "$T/ps.fail" > "$T/onstop"; out=$(R --reseat --apply --seat cx 2>&1); rc=$?
+echo "$out" | grep -q '^FAILED cx: its old process would not stop' && [ $rc -eq 1 ] && ! grep -q 'seat-exec.sh' "$T/launched" && ok "a process list that cannot be read after the stop is not taken as 'nothing holds it'" || bad "ps fail: $rc $out"
+rm -f "$T/onstop" "$T/ps.fail" "$T/ps.seen"
 
 echo "-- a first seat that fails its proof"
 reset_live; echo cx-maintainer >> "$T/live"; echo cxn-s >> "$T/live"
@@ -607,6 +645,11 @@ kreset; git -C "$KF" config zeo.path "$KF/x"; grep -q "^UNRESOLVED ka: its git c
 kreset; mkdir -p "$KPN"; grep -q "^UNRESOLVED ka: $KPN already exists, and two projects are not merged here" <<< "$(KP1)" && ok "a project under the new key is refused" || bad "new key: $(KP1)"
 kreset; mkdir "$KT"; grep -q "^UNRESOLVED ka: $KT is there, but it is not a carried clone with its own .git" <<< "$(KP1)" && ok "a new path that is there but is not the clone is refused" || bad "there: $(KP1)"
 kreset; printf 'p700\nn%s/sub\n' "$KF" >> "$T/lsof.out"; grep -q "^UNRESOLVED ka: pid 700 works in $KF and is not the seat's own" <<< "$(KP1)" && ok "another process working in the clone stops the plan" || bad "holder: $(KP1)"
+kreset; printf '2\n' > "$T/lsof.fail-cwd"; grep -q "^UNRESOLVED ka: which processes work in $KF cannot be read (lsof exited 2), so it is not carried" <<< "$(KP1)" && ok "an lsof that cannot list working folders stops the plan, as a holder would" || bad "cwd fail plan: $(KP1)"; rm -f "$T/lsof.fail-cwd"
+kreset; rm -f "$T/launched"; printf 'printf "1\\nlsof: WARNING: can not stat a mount\\n" > "%s"\n' "$T/lsof.fail-cwd" >> "$T/onstop"; out=$(KR --reseat --relaunch --apply --seat ka); rc=$?
+[ $rc -eq 1 ] && grep -q "^FAILED ka: which processes work in $KF cannot be read (lsof exited 1: lsof: WARNING: can not stat a mount *); nothing was moved; it was not started" <<< "$out" && [ -d "$KF/.git" ] && [ ! -e "$KT" ] && ! grep -q 'seat-exec.sh' "$T/launched" \
+  && ok "and if it fails after the stop, the clone is not carried and the seat is not started" || bad "cwd fail apply: $rc $out"
+rm -f "$T/lsof.fail-cwd"
 kreset; : > "$T/live"; grep -q "^UNRESOLVED ka: it is down, and a carry moves only a seat this run stops itself" <<< "$(KR --seat ka)" && ok "a seat that is down is not carried" || bad "down: $(KR --seat ka)"
 kreset; printf 'kx %s carry\n' "$KB/main" > "$T/kmoves"; echo kx-s >> "$T/live"; echo 'kx-s|%6|9|1|codex' > "$T/panes"; echo "9 /x/codex resume -a never -s danger-full-access -C $KB --no-daemon $KX" > "$T/ps.out"
 grep -q "^UNRESOLVED kx: $KB/main has no trusted entry in $T/kc.toml" <<< "$(KR --reseat --relaunch --seat kx)" && ok "a Codex carry needs its trust entry too, though the folder is not there yet" || bad "codex trust: $(KR --reseat --relaunch --seat kx)"

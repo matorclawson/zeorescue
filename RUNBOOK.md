@@ -17,7 +17,7 @@ Without an agent, the steps below work by hand.
 `tmux -L zeo2 ls` says no server, or far fewer sessions than the org chart has.
 
 1. `make plan`. It starts nothing. Every seat on this host gets one line: `LIVE`, `RUNNING`, `RESUME` or `UNRESOLVED`, with its session, mode and git marker.
-2. Check that each `RESUME` line names the seat's own session. The newest transcript in a directory is assumed to be the seat's. If someone ran another session there, pin the right one in `~/.local/state/zeo-rescue/session-pins`.
+2. Check that each `RESUME` line names the seat's own session. The newest transcript in a directory is assumed to be the seat's. If someone ran another session there, pin the right one in `~/.local/state/zeo-rescue/session-pins`. A seat `UNRESOLVED` for "no recorded git marker" needs a line `SEAT MARKER` in `~/.local/state/zeo-rescue/seat-markers` (master, sparring, principal or inactive), and only on the Architect's word.
 3. Prove one seat first: `make rescue ARGS='--seat SOME-SEAT'`, then `make check ARGS='--seat SOME-SEAT'`. Pick a seat recorded as `master` whose id is not in any fault.
 4. `make rescue`. Seats start 20 seconds apart. The first of each harness must prove its identity, marker and git, or the run stops.
 5. `make check`. It must end `check: ok N, wrong 0`. Run `make rescue` again at any time: a seat that is up is left alone.
@@ -35,7 +35,7 @@ A reseat interrupts every seat it touches, so give each one a `--note-file` sayi
 
 A bulk `make reseat` also resumes any seat that is dead, with the same note. A seat that needs its own note goes first, alone.
 
-**If it stops.** `FAILED SEAT: pid N still holds its rollout` means something has that thread open, usually the shared daemon: starting the seat would make two writers, so it stays down on a sleep. `STOPPED: ...` means the first seat of a harness failed its proof: that seat is stopped again and loses `@zeo_rescue`, and `RECOVERY:` counts what is down. In both cases the threads are intact and every stopped seat is on a sleep. Start none by hand. Fix the cause, then run the same line again: seats on a sleep are planned again, and a seat whose sleep ran out comes back as `RESUME`.
+**If it stops.** `FAILED SEAT: pid N still holds its rollout` means something has that thread open, usually the shared daemon: starting the seat would make two writers, so it stays down on a sleep. `FAILED SEAT: who holds its rollout cannot be read (lsof ...)` and `which processes work in ... cannot be read` mean the question failed, so nothing was started or moved: fix lsof first. `STOPPED: ...` means the first seat of a harness failed its proof: that seat is stopped again and loses `@zeo_rescue`, and `RECOVERY:` counts what is down. In both cases the threads are intact and every stopped seat is on a sleep. Start none by hand. Fix the cause, then run the same line again: seats on a sleep are planned again, and a seat whose sleep ran out comes back as `RESUME`.
 
 ## Finding the cause
 
