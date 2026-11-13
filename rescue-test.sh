@@ -302,8 +302,23 @@ for f in '1' '1\nlsof: can not read a process' '2'; do
 done
 reset_live; echo "4242 claude" > "$T/ps.out"; printf '1\n' > "$T/lsof.fail-run"; printf 'p4242\nfcwd\nn%s\n' "$T/w/cl" > "$T/lsof.fail-run.out"
 echo "$(R --seat cl 2>&1)" | grep -q "^RUNNING cl: a claude process is in $T/w/cl" && ok "lsof's exit 1 with output (a listed pid just exited) still answers: the seat is RUNNING" || bad "just exited, here"
-printf 'p4242\nfcwd\nn/elsewhere\n' > "$T/lsof.fail-run.out"
-echo "$(R --seat cl 2>&1)" | grep -q '^RESUME cl' && ok "and when that answer puts the process elsewhere, the seat is planned" || bad "just exited, elsewhere"
+# The reviewer's witness: two live claude processes, lsof reads one (in another folder), fails on the other, and exits 1. No start.
+reset_live; printf '4242 claude\n4243 claude\n' > "$T/ps.out"; printf '1\nlsof: can not read process 4243\n' > "$T/lsof.fail-run"; printf 'p4242\nfcwd\nn/elsewhere\n' > "$T/lsof.fail-run.out"
+out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -qF "UNRESOLVED cl: could not tell whether a process runs in $T/w/cl (lsof exited 1 without the folder in its output: lsof: can not read process 4243), so it is not started this run" && ! grep -q new-session "$T/tmux.log" \
+  && ok "partial output that misses the folder, with one process unreadable, is could-not-tell: no start" || bad "witness plan: $rc $out"
+reset_live; printf '4343 codex\n4344 codex\n' > "$T/ps.out"; printf '1\nlsof: can not read process 4344\n' > "$T/lsof.fail-run"; printf 'p4343\nfcwd\nn/elsewhere\n' > "$T/lsof.fail-run.out"
+out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -qF "FAILED cl: whether a claude or codex process works in $T/w/cl cannot be read just before the start (lsof exited 1 without the folder in its output: lsof: can not read process 4344); it was not started" && ! grep -q new-session "$T/tmux.log" \
+  && ok "the same partial answer at the last check before a Claude start: no start" || bad "witness final: $rc $out"
+reset_live; printf '4242 claude\n' > "$T/ps.out"; printf '0\nlsof: WARNING: can not stat a mount\n' > "$T/lsof.fail-run"; printf 'p4242\nfcwd\nn/elsewhere\n' > "$T/lsof.fail-run.out"
+out=$(R --apply --seat cl 2>&1); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -qF "could not tell whether a process runs in $T/w/cl (lsof exited 0 without the folder in its output: lsof: WARNING: can not stat a mount)" && ! grep -q new-session "$T/tmux.log" \
+  && ok "exit 0 with a line on stderr is not a clean answer either: no start" || bad "exit0 stderr: $rc $out"
+rm -f "$T/lsof.fail-run" "$T/lsof.fail-run.out"; reset_live; printf '4242 claude\n' > "$T/ps.out"; printf 'p4242\nfcwd\nn/elsewhere\n' > "$T/lsof.out"
+echo "$(R --seat cl 2>&1)" | grep -q '^RESUME cl' && ok "only a clean answer (exit 0, nothing on stderr) naming other folders lets the seat be planned" || bad "clean idle: $(R --seat cl 2>&1)"
+: > "$T/lsof.out"; printf '4242 claude\n' > "$T/ps.out"; printf '1\nlsof: can not read process 4243\n' > "$T/lsof.fail-run"; printf 'p4242\nfcwd\nn%s\n' "$T/w/cl" > "$T/lsof.fail-run.out"
+echo "$(R --seat cl 2>&1)" | grep -q "^RUNNING cl: a claude process is in $T/w/cl" && ok "output naming the folder proves RUNNING, whatever the exit status and stderr" || bad "target with error"
 rm -f "$T/lsof.fail-run" "$T/lsof.fail-run.out"
 reset_live; echo "4343 codex" > "$T/ps.out"; printf 'p4343\nfcwd\nn%s\n' "$T/w/cl" > "$T/lsof.out"
 out=$(R --apply --seat cl 2>&1); rc=$?

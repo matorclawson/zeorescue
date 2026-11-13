@@ -217,9 +217,10 @@ PSOUT=$("$PS_BIN" -axo pid=,command=) || { echo "rescue: ps failed" >&2; exit 1;
 ps_line() { printf '%s\n' "$PSOUT" | awk -v p="$1" '$1==p'; }
 RUN_ERR=""
 running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell (RUN_ERR says why). HARNESS is claude, codex, or any for both.
-  # lsof's answer is used on exit 0, and on exit 1 with output: lsof -p exits 1 when one listed pid has just exited, and still prints
-  # the others. Exit 1 with no output, or any other exit, is "could not tell", never "nobody here": a seat that is really empty is
-  # picked up by the next run, and a live seat is never started twice. lsof's stderr is kept, and its first line goes into RUN_ERR.
+  # Output that names the folder proves a process there, whatever lsof's exit status. "Nobody here" is accepted only from a clean answer:
+  # exit 0 and nothing on stderr. Anything else (any other exit without the folder in the output, any stderr line) is "could not tell":
+  # partial output covers only the processes lsof could read, and the one it could not may be the one in the folder. A seat that is
+  # really empty is picked up by the next run; a live seat is never started twice. The first stderr line goes into RUN_ERR.
   local pids e out rc
   RUN_ERR=""
   pids=$(printf '%s\n' "$PSOUT" | awk -v h="$1" '{n=split($2,p,"/"); b=p[n]
@@ -229,8 +230,9 @@ running_in() { # running_in HARNESS CWD: 0 yes, 1 no, 2 could not tell (RUN_ERR 
   e=$(mktemp "${TMPDIR:-/tmp}/zeo-lsof.XXXXXX") || { RUN_ERR="could not make a file for lsof's errors"; return 2; }
   out=$("$LSOF" -a -d cwd -Fn -p "$pids" 2>"$e"); rc=$?
   RUN_ERR=$(head -n 1 "$e"); rm -f "$e"
-  if [ $rc -eq 0 ] || { [ $rc -eq 1 ] && [ -n "$out" ]; }; then RUN_ERR=""; printf '%s\n' "$out" | grep -xF "n$2" >/dev/null; return $?; fi
-  RUN_ERR="lsof exited $rc$( [ -n "$out" ] || printf ' with no output')${RUN_ERR:+: $RUN_ERR}"
+  if printf '%s\n' "$out" | grep -xF "n$2" >/dev/null; then RUN_ERR=""; return 0; fi
+  if [ $rc -eq 0 ] && [ -z "$RUN_ERR" ]; then return 1; fi
+  RUN_ERR="lsof exited $rc$( [ -n "$out" ] && printf ' without the folder in its output' || printf ' with no output')${RUN_ERR:+: $RUN_ERR}"
   return 2
 }
 holds() { # holds SID: does a harness process hold this session? 0 yes, 1 no, 2 the process list could not be read.
