@@ -405,6 +405,14 @@ rlreset; printf 'cl %s carry-plain\n' "$T/w/elsewhere" > "$T/moves"; out=$(RL --
 echo "$out" | grep -q '^RESEAT cl:' && ! echo "$out" | grep -qE '^MOVE cl|carry' && ok "a relogin never acts on a pending folder-moves line: it is in place" || bad "relogin moves: $out"
 rlreset; grep -v '^cm-maintainer$' "$T/live" > "$T/live.x" && mv "$T/live.x" "$T/live"; out=$(RL --relogin --note-file "$T/rnote")
 echo "$out" | grep -q '^DOWN cm: an in-place restart restarts only live seats' && ! echo "$out" | grep -q '^RESUME cm' && ok "a seat that is down is DOWN, not resumed by a relogin" || bad "relogin down: $out"
+# NEEDS-LOGIN: a Claude seat on another host has its own login; a relogin names it with the line to run there
+rlreset; out=$(RL --relogin --note-file "$T/rnote"); echo "$out" | grep -q '^NEEDS-LOGIN' && bad "needs-login control: $out" || ok "control: with no Claude seat on another host, no NEEDS-LOGIN line"
+printf '{"seats":[%s,%s,%s,%s]}' "$(row cl cl claude h cl-maintainer "$T/w/cl")" "$(row far far claude other-host far-s "$T/w/far")" "$(row farx farx codex other-host farx-s "$T/w/farx")" "$(row odd odd claude other-host 'odd;s' "$T/w/odd")" > "$T/chart-far.json"
+out=$(ZEO_RESCUE_ARCHITECT_SEAT=arch "$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-far.json" --relogin --note-file "$T/rnote" 2>&1)
+echo "$out" | grep -qxF "NEEDS-LOGIN other-host far: this host's login does not reach it. On other-host the operator runs: tmux -L zeo2 attach -t '=far-s'   then types /login in that pane, and detaches with C-b d" \
+  && ! echo "$out" | grep -qE 'NEEDS-LOGIN [^ ]+ farx|RESEAT far|RESUME far' && echo "$out" | grep -q 'needs login on other hosts 2,' \
+  && ok "positive control: a Claude seat on another host is named NEEDS-LOGIN with the exact line, never restarted from here; a Codex seat there is not listed" || bad "needs-login: $out"
+echo "$out" | grep -q "^NEEDS-LOGIN other-host odd: .*not a plain name, so no line is given" && ok "a chart session that is not a plain name gets no line to run" || bad "needs-login odd: $out"
 # apply: one seat at a time (each stop is followed by that seat's start before the next stop); the stub's stop ends the seat's process
 export ZEO_RESCUE_CLAUDE_AUTH=$T/bin/claude-auth; printf '{"loggedIn":true,"email":"someone@example.org","orgName":"Example Org"}' > "$T/auth.json"
 printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=acct ZMAIL_INSTANCE=cl ZMAIL_INSTANCE=cm GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"

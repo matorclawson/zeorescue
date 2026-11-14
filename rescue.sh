@@ -239,8 +239,10 @@ if [ $APPLY -eq 1 ]; then
 fi
 GOOD=$STATE/ORG-CHART.last-good.json
 if rows=$(seats_of "$CHART"); then
+  CHART_USED=$CHART
   tmp=$(mktemp "$STATE/.chart.XXXXXX") && cp "$CHART" "$tmp" && mv -f "$tmp" "$GOOD"
 elif rows=$(seats_of "$GOOD"); then
+  CHART_USED=$GOOD
   echo "rescue: WARNING: $CHART is unreadable; using the last good copy from $(date -r "$GOOD" '+%F %T')" >&2
 else
   echo "rescue: no readable org chart at $CHART or $GOOD" >&2; exit 1
@@ -980,6 +982,21 @@ limit_clear() { # limit_clear INDEX SESSION: after a Claude restart, wait LIMIT_
 }
 has_claude=0; for ((i = 0; i < n; i++)); do [ "${P_HARNESS[$i]}" != claude ] || has_claude=1; done
 stopped=1
+# NEEDS-LOGIN: a Claude seat on another host has that host's own login, which this host's /login does not reach. A relogin names each,
+# with the line the operator runs on that host. Nothing is done to it from here.
+needs_login=0
+if [ $RELOGIN -eq 1 ]; then
+  while IFS=$'\x1f' read -r oh os osess; do
+    [ -n "$os" ] || continue
+    [ "$ONLY" = " " ] || case "$ONLY" in *" $os "*) ;; *) continue;; esac
+    case "$EXCEPT" in *" $os "*) continue;; esac
+    needs_login=$((needs_login+1))
+    plain=1; case "$oh" in ""|*[!A-Za-z0-9._-]*|[._-]*) plain=0;; esac; case "$osess" in ""|*[!A-Za-z0-9_-]*|[_-]*) plain=0;; esac
+    if [ $plain -eq 1 ]; then
+      echo "NEEDS-LOGIN $oh $os: this host's login does not reach it. On $oh the operator runs: tmux -L $SOCKET attach -t '=$osess'   then types /login in that pane, and detaches with C-b d"
+    else echo "NEEDS-LOGIN $oh $os: this host's login does not reach it; its chart host or session is not a plain name, so no line is given: ask zeo-rescue"; fi
+  done < <("$JQ" -r --arg h "$HOST_NAME" '.seats[] | select(.desired_agent == "claude" and .desired_host != null and .desired_host != $h) | [.desired_host, .seat_id, (.desired_tmux.session // "-")] | join("\u001f")' "$CHART_USED" 2>/dev/null)
+fi
 [ $RESEAT -eq 0 ] || work_list
 if [ $APPLY -eq 1 ]; then
   n=${#P_SEAT[@]}
@@ -1037,7 +1054,7 @@ if [ $APPLY -eq 1 ]; then
 fi
 
 if [ -n "$CARRY_BAD" ]; then echo "FAILED:$CARRY_BAD: the seat runs in its carried clone, but a linked worktree of it does not reach it. Bring this to zeo-rescue."; failed=$((failed+1)); fi
-echo "rescue: live $live, limited $limited, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
+echo "rescue: live $live, limited $limited, needs login on other hosts $needs_login, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
 [ $stopped -eq 1 ] || exit 1
 [ $failed -eq 0 ] || exit 1
 [ $unresolved -eq 0 ] || exit 3
