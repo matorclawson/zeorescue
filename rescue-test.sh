@@ -551,6 +551,26 @@ rm -f "$T/ps.seen"
 out=$(R --reseat --apply --seat cx 2>&1)
 w=$(echo "$out" | grep -n '^WORK' | head -1 | cut -d: -f1); r=$(echo "$out" | grep -n '^RESUMED\|^STOPPED\|^FAILED' | head -1 | cut -d: -f1)
 [ -n "$w" ] && [ -n "$r" ] && [ "$w" -lt "$r" ] && ok "--apply lists it before it stops anything, so the log keeps what was cut" || bad "order: $w $r"
+# A Claude seat's until-loop watcher that started before its last turn is a stale watcher, not work a restart would cut
+reset_live; rm -f "$T/ps.seen" "$T/screen"; echo cl-maintainer >> "$T/live"; echo 'cl-maintainer|%3|9||claude' > "$T/panes"
+echo "9 /x/claude --resume 22222222-2222-4222-8222-222222222222" > "$T/ps.out"; cp "$T/ps.out" "$T/ps.after"
+touch -t "$(date -v-1H +%Y%m%d%H%M)" "$T/projects/$(enc "$T/w/cl")/22222222-2222-4222-8222-222222222222.jsonl"
+cat > "$T/ps.tree" <<'E'
+    9     1 09:00:00 /x/claude --resume 22222222-2222-4222-8222-222222222222
+  921     9 08:00:00 /bin/zsh -c source /x/snap.sh 2>/dev/null || true && eval 'until [ -f /x/flag ]; do sleep 60; done' < /dev/null
+  922     9    10:00 /bin/zsh -c source /x/snap.sh 2>/dev/null || true && eval 'until [ -f /y/flag ]; do sleep 5; done' < /dev/null
+  923     9 08:00:00 /bin/zsh -c source /x/snap.sh 2>/dev/null || true && eval 'make build' < /dev/null
+E
+out=$(R --reseat --seat cl 2>&1)
+echo "$out" | grep -q "^WORK (stale watcher) cl: 921 08:00:00 'until \[ -f /x/flag \]" && ok "positive control: a watcher running since before the seat's last turn is marked stale" || bad "stale: $out"
+echo "$out" | grep -q "^WORK cl: 922 10:00 'until \[ -f /y/flag \]" && ! echo "$out" | grep -q 'stale watcher) cl: 922' && ok "a watcher started after the last turn stays WORK" || bad "fresh watcher: $out"
+echo "$out" | grep -q "^WORK cl: 923 08:00:00 'make build'" && ok "an old tool that is not a watcher stays WORK" || bad "old tool: $out"
+echo "$out" | grep -q "^work: 1 of 1 seats show running work, and 1 stale watchers" && ok "and the count keeps real work apart from stale watchers" || bad "stale count: $out"
+grep -v ' 92[23] ' "$T/ps.tree" > "$T/ps.tree.x" && mv "$T/ps.tree.x" "$T/ps.tree"; rm -f "$T/ps.seen"; out=$(R --reseat --seat cl 2>&1)
+echo "$out" | grep -q '^work: 0 of 1 seats show running work, and 1 stale watchers' && ok "a seat with only a stale watcher shows no running work" || bad "only stale: $out"
+reset_live; rm -f "$T/ps.seen"; echo cx-maintainer >> "$T/live"; echo 'cx-maintainer|%8|800||codex' > "$T/panes"; echo "800 /x/codex resume 44444444-4444-4444-8444-444444444444" > "$T/ps.out"; : > "$T/ps.after"
+printf '  800     1 09:00:00 /x/codex resume 44444444-4444-4444-8444-444444444444\n  931   800 08:00:00 /bin/zsh -c eval %s\n' "'until [ -f /x/flag ]; do sleep 60; done'" > "$T/ps.tree"
+out=$(R --reseat --seat cx 2>&1); echo "$out" | grep -q "^WORK cx: 931 08:00:00" && ! echo "$out" | grep -q 'stale watcher' && ok "a Codex seat's lines are unchanged" || bad "codex stale: $out"
 rm -f "$T/ps.seen" "$T/screen" "$T/ps.tree" "$T/snapwrite"
 
 echo "-- check"

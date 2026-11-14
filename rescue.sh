@@ -715,15 +715,28 @@ children() { # children TREE PID: a process's children as "pid etime command", w
   printf '%s\n' "$1" | awk -v p="$2" '$2==p { c=$0; sub(/^ *[0-9]+ +[0-9]+ +[^ ]+ +/, "", c); i=index(c, " && eval "); if (i) c=substr(c, i+9)
     if (c !~ /\/\.local\/share\/zeo\/messenger\/hooks\// && c !~ /^caffeinate / && c !~ /\/app-server-daemon\/releases\// && c !~ /\/codex-code-mode-host$/) print $1, $3, substr(c, 1, 110) }'
 }
+etime_s() { # etime_s ETIME: ps's elapsed time ([[dd-]hh:]mm:ss) in seconds, or -1
+  printf '%s\n' "$1" | awk -F'[-:]' '{ if (NF == 4) print $1*86400 + $2*3600 + $3*60 + $4; else if (NF == 3) print $1*3600 + $2*60 + $3; else if (NF == 2) print $1*60 + $2; else print -1 }'
+}
+stale_watcher() { # stale_watcher "PID ETIME COMMAND" LAST NOW: 0 when it is an until-loop watcher that started before the seat's last turn
+  local et s; case " $1" in *[!a-z_]until\ *) ;; *) return 1;; esac
+  et=$(printf '%s\n' "$1" | awk '{print $2}'); s=$(etime_s "$et")
+  [ "$s" -ge 0 ] 2>/dev/null && [ "$2" -gt 0 ] && [ $(($3 - s)) -lt "$2" ]
+}
 work_list() { # what a restart would cut: it reads only, and a quiet result is what could be seen, not a promise that nothing is in progress
-  local tree i seats=0 busy=0 hit kids daemon line pid
+  local tree i seats=0 busy=0 stale=0 hit kids daemon line pid now
+  now=$(date +%s)
   tree=$("$PS_BIN" -axo pid=,ppid=,etime=,command=) || { echo "WORK: ps failed, so running work is unknown"; return 0; }
   for ((i = 0; i < ${#P_SEAT[@]}; i++)); do
     [ -n "${P_PANE[$i]}" ] || continue
     seats=$((seats+1)) hit=0
     if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "${P_PANE[$i]}" 2>/dev/null | grep 'esc to interrupt' >/dev/null; then echo "WORK ${P_SEAT[$i]}: a turn is in progress on its screen"; hit=1; fi
     kids=$(children "$tree" "${P_PID[$i]}")
-    if [ -n "$kids" ]; then hit=1; while IFS= read -r line; do echo "WORK ${P_SEAT[$i]}: $line"; done <<< "$kids"; fi
+    # On a Claude seat, an until-loop watcher that started before the seat's last turn is marked stale, so a real cut stands out.
+    if [ -n "$kids" ]; then while IFS= read -r line; do
+      if [ "${P_HARNESS[$i]}" = claude ] && stale_watcher "$line" "${P_LAST[$i]:-0}" "$now"; then echo "WORK (stale watcher) ${P_SEAT[$i]}: $line"; stale=$((stale+1))
+      else echo "WORK ${P_SEAT[$i]}: $line"; hit=1; fi
+    done <<< "$kids"; fi
     busy=$((busy+hit))
   done
   # Under the shared daemon a Codex seat's tools are children of the app-server, not of the seat's pane; the working directory says whose.
@@ -734,7 +747,8 @@ work_list() { # what a restart would cut: it reads only, and a quiet result is w
       while IFS= read -r line; do pid=${line%% *}; echo "WORK daemon, in $("$LSOF" -a -d cwd -Fn -p "$pid" 2>/dev/null | sed -n 's/^n//p' | head -1): $line"; done <<< "$kids"
     fi
   fi
-  echo "work: $busy of $seats seats show running work"
+  local tail=""; [ $stale -eq 0 ] || tail=", and $stale stale watchers older than their seats' last turns"
+  echo "work: $busy of $seats seats show running work$tail"
 }
 
 unseat() { # unseat INDEX: a seat that failed must not stay up wrong, and must not keep the mark that makes the next run skip it
