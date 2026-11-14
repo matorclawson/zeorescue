@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply [--break-stale-lock]] [--reseat] [--relaunch] [--restart] [--upgrade] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply [--break-stale-lock]] [--reseat] [--relaunch] [--restart] [--upgrade] [--in-place] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
 #
 # --apply runs alone: it holds $STATE/apply.lock from before the plan to the end, and a second --apply refuses while the first runs. A lock
 # whose holder is gone is reported, never broken silently; --break-stale-lock breaks that one lock. A run kills only a tmux session its own
@@ -28,6 +28,8 @@
 # the unchanged symlink. The seat is told why. A seat already on the installed binary is left alone, so its line can run again.
 # An upgrade never moves or carries a seat, whatever folder-moves says: it restarts a live seat in the folder its process works in now, which
 # must be its chart folder or, once moved, its line's folder; anywhere else is UNRESOLVED. A seat that is down is named DOWN and left to make rescue.
+# --in-place, with --reseat, gives any restart the same guarantee: a live seat restarts in the folder its process works in now, and no
+# folder-moves line is acted on (a pending carry would stop it at a trust question it may not answer). A seat that is down is DOWN.
 # --except ID leaves that seat out of the run entirely: the Architect, whose own restart waits for a break the operator chooses.
 # folder-moves holds a line "SEAT /new/folder" for a Codex seat that leaves the chart's folder. The thread stays the seat's: Codex rewrites a
 # thread's folder when it resumes elsewhere, so a seat moves only if session-pins names its thread. Otherwise a later plan would miss the thread.
@@ -89,7 +91,7 @@ CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0
+SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0 IN_PLACE=0
 PINS=${ZEO_RESCUE_PINS:-$STATE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$STATE/folder-moves}
 MARKERS=${ZEO_RESCUE_MARKERS:-$STATE/seat-markers}
@@ -106,6 +108,7 @@ while [ $# -gt 0 ]; do
     --relaunch) RELAUNCH=1; shift;;
     --restart) RESTART=1; shift;;
     --upgrade) UPGRADE=1; shift;;
+    --in-place) IN_PLACE=1; shift;;
     --except) [ $# -ge 2 ] || usage; EXCEPT="$EXCEPT$2 "; shift 2;;
     --check) CHECK=1; shift;;
     --harness) [ $# -ge 2 ] || usage; HARNESS=$2; shift 2;;
@@ -127,6 +130,8 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [ $RELAUNCH -eq 0 ] || [ $RESEAT -eq 1 ] || usage
 [ $BREAK_STALE -eq 0 ] || [ $APPLY -eq 1 ] || usage
 [ $UPGRADE -eq 0 ] || [ $RELAUNCH -eq 1 ] || usage
+[ $IN_PLACE -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+INPLACE_WHAT="an in-place restart"; [ $UPGRADE -eq 0 ] || INPLACE_WHAT="an upgrade"
 if [ $RESTART -eq 1 ]; then
   [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
   n=0; for w in $ONLY; do n=$((n+1)); done
@@ -796,13 +801,13 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   fi
   OLD_CWD="" to="" how="" CARRY="" CARRY_INO="" CARRY_REPOS=""
   if [ -f "$MOVES" ]; then to=$(awk -v s="$seat" '$1==s {print $2}' "$MOVES"); how=$(awk -v s="$seat" '$1==s {print $3}' "$MOVES"); fi
-  if [ $UPGRADE -eq 1 ]; then # an upgrade restarts a live seat in the folder its process works in now, and never moves, carries or resumes one
-    "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null || { echo "DOWN $seat: an upgrade restarts only live seats; a seat that is down is resumed by its own line"; unresolved=$((unresolved+1)); continue; }
+  if [ $UPGRADE -eq 1 ] || [ $IN_PLACE -eq 1 ]; then # an upgrade or an in-place restart: a live seat restarts in the folder its process works in now, never moved, carried or resumed
+    "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null || { echo "DOWN $seat: $INPLACE_WHAT restarts only live seats; a seat that is down is resumed by its own line"; unresolved=$((unresolved+1)); continue; }
     find_pane "$sess" zeo-rescue-upgrade-no-session
     if [ "$PANE_STATE" = done ]; then
       pc=$("$LSOF" -a -p "$PANE_PID" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
       if [ -n "$to" ] && [ -n "$pc" ] && [ "$pc" = "$to" ]; then cwd=$to
-      elif [ -z "$pc" ] || [ "$pc" != "$cwd" ]; then echo "UNRESOLVED $seat: pid $PANE_PID works in ${pc:-a folder lsof cannot read}, which is not its chart folder $cwd${to:+ nor the folder of its line, $to}, so an upgrade does not restart it"; unresolved=$((unresolved+1)); continue; fi
+      elif [ -z "$pc" ] || [ "$pc" != "$cwd" ]; then echo "UNRESOLVED $seat: pid $PANE_PID works in ${pc:-a folder lsof cannot read}, which is not its chart folder $cwd${to:+ nor the folder of its line, $to}, so $INPLACE_WHAT does not restart it"; unresolved=$((unresolved+1)); continue; fi
     fi
     to="" how=""
   fi

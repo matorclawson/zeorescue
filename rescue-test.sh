@@ -613,6 +613,16 @@ out=$(U --check --except cx 2>&1); echo "$out" | grep -qE "^(OK|WRONG) cx " && b
 printf 'cx %s carry\n' "$T/w/new" > "$T/moves"; printf 'p800\nftxt\nn%s/inst/old/codex\n' "$T" > "$T/lsof.txt"
 out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
 echo "$out" | grep -q '^RESEAT cx:' && ! echo "$out" | grep -q '^MOVE\|carry' && ok "an upgrade never moves or carries a seat, whatever folder-moves says" || bad "upgrade move: $out"
+# --in-place: a restart never acts on a folder-moves line (the 14 Nov account move: a pending carry-plain stopped a --restart)
+echo 'You were restarted for a test.' > "$T/inote"; printf 'p800\nfcwd\nn%s/w/cx\n' "$T" > "$T/lsof.out"; printf 'cx %s carry-plain\n' "$T/w/new" > "$T/moves"
+out=$(R --reseat --relaunch --restart --note-file "$T/inote" --seat cx 2>&1)
+echo "$out" | grep -qE '^(MOVE cx|UNRESOLVED cx: .*(carr|plain|git|trust))' && ok "positive control: without --in-place, a restart acts on the seat's pending carry line" || bad "inplace control: $out"
+out=$(R --reseat --relaunch --restart --in-place --note-file "$T/inote" --seat cx 2>&1)
+echo "$out" | grep -q '^RESEAT cx:' && ! echo "$out" | grep -qiE '^MOVE|carry' && ok "--in-place restarts it where its process works, and acts on no folder-moves line" || bad "inplace: $out"
+out=$(R --relaunch --in-place --seat cx 2>&1); [ $? -eq 2 ] && ok "--in-place goes only with --reseat" || bad "inplace usage: $out"
+grep -v '^cx-maintainer$' "$T/live" > "$T/live.x"; cp "$T/live" "$T/live.keep"; mv "$T/live.x" "$T/live"
+out=$(R --reseat --relaunch --in-place --seat cx 2>&1); mv "$T/live.keep" "$T/live"
+echo "$out" | grep -q '^DOWN cx: an in-place restart restarts only live seats' && ! echo "$out" | grep -q '^RESUME' && ok "a seat that is down is DOWN under --in-place, never resumed elsewhere" || bad "inplace down: $out"
 printf 'p800\nfcwd\nn%s/w/elsewhere\n' "$T" > "$T/lsof.out"; out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
 echo "$out" | grep -q "^UNRESOLVED cx: pid 800 works in $T/w/elsewhere, which is not its chart folder $T/w/cx nor the folder of its line, $T/w/new" && ! echo "$out" | grep -q '^RESEAT' && ok "a seat working outside its chart folder and its line's is not restarted" || bad "upgrade elsewhere: $out"
 : > "$T/lsof.out"; out=$(U --reseat --relaunch --upgrade --seat cx 2>&1)
