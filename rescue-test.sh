@@ -384,6 +384,39 @@ out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-2c.json" --apply 
 echo "$out" | grep -q '^SEAT OK cl: no usage-limit menu' && echo "$out" | grep -q '^STOPPED: cm is at the usage-limit menu 0 s after its restart' && [ $rc -eq 1 ] \
   && ok "positive control: the second seat at the menu stops the run; every seat is checked, not only the first" || bad "every seat: $rc $out"
 rm -f "$T/onrespawn" "$T/screen"; cp "$T/markers.keep" "$T/state/seat-markers"; unset ZEO_RESCUE_CLAUDE_AUTH
+echo "-- --relogin: the account move, every live Claude seat in place, one at a time, idle first, never the Architect"
+printf '{"seats":[%s,%s,%s,%s]}' "$(row cl cl claude h cl-maintainer "$T/w/cl")" "$(row cm cm claude h cm-maintainer "$T/w/cl3")" "$(row arch arch claude h arch-s "$T/w/cl2")" "$(row cx cx codex h cx-maintainer "$T/w/cx")" > "$T/chart-rl.json"
+cp "$T/state/seat-markers" "$T/markers.keep"; echo 'cm master' >> "$T/state/seat-markers"; echo 'You were restarted on a new login for a test.' > "$T/rnote"
+RL() { ZEO_RESCUE_ARCHITECT_SEAT=arch "$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-rl.json" "$@" 2>&1; }
+rlreset() { reset_live; rm -f "$T/screen" "$T/onrespawn"; printf 'cl-maintainer\ncm-maintainer\narch-s\ncx-maintainer\n' > "$T/live"
+  printf 'cl-maintainer|%%3|9||claude\ncm-maintainer|%%4|10||claude\narch-s|%%5|11||claude\ncx-maintainer|%%8|800||codex\n' > "$T/panes"
+  printf '9 /x/claude --resume 22222222-2222-4222-8222-222222222222\n10 /x/claude --resume 12121212-1212-4121-8121-121212121212\n11 /x/claude --resume 33333333-3333-4333-8333-333333333333\n800 /x/codex resume 44444444-4444-4444-8444-444444444444\n' > "$T/ps.out"; : > "$T/lsof.out"; : > "$T/moves"; }
+F2=$T/projects/$(enc "$T/w/cl")/22222222-2222-4222-8222-222222222222.jsonl F12=$d3/12121212-1212-4121-8121-121212121212.jsonl
+rlreset; touch -t 202601010000 "$F12"; touch -t 202601020000 "$F2"; out=$(RL --relogin --note-file "$T/rnote")
+echo "$out" | grep -qxF 'EXCEPT arch: left out of this run' && echo "$out" | grep -q '^RESEAT cl: claude' && echo "$out" | grep -q '^RESEAT cm: claude' && ! echo "$out" | grep -qE '(RESEAT|OK|LIVE|DOWN) (arch|cx)' && echo "$out" | grep -qx 'ORDER: cm cl ' \
+  && ok "a relogin plan takes every live Claude seat, leaves the Architect and every Codex seat out, and puts the longest idle first" || bad "relogin plan: $out"
+touch -t 202601030000 "$F12"; echo "$(RL --relogin --note-file "$T/rnote")" | grep -qx 'ORDER: cl cm ' && ok "positive control: when the other seat has been idle longer, it goes first" || bad "relogin order flip"
+printf '%s' "$LM" > "$T/screen"; out=$(RL --relogin --note-file "$T/rnote"); rm -f "$T/screen"
+echo "$out" | grep -q '^LIMITED cl: at the usage-limit menu; it is restarted first' && echo "$out" | grep -qE '^ORDER: (cl cm|cm cl) $' && ok "seats at the usage-limit menu are read and flagged in a relogin plan" || bad "relogin limited: $out"
+[ "$(RL --relogin 2>&1 >/dev/null; echo $?)" = 2 ] && echo "$(RL --relogin)" | grep -q 'needs --note-file' && ok "--relogin needs --note-file" || bad "relogin note"
+out=$(RL --relogin --note-file "$T/rnote" --apply); [ $? -eq 2 ] && echo "$out" | grep -q 'needs --expect-org' && ok "--relogin --apply needs --expect-org" || bad "relogin org: $out"
+out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-rl.json" --relogin --note-file "$T/rnote" 2>&1); [ $? -eq 2 ] && echo "$out" | grep -q "needs the Architect's seat id" && ok "positive control: with no Architect seat id known, --relogin refuses rather than risk restarting the Architect" || bad "relogin arch: $out"
+rlreset; printf 'cl %s carry-plain\n' "$T/w/elsewhere" > "$T/moves"; out=$(RL --relogin --note-file "$T/rnote")
+echo "$out" | grep -q '^RESEAT cl:' && ! echo "$out" | grep -qE '^MOVE cl|carry' && ok "a relogin never acts on a pending folder-moves line: it is in place" || bad "relogin moves: $out"
+rlreset; grep -v '^cm-maintainer$' "$T/live" > "$T/live.x" && mv "$T/live.x" "$T/live"; out=$(RL --relogin --note-file "$T/rnote")
+echo "$out" | grep -q '^DOWN cm: an in-place restart restarts only live seats' && ! echo "$out" | grep -q '^RESUME cm' && ok "a seat that is down is DOWN, not resumed by a relogin" || bad "relogin down: $out"
+# apply: one seat at a time (each stop is followed by that seat's start before the next stop); the stub's stop ends the seat's process
+export ZEO_RESCUE_CLAUDE_AUTH=$T/bin/claude-auth; printf '{"loggedIn":true,"email":"someone@example.org","orgName":"Example Org"}' > "$T/auth.json"
+printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=acct ZMAIL_INSTANCE=cl ZMAIL_INSTANCE=cm GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"
+rlonr() { printf 'case "$1" in *"-t %%3 "*"sleep 3600"*) sed -i "" "/2222-4222/d" "%s";; *"-t %%4 "*"sleep 3600"*) sed -i "" "/1212-4121/d" "%s";; esac\n' "$T/ps.out" "$T/ps.out" > "$T/onrespawn"; }
+seq_of() { grep 'respawn-pane' "$T/tmux.log" | sed -E 's/.* -t (%[0-9]+) .*(sleep 3600|seat-exec\.sh).*/\1 \2/; s/seat-exec\.sh/start/; s/sleep 3600/stop/' | tr '\n' ' '; }
+rlreset; touch -t 202601010000 "$F12"; touch -t 202601020000 "$F2"; rlonr; out=$(RL --relogin --note-file "$T/rnote" --apply --expect-org 'Example Org'); rc=$?
+s=$(seq_of); [ $rc -eq 0 ] && [ "$s" = '%4 stop %4 start %3 stop %3 start ' ] && echo "$out" | grep -q '^SEAT OK cm' && echo "$out" | grep -q '^SEAT OK cl' && ! grep -qE ' -t (%5|%8) ' "$T/tmux.log" && ! grep -q 'kill' "$T/tmux.log" \
+  && grep -q 'new Claude login' "$T/state/prompts/cm.txt" && grep -q 'new login for a test' "$T/state/prompts/cm.txt" \
+  && ok "relogin --apply stops and starts one seat at a time, idle first, checks each, never touches the Architect or a Codex seat, and tells each why" || bad "relogin apply: $rc [$s] $out"
+rlreset; rlonr; out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-rl.json" --reseat --harness claude --except arch --apply 2>&1)
+s=$(seq_of); case "$s" in *stop*stop*start*start*) ok "positive control: a plain reseat stops every seat before it starts any";; *) bad "reseat order control: [$s] $out";; esac
+rm -f "$T/onrespawn"; cp "$T/markers.keep" "$T/state/seat-markers"; unset ZEO_RESCUE_CLAUDE_AUTH
 rm -f "$T/screen"; for f in ps.out psE.out lsof.out; do cp "$T/keep/$f" "$T/$f"; done; reset_live
 
 echo "-- a stuck process and the daemon"

@@ -4,7 +4,7 @@
 # It runs only when asked. It needs bash, jq, tmux, sqlite3, ps, lsof and the harness CLIs, and it does NOT need Messenger, the
 # wake daemons or the collector: those are what may be down. Without --apply it starts nothing and prints the plan.
 #
-#   rescue.sh [--apply [--break-stale-lock]] [--reseat] [--relaunch] [--restart] [--upgrade] [--in-place] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
+#   rescue.sh [--apply [--break-stale-lock]] [--reseat] [--relaunch] [--restart] [--upgrade] [--in-place] [--relogin] [--expect-org ORG] [--except ID]... [--check] [--harness claude|codex|all] [--seat ID]... [--session ID] [--note-file F] [--before YYYYMMDDHHMM] [--host H] [--socket S] [--stagger SECONDS] [--chart FILE]
 #
 # --apply runs alone: it holds $STATE/apply.lock from before the plan to the end, and a second --apply refuses while the first runs. A lock
 # whose holder is gone is reported, never broken silently; --break-stale-lock breaks that one lock. A run kills only a tmux session its own
@@ -28,6 +28,12 @@
 # the unchanged symlink. The seat is told why. A seat already on the installed binary is left alone, so its line can run again.
 # An upgrade never moves or carries a seat, whatever folder-moves says: it restarts a live seat in the folder its process works in now, which
 # must be its chart folder or, once moved, its line's folder; anywhere else is UNRESOLVED. A seat that is down is named DOWN and left to make rescue.
+# --relogin is the account move, after the operator's /login: every live Claude seat on this host restarts in place (--in-place), one at a
+# time, each resuming its own session, those at the usage-limit menu first and then the longest idle. It needs --note-file, and with --apply
+# --expect-org; it never restarts the Architect, whose seat id it reads from ZEO_RESCUE_ARCHITECT_SEAT or STATE/architect-seat, and it
+# touches no Codex seat and no Codex daemon. --expect-org ORG, with --apply, refuses unless claude auth status, run in a fresh process,
+# names that organization; only the email's domain and the organization are printed. Every restarted Claude seat's screen is read
+# ZEO_RESCUE_LIMIT_WAIT seconds later (30), and the usage-limit menu stops the run.
 # --in-place, with --reseat, gives any restart the same guarantee: a live seat restarts in the folder its process works in now, and no
 # folder-moves line is acted on (a pending carry would stop it at a trust question it may not answer). A seat that is down is DOWN.
 # --except ID leaves that seat out of the run entirely: the Architect, whose own restart waits for a break the operator chooses.
@@ -97,7 +103,7 @@ AUTH_WAIT=${ZEO_RESCUE_AUTH_WAIT:-20} # seconds claude auth status may take befo
 # BOUNDED: perl -e "$BOUNDED" SECONDS CMD...: runs CMD in its own process group and kills the whole group after SECONDS (exit 124), so a
 # child that keeps the output open cannot hold the caller either.
 BOUNDED='$t = shift; $p = fork; die unless defined $p; if (!$p) { setpgrp(0, 0); exec @ARGV or exit 127 } $SIG{ALRM} = sub { kill "KILL", -$p; exit 124 }; alarm $t; waitpid($p, 0); exit($? >> 8)'
-SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0 IN_PLACE=0 EXPECT_ORG=""
+SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0 IN_PLACE=0 EXPECT_ORG="" RELOGIN=0 ARCH_SEAT=""
 PINS=${ZEO_RESCUE_PINS:-$STATE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$STATE/folder-moves}
 MARKERS=${ZEO_RESCUE_MARKERS:-$STATE/seat-markers}
@@ -115,6 +121,7 @@ while [ $# -gt 0 ]; do
     --restart) RESTART=1; shift;;
     --upgrade) UPGRADE=1; shift;;
     --in-place) IN_PLACE=1; shift;;
+    --relogin) RELOGIN=1; shift;;
     --expect-org) [ $# -ge 2 ] || usage; EXPECT_ORG=$2; shift 2;;
     --except) [ $# -ge 2 ] || usage; EXCEPT="$EXCEPT$2 "; shift 2;;
     --check) CHECK=1; shift;;
@@ -130,6 +137,17 @@ while [ $# -gt 0 ]; do
     *) usage;;
   esac
 done
+# --relogin: the account move. Every live Claude seat on this host restarts in place, one at a time, resuming its own session.
+if [ $RELOGIN -eq 1 ]; then
+  case "$HARNESS" in all|claude) HARNESS=claude;; *) usage;; esac
+  RESEAT=1 RELAUNCH=1 RESTART=1 IN_PLACE=1
+  [ -n "$NOTE_FILE" ] || { echo "rescue: --relogin needs --note-file: every seat is told why it restarts" >&2; exit 2; }
+  [ $APPLY -eq 0 ] || [ -n "$EXPECT_ORG" ] || { echo "rescue: --relogin --apply needs --expect-org: the new login is proved before any seat restarts" >&2; exit 2; }
+  ARCH_SEAT=${ZEO_RESCUE_ARCHITECT_SEAT:-$(head -n 1 "$STATE/architect-seat" 2>/dev/null)}
+  case "$ARCH_SEAT" in ""|*[!A-Za-z0-9_-]*|[_-]*) echo "rescue: --relogin needs the Architect's seat id (ZEO_RESCUE_ARCHITECT_SEAT, or the first line of $STATE/architect-seat), so that it never restarts the Architect" >&2; exit 2;; esac
+  EXCEPT="$EXCEPT$ARCH_SEAT "
+  PROMPT="You were restarted so that you run on this host's new Claude login (an account move). Your history is resumed. Check your mail (zmsg inbox), answer what is owed (zmsg pending), then continue the work you were doing. Do not repeat any outward action your history shows you already completed."
+fi
 case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [[ "$STAGGER" =~ ^[0-9]+$ ]] || usage
 [ -z "$BEFORE" ] || [[ "$BEFORE" =~ ^[0-9]{12}$ ]] || usage
@@ -145,7 +163,7 @@ INPLACE_WHAT="an in-place restart"; [ $UPGRADE -eq 0 ] || INPLACE_WHAT="an upgra
 if [ $RESTART -eq 1 ]; then
   [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
   n=0; for w in $ONLY; do n=$((n+1)); done
-  [ "$n" -eq 1 ] || { echo "rescue: --restart needs exactly one --seat" >&2; exit 2; }
+  [ $RELOGIN -eq 1 ] || [ "$n" -eq 1 ] || { echo "rescue: --restart needs exactly one --seat" >&2; exit 2; }
 fi
 ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 if [ -n "$SESSION_ARG" ]; then
@@ -815,6 +833,8 @@ planned() { # planned SEAT SESSION CWD HARNESS PANE: record what the plan decide
   local n=${#P_SEAT[@]}
   P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID P_OLD[$n]=$OLD_CWD
   P_CARRY[$n]=$CARRY P_INO[$n]=$CARRY_INO P_REPOS[$n]=$CARRY_REPOS P_LIMITED[$n]=$LIMITED_NOW
+  # when the seat last wrote its own record: relogin restarts the longest idle first
+  if [ "$4" = claude ]; then P_LAST[$n]=$(stat -f %m "$PROJECTS/$(project_key "$3")/$SID.jsonl" 2>/dev/null || echo 0); else P_LAST[$n]=$(stat -f %m "$ROLL" 2>/dev/null || echo 0); fi
   [ -z "$OLD_CWD" ] || echo "MOVE $1: from $OLD_CWD to $3${CARRY:+, carrying the $( [ "$CARRY" = carry-plain ] && echo "plain folder" || echo clone) while the seat is stopped}"
 }
 while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
@@ -930,6 +950,9 @@ fi
 n=${#P_SEAT[@]} ORDER=()
 for ((i = 0; i < n; i++)); do [ -z "${P_LIMITED[$i]}" ] || ORDER+=("$i"); done
 for ((i = 0; i < n; i++)); do [ -n "${P_LIMITED[$i]}" ] || ORDER+=("$i"); done
+if [ $RELOGIN -eq 1 ] && [ $n -gt 0 ]; then # then the longest idle: the seat whose own record was written longest ago
+  ORDER=($(for ((i = 0; i < n; i++)); do printf '%s %s %s\n' "$([ -n "${P_LIMITED[$i]}" ] && echo 0 || echo 1)" "${P_LAST[$i]:-0}" "$i"; done | sort -k1,1n -k2,2n | awk '{print $3}'))
+fi
 [ $RESEAT -eq 0 ] || [ $n -lt 2 ] || echo "ORDER: $(for i in "${ORDER[@]}"; do printf '%s ' "${P_SEAT[$i]}"; done)"
 # The account: read from the keychain login by `claude auth status` in a fresh process, never from the home .claude.json, whose email is not
 # the billing account. Only the email's domain and the organization name are printed; a token is never read or printed.
@@ -962,16 +985,20 @@ if [ $APPLY -eq 1 ]; then
   n=${#P_SEAT[@]}
   if [ $has_claude -eq 1 ] || [ -n "$EXPECT_ORG" ]; then account_check || exit 1; fi
   # Every harness is stopped first, then the daemon, and only then does any seat start: a thread must never have two writers.
-  for i in ${ORDER[@]+"${ORDER[@]}"}; do
+  # A relogin stops and starts one Claude seat at a time instead, below, and leaves the Codex daemon alone: it has no Codex seat.
+  if [ $RELOGIN -eq 0 ]; then for i in ${ORDER[@]+"${ORDER[@]}"}; do
     [ -n "${P_PANE[$i]}" ] || continue
     sd=${P_CWD[$i]}; [ -z "${P_CARRY[$i]}" ] || sd=$(dirname "${P_OLD[$i]}") # a carry's new folder is not there yet, and its old one is about to go
     if ! stop_seat "${P_PANE[$i]}" "$sd" "${P_SID[$i]}"; then echo "FAILED ${P_SEAT[$i]}: its old process would not stop, so it was not restarted"; P_SEAT[$i]=""; failed=$((failed+1)); fi
-  done
-  [ $RESEAT -eq 0 ] || stop_daemon
+  done; fi
+  [ $RESEAT -eq 0 ] || [ $RELOGIN -eq 1 ] || stop_daemon
   proved_codex=0 proved_claude=0
   for ((k = 0; k < n; k++)); do
     i=${ORDER[$k]}; seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
     [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER" # first, so every check below is as fresh as the start
+    if [ $RELOGIN -eq 1 ] && [ -n "${P_PANE[$i]}" ] && ! stop_seat "${P_PANE[$i]}" "${P_CWD[$i]}" "${P_SID[$i]}"; then
+      echo "FAILED $seat: its old process would not stop, so it was not restarted"; failed=$((failed+1)); continue
+    fi
     if [ "${P_HARNESS[$i]}" = codex ] && ! rollout_free "${P_ROLL[$i]}"; then
       case "$HOLD_WHY" in pid*) echo "FAILED $seat: $HOLD_WHY, so it was not started: that would be two writers";; *) echo "FAILED $seat: $HOLD_WHY, so it was not started: it could be a second writer";; esac
       failed=$((failed+1)); continue
