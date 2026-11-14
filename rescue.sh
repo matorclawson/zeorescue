@@ -359,6 +359,23 @@ moved_already() { # moved_already HARNESS PID SID: Codex says so on its command 
   [ -f "$PROJECTS/$(project_key "$cwd")/$3.jsonl" ]
 }
 
+# LIMITED: a Claude seat stopped at the usage-limit menu has a live process and reads as LIVE, but does no work. It is read from the pane's
+# screen with capture-pane, read-only: no key is ever sent to a seat. Codex seats are not judged this way.
+LIMIT_RE='Switch to usage credits|Stop and wait for limit to reset'
+limited_pane() { # limited_pane PANE: 0 the pane shows the usage-limit menu, 1 it does not, 2 its screen cannot be read
+  local scr; scr=$("$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$1" 2>/dev/null) || return 2
+  printf '%s\n' "$scr" | grep -E "$LIMIT_RE" >/dev/null
+}
+limited_session() { # limited_session SESSION: 0 a pane of the seat's session shows the menu, 1 none does, 2 a screen cannot be read
+  local id pid opt cmd rc any=1
+  while IFS='|' read -r id pid opt cmd; do
+    [ -n "$id" ] || continue
+    limited_pane "$id"; rc=$?
+    [ $rc -ne 0 ] || return 0
+    [ $rc -eq 1 ] || any=2
+  done < <(panes_of "$1")
+  return $any
+}
 check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the reason
   local id pid opt cmd line env snap why="" sid
   IFS='|' read -r id pid opt cmd < <(panes_of "$2")
@@ -366,6 +383,12 @@ check_seat() { # check_seat SEAT SESSION HARNESS: prints OK or WRONG with the re
   # Nobody may type into a seat's terminal, so a seat stopped at a harness question waits for the operator. It is not resumed.
   if "$TMUX_BIN" -L "$SOCKET" capture-pane -p -t "$id" 2>/dev/null | grep -E 'Yes, I trust this folder|Do you trust the files|Trust this folder\?' >/dev/null; then
     why="${why:+$why; }waiting at the trust prompt: the operator must answer it"
+  fi
+  if [ "$3" = claude ]; then
+    limited_pane "$id"; case $? in
+      0) why="${why:+$why; }LIMITED: at the usage-limit menu, which no key may answer; it needs a restart under a working login";;
+      2) why="${why:+$why; }its screen cannot be read";;
+    esac
   fi
   if [ "$3" = codex ]; then
     line=$(ps_line "$pid")
@@ -694,9 +717,9 @@ unseat() { # unseat INDEX: a seat that failed must not stay up wrong, and must n
   fi # a session this run did not create is never killed: something else started it, and it is left alone
 }
 
-recovery() { # recovery FROM: after a run that stopped, say what is down and what brings it back
-  local i left=0
-  for ((i = $1; i < ${#P_SEAT[@]}; i++)); do [ -z "${P_SEAT[$i]}" ] || left=$((left+1)); done
+recovery() { # recovery FROM: after a run that stopped, say what is down and what brings it back. FROM is a place in ORDER, the order of the starts.
+  local k left=0
+  for ((k = $1; k < ${#ORDER[@]}; k++)); do [ -z "${P_SEAT[${ORDER[$k]}]}" ] || left=$((left+1)); done
   echo "RECOVERY: $left seats are down, counting the one that failed. Each thread is intact and nothing is lost. Start none of them by hand. Tell zeo-rescue what you see; once the cause is fixed, the same line brings them back, whether or not their sleep has run out."
 }
 
@@ -777,11 +800,11 @@ launch() { # launch INDEX: the marker goes on before any shell starts
 }
 
 P_SEAT=() P_SESS=() P_CWD=() P_HARNESS=() P_SID=() P_MODE=() P_MARK=() P_PANE=() P_WHY=() P_ROLL=() P_PID=() P_OLD=() P_CARRY=() P_INO=() P_REPOS=()
-live=0 ok=0 wrong=0 running=0 resume=0 resumed=0 reseat=0 unresolved=0 failed=0
+live=0 limited=0 ok=0 wrong=0 running=0 resume=0 resumed=0 reseat=0 unresolved=0 failed=0
 planned() { # planned SEAT SESSION CWD HARNESS PANE: record what the plan decided
   local n=${#P_SEAT[@]}
   P_SEAT[$n]=$1 P_SESS[$n]=$2 P_CWD[$n]=$3 P_HARNESS[$n]=$4 P_SID[$n]=$SID P_MODE[$n]=$MODE_ARGS P_MARK[$n]=$MARK P_PANE[$n]=$5 P_WHY[$n]=$(marker_label) P_ROLL[$n]=$ROLL P_PID[$n]=$PANE_PID P_OLD[$n]=$OLD_CWD
-  P_CARRY[$n]=$CARRY P_INO[$n]=$CARRY_INO P_REPOS[$n]=$CARRY_REPOS
+  P_CARRY[$n]=$CARRY P_INO[$n]=$CARRY_INO P_REPOS[$n]=$CARRY_REPOS P_LIMITED[$n]=$LIMITED_NOW
   [ -z "$OLD_CWD" ] || echo "MOVE $1: from $OLD_CWD to $3${CARRY:+, carrying the $( [ "$CARRY" = carry-plain ] && echo "plain folder" || echo clone) while the seat is stopped}"
 }
 while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
@@ -793,7 +816,7 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   if [ "$sess" = "-" ] || [ "$cwd" = "-" ]; then echo "UNRESOLVED $seat: the chart gives no session or folder"; unresolved=$((unresolved+1)); continue; fi
   [[ "$sess" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$ ]] || { echo "UNRESOLVED $seat: bad session name $sess"; unresolved=$((unresolved+1)); continue; }
   [ "$mailbox" = "$seat" ] || { echo "UNRESOLVED $seat: mailbox is $mailbox, not the seat id; the identity map must say which it starts as"; unresolved=$((unresolved+1)); continue; }
-  SID="" MODE_ARGS="" WHY="" SANDBOX="" ROLL="" MARK="" MARK_WHY="" PANE_PID=""
+  SID="" MODE_ARGS="" WHY="" SANDBOX="" ROLL="" MARK="" MARK_WHY="" PANE_PID="" LIMITED_NOW=""
   SESSION=$SESSION_ARG
   if [ -z "$SESSION" ] && [ -f "$PINS" ]; then
     SESSION=$(awk -v s="$seat" '$1==s {print $2}' "$PINS")
@@ -831,12 +854,20 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
   fi
   if "$TMUX_BIN" -L "$SOCKET" has-session -t "=$sess" 2>/dev/null; then
     if [ $CHECK -eq 1 ]; then if check_seat "$seat" "$sess" "$harness"; then ok=$((ok+1)); else wrong=$((wrong+1)); fi; continue; fi
-    if [ $RESEAT -eq 0 ]; then echo "LIVE $seat ($sess)"; live=$((live+1)); continue; fi
+    if [ $RESEAT -eq 0 ]; then
+      if [ "$harness" = claude ]; then
+        limited_session "$sess"; rc=$?
+        [ $rc -ne 0 ] || { echo "LIMITED $seat ($sess): at the usage-limit menu; it does no work until it is restarted under a working login"; limited=$((limited+1)); continue; }
+        [ $rc -eq 1 ] || { echo "LIVE $seat ($sess): its screen cannot be read, so whether it is at the usage-limit menu is unknown"; live=$((live+1)); continue; }
+      fi
+      echo "LIVE $seat ($sess)"; live=$((live+1)); continue
+    fi
     # tmux would start it somewhere else, and Claude would resume there; a folder moved under a live seat with no line in folder-moves is the case
     if [ -n "$CARRY" ]; then [ -d "$OLD_CWD" ] || { echo "UNRESOLVED $seat: no directory $OLD_CWD"; unresolved=$((unresolved+1)); continue; }
     else [ -d "$cwd" ] || { echo "UNRESOLVED $seat: no directory $cwd"; unresolved=$((unresolved+1)); continue; }; fi
     if ! "plan_$harness" "$cwd"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
     find_pane "$sess" "$SID"
+    if [ "$harness" = claude ] && [ -n "$PANE" ] && limited_pane "$PANE"; then LIMITED_NOW=1; fi
     if [ -n "$CARRY" ] && [ -n "$PANE_PID" ]; then # anything else working in the clone would have its folder moved from under it
       WHY="" mine=" $(tree_of "$PANE_PID")"
       if ! cwd_under "$OLD_CWD"; then echo "UNRESOLVED $seat: which processes work in $OLD_CWD cannot be read ($LSOF_ERR), so it is not carried"; unresolved=$((unresolved+1)); continue; fi
@@ -855,10 +886,14 @@ while IFS=$'\x1f' read -r seat mailbox harness sess cwd; do
           [ $rc -le 1 ] || { echo "UNRESOLVED $seat: could not read which binary pid $PANE_PID runs, so it is not restarted for the upgrade"; unresolved=$((unresolved+1)); continue; }
           [ $rc -eq 0 ] || { STALE=1; echo "UPGRADE $seat: pid $PANE_PID runs $RUN_BIN; installed now is ${!cur}"; }
         fi
-        if [ $RESTART -eq 0 ] && [ -z "$STALE" ] && [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue; fi;;
+        if [ $RESTART -eq 0 ] && [ -z "$STALE" ] && [ -z "$SET_WHY" ] && { [ -z "$OLD_CWD" ] || moved_already "$harness" "$PANE_PID" "$SID"; }; then 
+          if [ -n "$LIMITED_NOW" ]; then echo "LIMITED $seat: at the usage-limit menu, and right otherwise; --restart restarts it once the login works"; limited=$((limited+1)); continue; fi
+          echo "OK $seat: started by rescue, right already"; ok=$((ok+1)); continue
+        fi;;
       none) echo "UNRESOLVED $seat: no pane in $sess holds $SID"; unresolved=$((unresolved+1)); continue;;
     esac
     if ! marker_of "$harness" "$SID" "$seat"; then echo "UNRESOLVED $seat: $WHY"; unresolved=$((unresolved+1)); continue; fi
+    [ -z "$LIMITED_NOW" ] || echo "LIMITED $seat: at the usage-limit menu; it is restarted first"
     echo "RESEAT $seat: $harness $SID ($MODE_ARGS; $(marker_label)) in $sess"; reseat=$((reseat+1))
     planned "$seat" "$sess" "$cwd" "$harness" "$PANE"
     continue
@@ -881,20 +916,25 @@ if [ $CHECK -eq 1 ]; then
   exit 0
 fi
 
+# The order of the starts: a seat at the usage-limit menu first, then the rest as planned. A reseat plan prints it.
+n=${#P_SEAT[@]} ORDER=()
+for ((i = 0; i < n; i++)); do [ -z "${P_LIMITED[$i]}" ] || ORDER+=("$i"); done
+for ((i = 0; i < n; i++)); do [ -n "${P_LIMITED[$i]}" ] || ORDER+=("$i"); done
+[ $RESEAT -eq 0 ] || [ $n -lt 2 ] || echo "ORDER: $(for i in "${ORDER[@]}"; do printf '%s ' "${P_SEAT[$i]}"; done)"
 stopped=1
 [ $RESEAT -eq 0 ] || work_list
 if [ $APPLY -eq 1 ]; then
   n=${#P_SEAT[@]}
   # Every harness is stopped first, then the daemon, and only then does any seat start: a thread must never have two writers.
-  for ((i = 0; i < n; i++)); do
+  for i in ${ORDER[@]+"${ORDER[@]}"}; do
     [ -n "${P_PANE[$i]}" ] || continue
     sd=${P_CWD[$i]}; [ -z "${P_CARRY[$i]}" ] || sd=$(dirname "${P_OLD[$i]}") # a carry's new folder is not there yet, and its old one is about to go
     if ! stop_seat "${P_PANE[$i]}" "$sd" "${P_SID[$i]}"; then echo "FAILED ${P_SEAT[$i]}: its old process would not stop, so it was not restarted"; P_SEAT[$i]=""; failed=$((failed+1)); fi
   done
   [ $RESEAT -eq 0 ] || stop_daemon
   proved_codex=0 proved_claude=0
-  for ((i = 0; i < n; i++)); do
-    seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
+  for ((k = 0; k < n; k++)); do
+    i=${ORDER[$k]}; seat=${P_SEAT[$i]}; [ -n "$seat" ] || continue
     [ $resumed -eq 0 ] || [ "$STAGGER" -eq 0 ] || pause "$STAGGER" # first, so every check below is as fresh as the start
     if [ "${P_HARNESS[$i]}" = codex ] && ! rollout_free "${P_ROLL[$i]}"; then
       case "$HOLD_WHY" in pid*) echo "FAILED $seat: $HOLD_WHY, so it was not started: that would be two writers";; *) echo "FAILED $seat: $HOLD_WHY, so it was not started: it could be a second writer";; esac
@@ -916,24 +956,24 @@ if [ $APPLY -eq 1 ]; then
     if ! launch "$i"; then echo "FAILED $seat: $LAUNCH_WHY"; unseat "$i"; failed=$((failed+1)); continue; fi
     echo "RESUMED $seat: ${P_HARNESS[$i]} ${P_SID[$i]} (${P_MODE[$i]}; ${P_WHY[$i]}) in ${P_SESS[$i]} at $(TZ=UTC date -r "$since" +%Y-%m-%dT%H:%M:%SZ)"; resumed=$((resumed+1))
     if [ "${P_HARNESS[$i]}" = codex ] && [ $proved_codex -eq 0 ]; then
-      prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+      prove_codex "$seat" "${P_SID[$i]}" "${P_MARK[$i]}" "$STATE/prompts/$seat.txt" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$k"; break; }
       proved_codex=1
     fi
     if [ -n "${P_OLD[$i]}" ] && [ "${P_HARNESS[$i]}" = codex ]; then
-      prove_moved "$seat" "${P_SID[$i]}" "${P_ROLL[$i]}" "${P_CWD[$i]}" "${P_SESS[$i]}" "$since" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+      prove_moved "$seat" "${P_SID[$i]}" "${P_ROLL[$i]}" "${P_CWD[$i]}" "${P_SESS[$i]}" "$since" || { stopped=0; unseat "$i"; recovery "$k"; break; }
     fi
     if [ "${P_HARNESS[$i]}" = claude ] && [ $proved_claude -eq 0 ]; then
-      prove_claude "$seat" "${P_MARK[$i]}" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+      prove_claude "$seat" "${P_MARK[$i]}" "${P_SESS[$i]}" || { stopped=0; unseat "$i"; recovery "$k"; break; }
       proved_claude=1
     fi
     if [ -n "${P_OLD[$i]}" ] && [ "${P_HARNESS[$i]}" = claude ]; then
-      prove_claude_moved "$seat" "${P_SID[$i]}" "${P_CWD[$i]}" "${P_OLD[$i]}" "${P_SESS[$i]}" "$claude_size" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$i"; break; }
+      prove_claude_moved "$seat" "${P_SID[$i]}" "${P_CWD[$i]}" "${P_OLD[$i]}" "${P_SESS[$i]}" "$claude_size" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$k"; break; }
     fi
   done
 fi
 
 if [ -n "$CARRY_BAD" ]; then echo "FAILED:$CARRY_BAD: the seat runs in its carried clone, but a linked worktree of it does not reach it. Bring this to zeo-rescue."; failed=$((failed+1)); fi
-echo "rescue: live $live, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
+echo "rescue: live $live, limited $limited, ok $ok, running $running, to resume $resume, to reseat $reseat, resumed $resumed, unresolved $unresolved, failed $failed"
 [ $stopped -eq 1 ] || exit 1
 [ $failed -eq 0 ] || exit 1
 [ $unresolved -eq 0 ] || exit 3

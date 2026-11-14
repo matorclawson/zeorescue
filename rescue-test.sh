@@ -18,7 +18,7 @@ case "\$3" in
   list-panes)  s=\${6#=}; if grep -q "^\$s|" "$T/panes" 2>/dev/null; then grep "^\$s|" "$T/panes" | cut -d'|' -f2-; else echo "%\$s|9|1|sleep"; fi ;;
   set-option)  [ ! -f "$T/optfail" ] || exit 1; printf '%s\n' "\$*" >> "$T/opts" ;;
   show-options) cat "$T/seatmark" 2>/dev/null ;;
-  capture-pane) cat "$T/screen" 2>/dev/null ;;
+  capture-pane) [ ! -f "$T/capfail" ] || exit 1; [ ! -f "$T/screen" ] || cat "$T/screen" ;;
   respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
     case "\$*" in *" -- sleep 3600") [ ! -f "$T/onstop" ] || bash "$T/onstop";; esac
     case "\$*" in *" --resume "*) sid=\$(printf "%s\n" "\$*" | sed -E "s/.* --resume ([^ ]+).*/\\1/"); if [ -f "$T/claudeadd" ]; then for f in "$T"/projects/*/\$sid.jsonl; do cat "$T/claudeadd" >> "\$f"; done; fi; printf "9 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; [ ! -f "$T/secondclaude" ] || printf "77 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; if [ -f "$T/forksession" ]; then for f in "$T"/projects/*/\$sid.jsonl; do : > "\${f%/*}/99999999-9999-4999-8999-999999999999.jsonl"; done; fi;; esac;
@@ -328,6 +328,29 @@ out=$(R --apply --seat cl 2>&1); rc=$?; rm -f "$T/lsof.fail-run"
 [ $rc -eq 1 ] && echo "$out" | grep -qF "FAILED cl: whether a claude or codex process works in $T/w/cl cannot be read just before the start (lsof exited 1 with no output: lsof: can not read a process); it was not started" && ! grep -q new-session "$T/tmux.log" && ok "and if lsof cannot say, there is no start either" || bad "final guard fail: $rc $out"
 : > "$T/ps.out"; : > "$T/lsof.out"
 for f in ps.out psE.out lsof.out; do cp "$T/keep/$f" "$T/$f"; done; reset_live
+
+echo "-- LIMITED: a Claude seat at the usage-limit menu is read from its screen, never answered"
+grep -q 'send-keys' "$HERE/rescue.sh" && bad "rescue.sh can send a key to a seat" || ok "rescue.sh has no send-keys anywhere: it reads screens, never answers them"
+mkdir -p "$T/keep"; for f in ps.out psE.out lsof.out; do cp "$T/$f" "$T/keep/$f" 2>/dev/null || : > "$T/keep/$f"; done
+LM=$'  Claude usage limit reached.\n  1. Switch to usage credits\n  2. Stop and wait for limit to reset\n'
+reset_live; rm -f "$T/screen" "$T/capfail"; echo cl-maintainer >> "$T/live"
+echo "$(R --seat cl 2>&1)" | grep -qxF 'LIVE cl (cl-maintainer)' && ok "control: a Claude seat with an ordinary screen reads LIVE" || bad "limit control: $(R --seat cl 2>&1)"
+printf '%s' "$LM" > "$T/screen"; out=$(R --seat cl 2>&1)
+echo "$out" | grep -q '^LIMITED cl (cl-maintainer): at the usage-limit menu' && ! echo "$out" | grep -q '^LIVE cl' && echo "$out" | grep -q 'limited 1,' && ! grep -q 'send-keys' "$T/tmux.log" \
+  && ok "positive control: the menu on its screen makes it LIMITED, counted, and no key is sent" || bad "limited: $out"
+: > "$T/tmux.log"; printf '%s' "$LM" > "$T/screen"; echo "9 /x/claude --resume 22222222-2222-4222-8222-222222222222" > "$T/ps.out"; printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=acct ZMAIL_INSTANCE=cl GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"
+out=$(R --check --seat cl 2>&1); echo "$out" | grep -q '^WRONG cl (claude): .*LIMITED: at the usage-limit menu' && ! grep -q 'send-keys' "$T/tmux.log" && ok "--check names it WRONG: LIMITED" || bad "check limited: $out"
+echo cx-maintainer >> "$T/live"; echo "$(R --seat cx 2>&1)" | grep -qxF 'LIVE cx (cx-maintainer)' && ok "a Codex seat is not judged by this menu" || bad "codex limited: $(R --seat cx 2>&1)"
+touch "$T/capfail"; echo "$(R --seat cl 2>&1)" | grep -q '^LIVE cl (cl-maintainer): its screen cannot be read' && ok "a screen that cannot be read is said so, never taken as clear" || bad "capfail: $(R --seat cl 2>&1)"; rm -f "$T/capfail"
+# the order: in a chart that lists cx before cl, a LIMITED cl is restarted first
+printf '{"seats":[%s,%s]}' "$(row cx cx codex h cx-maintainer "$T/w/cx")" "$(row cl cl claude h cl-maintainer "$T/w/cl")" > "$T/chart-xl.json"
+reset_live; printf 'cx-maintainer\ncl-maintainer\n' > "$T/live"; printf 'cx-maintainer|%%8|800||codex\ncl-maintainer|%%3|9||claude\n' > "$T/panes"
+printf '800 /x/codex resume 44444444-4444-4444-8444-444444444444\n9 /x/claude --resume 22222222-2222-4222-8222-222222222222\n' > "$T/ps.out"
+rm -f "$T/screen"; out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-xl.json" --reseat 2>&1)
+echo "$out" | grep -qx 'ORDER: cx cl ' && ok "control: with no seat at the menu, the starts follow the plan" || bad "order control: $out"
+printf '%s' "$LM" > "$T/screen"; out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-xl.json" --reseat 2>&1)
+echo "$out" | grep -q '^LIMITED cl: at the usage-limit menu; it is restarted first' && echo "$out" | grep -qx 'ORDER: cl cx ' && ok "positive control: a LIMITED seat is restarted first" || bad "order: $out"
+rm -f "$T/screen"; for f in ps.out psE.out lsof.out; do cp "$T/keep/$f" "$T/$f"; done; reset_live
 
 echo "-- a stuck process and the daemon"
 reset_live; echo cx-maintainer >> "$T/live"; { echo 'cx-maintainer|%8|800||codex'; } > "$T/panes"
