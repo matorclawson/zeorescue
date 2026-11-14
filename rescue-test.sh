@@ -19,7 +19,7 @@ case "\$3" in
   set-option)  [ ! -f "$T/optfail" ] || exit 1; printf '%s\n' "\$*" >> "$T/opts" ;;
   show-options) cat "$T/seatmark" 2>/dev/null ;;
   capture-pane) [ ! -f "$T/capfail" ] || exit 1; [ ! -f "$T/screen" ] || cat "$T/screen" ;;
-  respawn-pane) printf '%s\n' "\$*" >> "$T/launched"
+  respawn-pane) printf '%s\n' "\$*" >> "$T/launched"; [ ! -f "$T/onrespawn" ] || bash "$T/onrespawn" "\$*"
     case "\$*" in *" -- sleep 3600") [ ! -f "$T/onstop" ] || bash "$T/onstop";; esac
     case "\$*" in *" --resume "*) sid=\$(printf "%s\n" "\$*" | sed -E "s/.* --resume ([^ ]+).*/\\1/"); if [ -f "$T/claudeadd" ]; then for f in "$T"/projects/*/\$sid.jsonl; do cat "$T/claudeadd" >> "\$f"; done; fi; printf "9 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; [ ! -f "$T/secondclaude" ] || printf "77 /x/claude --resume %s\n" "\$sid" >> "$T/ps.out"; if [ -f "$T/forksession" ]; then for f in "$T"/projects/*/\$sid.jsonl; do : > "\${f%/*}/99999999-9999-4999-8999-999999999999.jsonl"; done; fi;; esac;
     case "\$*" in *" resume "*--no-daemon*) id=\${@: -1}; if [ -f "$T/snapwrite" ]; then cp "$T/snapwrite" "$T/snap/\$id.new.sh"; fi; [ ! -f "$T/heldafter" ] || cp "$T/heldafter" "$T/lsof.held"; [ ! -f "$T/latehold" ] || touch "$T/heldlate"; [ ! -f "$T/rolladd" ] || cat "$T/rolladd" >> "$T/sess/full.jsonl" ;; esac ;;
@@ -102,7 +102,7 @@ J
 export ZEO_RESCUE_ZSH="$T/bin/zsh-probe" ZEO_RESCUE_CLAUDE_JSON="$T/claude.json"
 export ZEO_RESCUE_PINS="$T/no-pins" ZEO_RESCUE_STATE="$T/state" ZEO_RESCUE_PROJECTS="$T/projects" ZEO_RESCUE_CODEX_DB="$T/db" ZEO_RESCUE_TMUX="$T/bin/tmux" ZEO_RESCUE_SNAPSHOTS="$T/snap" \
   ZEO_RESCUE_SQLITE="$T/bin/sqlite3" ZEO_RESCUE_PS="$T/bin/ps" ZEO_RESCUE_LSOF="$T/bin/lsof" ZEO_RESCUE_KILL="$T/bin/kill" ZEO_RESCUE_CLAUDE=/x/claude ZEO_RESCUE_CODEX=/x/codex \
-  ZEO_RESCUE_PROOF_TRIES=2 ZEO_RESCUE_PROOF_PAUSE=0 ZEO_RESCUE_STOP_TRIES=2 ZEO_RESCUE_DAEMON_WAIT=0
+  ZEO_RESCUE_PROOF_TRIES=2 ZEO_RESCUE_PROOF_PAUSE=0 ZEO_RESCUE_STOP_TRIES=2 ZEO_RESCUE_DAEMON_WAIT=0 ZEO_RESCUE_LIMIT_WAIT=0
 : > "$T/db" # the stub answers the SQL; the database file is only copied (db_read)
 # The per-seat git markers the Architect would name for seats whose snapshots record none (every Claude seat): nothing defaults.
 printf 'cl master\ncxw inactive\ncxn master\nka master\n' > "$T/state/seat-markers"
@@ -350,6 +350,40 @@ rm -f "$T/screen"; out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/char
 echo "$out" | grep -qx 'ORDER: cx cl ' && ok "control: with no seat at the menu, the starts follow the plan" || bad "order control: $out"
 printf '%s' "$LM" > "$T/screen"; out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-xl.json" --reseat 2>&1)
 echo "$out" | grep -q '^LIMITED cl: at the usage-limit menu; it is restarted first' && echo "$out" | grep -qx 'ORDER: cl cx ' && ok "positive control: a LIMITED seat is restarted first" || bad "order: $out"
+echo "-- the account, from the keychain login in a fresh process; and after every Claude restart, no usage-limit menu"
+cat > "$T/bin/claude-auth" <<S
+#!/bin/bash
+[ "\$1 \$2 \$3" = "auth status --json" ] || exit 9
+[ -z "\${ANTHROPIC_API_KEY:-}\${CLAUDE_CONFIG_DIR:-}" ] || { echo '{"loggedIn":false}'; exit 0; } # an inherited setting would change the answer
+cat "$T/auth.json" 2>/dev/null
+S
+chmod +x "$T/bin/claude-auth"; export ZEO_RESCUE_CLAUDE_AUTH=$T/bin/claude-auth
+printf '{"loggedIn":true,"email":"someone@example.org","orgId":"org-test","orgName":"Example Org","accessToken":"tok-FAKE-for-tests"}' > "$T/auth.json"
+[ "$(ANTHROPIC_API_KEY=x "$T/bin/claude-auth" auth status --json)" = '{"loggedIn":false}' ] && ok "control: the auth stub answers differently when a caller's setting leaks into it" || bad "auth stub"
+reset_live; rm -f "$T/screen"; : > "$T/ps.out"; printf '%s' "$CLE" > "$T/psE.out"
+out=$(ANTHROPIC_API_KEY=x R --apply --seat cl --expect-org 'Example Org' 2>&1); rc=$?
+echo "$out" | grep -qxF 'ACCOUNT: logged in, email domain example.org, organization Example Org' && ! echo "$out" | grep -qE 'someone|tok-FAKE|org-test' && echo "$out" | grep -q '^RESUMED cl' && echo "$out" | grep -q '^SEAT OK cl: no usage-limit menu' \
+  && ok "the login is read in a fresh process; only the email domain and organization are printed; the seat is checked after its restart" || bad "account: $rc $out"
+reset_live; : > "$T/ps.out"; out=$(R --apply --seat cl --expect-org 'Other Org' 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -qF "ACCOUNT REFUSED, nothing was stopped or started: the login is organization 'Example Org', not 'Other Org'" && ! grep -qE 'new-session|respawn-pane' "$T/tmux.log" \
+  && ok "positive control: a login of another organization is refused before any seat is stopped or started" || bad "account refused: $rc $out"
+reset_live; : > "$T/auth.json"; out=$(R --apply --seat cl --expect-org 'Example Org' 2>&1); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '^ACCOUNT UNKNOWN' && ! grep -q new-session "$T/tmux.log" && ok "a login that cannot be read is refused when an organization is expected" || bad "account unknown: $rc $out"
+out=$(R --seat cl --expect-org 'Example Org' 2>&1); [ $? -eq 2 ] && ok "--expect-org goes only with --apply" || bad "expect usage"
+printf '#!/bin/bash\nsleep 30\n' > "$T/bin/claude-hang"; chmod +x "$T/bin/claude-hang"; reset_live; s0=$(date +%s)
+out=$(ZEO_RESCUE_AUTH_WAIT=1 ZEO_RESCUE_CLAUDE_AUTH=$T/bin/claude-hang R --apply --seat cl --expect-org 'Example Org' 2>&1); rc=$?; s1=$(date +%s)
+[ $rc -eq 1 ] && echo "$out" | grep -q '^ACCOUNT UNKNOWN' && [ $((s1 - s0)) -lt 10 ] && ! grep -q new-session "$T/tmux.log" && ok "a claude auth status that hangs is cut off after ZEO_RESCUE_AUTH_WAIT and counts as unreadable" || bad "auth hang: $rc $((s1 - s0))s $out"
+printf '{"loggedIn":true,"email":"someone@example.org","orgName":"Example Org"}' > "$T/auth.json"
+# every Claude seat is checked, not only the first: a second seat comes up at the menu
+mkdir -p "$T/w/cl3"; d3=$T/projects/$(enc "$T/w/cl3"); mkdir -p "$d3"; echo '{"permissionMode":"auto"}' > "$d3/12121212-1212-4121-8121-121212121212.jsonl"
+printf '{"seats":[%s,%s]}' "$(row cl cl claude h cl-maintainer "$T/w/cl")" "$(row cm cm claude h cm-maintainer "$T/w/cl3")" > "$T/chart-2c.json"
+cp "$T/state/seat-markers" "$T/markers.keep"; echo 'cm master' >> "$T/state/seat-markers"
+printf 'case "$1" in *12121212-1212-4121-8121-121212121212*) printf "%%s" "%s" > "%s";; esac\n' "$LM" "$T/screen" > "$T/onrespawn"
+reset_live; rm -f "$T/screen"; : > "$T/ps.out"; printf 'ZEO_TMUX_SEAT=master ZEO_TMUX_ACCOUNT=acct ZMAIL_INSTANCE=cl ZMAIL_INSTANCE=cm GIT_ALLOW_PROTOCOL=ssh:https:file HOME=/x' > "$T/psE.out"
+out=$("$HERE/rescue.sh" --host h --stagger 0 --chart "$T/chart-2c.json" --apply --expect-org 'Example Org' 2>&1); rc=$?
+echo "$out" | grep -q '^SEAT OK cl: no usage-limit menu' && echo "$out" | grep -q '^STOPPED: cm is at the usage-limit menu 0 s after its restart' && [ $rc -eq 1 ] \
+  && ok "positive control: the second seat at the menu stops the run; every seat is checked, not only the first" || bad "every seat: $rc $out"
+rm -f "$T/onrespawn" "$T/screen"; cp "$T/markers.keep" "$T/state/seat-markers"; unset ZEO_RESCUE_CLAUDE_AUTH
 rm -f "$T/screen"; for f in ps.out psE.out lsof.out; do cp "$T/keep/$f" "$T/$f"; done; reset_live
 
 echo "-- a stuck process and the daemon"

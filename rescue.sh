@@ -91,7 +91,13 @@ CLAUDE_JSON=${ZEO_RESCUE_CLAUDE_JSON:-$HOME/.claude.json}
 PROOF_TRIES=${ZEO_RESCUE_PROOF_TRIES:-24}
 PROOF_PAUSE=${ZEO_RESCUE_PROOF_PAUSE:-5}
 STOP_TRIES=${ZEO_RESCUE_STOP_TRIES:-30}
-SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0 IN_PLACE=0
+LIMIT_WAIT=${ZEO_RESCUE_LIMIT_WAIT:-30} # after each Claude restart, how long to wait before reading its screen for the usage-limit menu
+CLAUDE_AUTH=${ZEO_RESCUE_CLAUDE_AUTH:-$CLAUDE} # the CLI asked for the login; tests give a stub
+AUTH_WAIT=${ZEO_RESCUE_AUTH_WAIT:-20} # seconds claude auth status may take before it counts as unreadable
+# BOUNDED: perl -e "$BOUNDED" SECONDS CMD...: runs CMD in its own process group and kills the whole group after SECONDS (exit 124), so a
+# child that keeps the output open cannot hold the caller either.
+BOUNDED='$t = shift; $p = fork; die unless defined $p; if (!$p) { setpgrp(0, 0); exec @ARGV or exit 127 } $SIG{ALRM} = sub { kill "KILL", -$p; exit 124 }; alarm $t; waitpid($p, 0); exit($? >> 8)'
+SOCKET=zeo2 HOST_NAME=${ZEO_RESCUE_HOST:-$(head -n 1 "$STATE/host-name" 2>/dev/null || hostname -s)} HARNESS=all STAGGER=20 APPLY=0 ONLY=" " RESEAT=0 RELAUNCH=0 RESTART=0 UPGRADE=0 EXCEPT=" " CHECK=0 SESSION="" SESSION_ARG="" NOTE_FILE="" BEFORE="" BREAK_STALE=0 IN_PLACE=0 EXPECT_ORG=""
 PINS=${ZEO_RESCUE_PINS:-$STATE/session-pins}
 MOVES=${ZEO_RESCUE_MOVES:-$STATE/folder-moves}
 MARKERS=${ZEO_RESCUE_MARKERS:-$STATE/seat-markers}
@@ -109,6 +115,7 @@ while [ $# -gt 0 ]; do
     --restart) RESTART=1; shift;;
     --upgrade) UPGRADE=1; shift;;
     --in-place) IN_PLACE=1; shift;;
+    --expect-org) [ $# -ge 2 ] || usage; EXPECT_ORG=$2; shift 2;;
     --except) [ $# -ge 2 ] || usage; EXCEPT="$EXCEPT$2 "; shift 2;;
     --check) CHECK=1; shift;;
     --harness) [ $# -ge 2 ] || usage; HARNESS=$2; shift 2;;
@@ -131,6 +138,9 @@ case "$HARNESS" in claude|codex|all) ;; *) usage;; esac
 [ $BREAK_STALE -eq 0 ] || [ $APPLY -eq 1 ] || usage
 [ $UPGRADE -eq 0 ] || [ $RELAUNCH -eq 1 ] || usage
 [ $IN_PLACE -eq 0 ] || [ $RESEAT -eq 1 ] || usage
+[ -z "$EXPECT_ORG" ] || [ $APPLY -eq 1 ] || usage
+case "$LIMIT_WAIT" in ""|*[!0-9]*) usage;; esac
+case "$AUTH_WAIT" in ""|*[!0-9]*|0) usage;; esac
 INPLACE_WHAT="an in-place restart"; [ $UPGRADE -eq 0 ] || INPLACE_WHAT="an upgrade"
 if [ $RESTART -eq 1 ]; then
   [ $RELAUNCH -eq 1 ] && [ -n "$NOTE_FILE" ] || usage
@@ -921,10 +931,36 @@ n=${#P_SEAT[@]} ORDER=()
 for ((i = 0; i < n; i++)); do [ -z "${P_LIMITED[$i]}" ] || ORDER+=("$i"); done
 for ((i = 0; i < n; i++)); do [ -n "${P_LIMITED[$i]}" ] || ORDER+=("$i"); done
 [ $RESEAT -eq 0 ] || [ $n -lt 2 ] || echo "ORDER: $(for i in "${ORDER[@]}"; do printf '%s ' "${P_SEAT[$i]}"; done)"
+# The account: read from the keychain login by `claude auth status` in a fresh process, never from the home .claude.json, whose email is not
+# the billing account. Only the email's domain and the organization name are printed; a token is never read or printed.
+account_check() { # account_check: prints ACCOUNT; fails when --expect-org is given and the login is not that organization, or cannot be read
+  local out ok dom org
+  # perl's alarm bounds the wait: this host has no timeout command, and a CLI that hangs must not hold a rescue
+  out=$(env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin:/usr/sbin:/sbin /usr/bin/perl -e "$BOUNDED" "$AUTH_WAIT" "$CLAUDE_AUTH" auth status --json 2>/dev/null)
+  ok=$(printf '%s' "$out" | "$JQ" -r '.loggedIn // false' 2>/dev/null)
+  dom=$(printf '%s' "$out" | "$JQ" -r '(.email // "") | split("@") | if length == 2 then .[1] else "" end' 2>/dev/null)
+  org=$(printf '%s' "$out" | "$JQ" -r '.orgName // ""' 2>/dev/null)
+  if [ "$ok" != true ] || [ -z "$org" ]; then
+    echo "ACCOUNT UNKNOWN: claude auth status gave no logged-in organization"; [ -z "$EXPECT_ORG" ] || return 1; return 0
+  fi
+  echo "ACCOUNT: logged in, email domain ${dom:-unknown}, organization $org"
+  [ -z "$EXPECT_ORG" ] || [ "$org" = "$EXPECT_ORG" ] || { echo "ACCOUNT REFUSED, nothing was stopped or started: the login is organization '$org', not '$EXPECT_ORG'"; return 1; }
+}
+limit_clear() { # limit_clear INDEX SESSION: after a Claude restart, wait LIMIT_WAIT and read its screen; fails at the usage-limit menu
+  local id pid opt cmd rc
+  pause "$LIMIT_WAIT"
+  IFS='|' read -r id pid opt cmd < <(panes_of "$2")
+  limited_pane "$id"; rc=$?
+  [ $rc -ne 0 ] || { echo "STOPPED: ${P_SEAT[$1]} is at the usage-limit menu $LIMIT_WAIT s after its restart: the login does not carry it; no other seat was started"; return 1; }
+  [ $rc -eq 1 ] || { echo "STOPPED: ${P_SEAT[$1]}'s screen cannot be read $LIMIT_WAIT s after its restart; no other seat was started"; return 1; }
+  echo "SEAT OK ${P_SEAT[$1]}: no usage-limit menu $LIMIT_WAIT s after its restart"
+}
+has_claude=0; for ((i = 0; i < n; i++)); do [ "${P_HARNESS[$i]}" != claude ] || has_claude=1; done
 stopped=1
 [ $RESEAT -eq 0 ] || work_list
 if [ $APPLY -eq 1 ]; then
   n=${#P_SEAT[@]}
+  if [ $has_claude -eq 1 ] || [ -n "$EXPECT_ORG" ]; then account_check || exit 1; fi
   # Every harness is stopped first, then the daemon, and only then does any seat start: a thread must never have two writers.
   for i in ${ORDER[@]+"${ORDER[@]}"}; do
     [ -n "${P_PANE[$i]}" ] || continue
@@ -969,6 +1005,7 @@ if [ $APPLY -eq 1 ]; then
     if [ -n "${P_OLD[$i]}" ] && [ "${P_HARNESS[$i]}" = claude ]; then
       prove_claude_moved "$seat" "${P_SID[$i]}" "${P_CWD[$i]}" "${P_OLD[$i]}" "${P_SESS[$i]}" "$claude_size" "$STATE/prompts/$seat.txt" || { stopped=0; unseat "$i"; recovery "$k"; break; }
     fi
+    if [ "${P_HARNESS[$i]}" = claude ]; then limit_clear "$i" "${P_SESS[$i]}" || { stopped=0; recovery "$((k+1))"; break; }; fi
   done
 fi
 
